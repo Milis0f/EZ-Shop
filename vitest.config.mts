@@ -14,7 +14,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/engine/**", "src/providers/**", "src/domain/**", "src/server/pipeline/**"],
+      include: ["src/engine/**", "src/providers/**", "src/domain/**", "src/server/pipeline/**", "src/server/repositories/**"],
       // Declaration-only modules (types / interfaces) carry no executable code.
       exclude: ["**/*.test.ts", "src/domain/market.ts", "src/domain/product.ts", "src/domain/scoring.ts", "src/engine/scoring/types.ts"],
     },
