@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { describeStorageError, parseJsonForStorage, UnsafeJsonKeysError } from "@/lib/storage-safe";
 import type { ProviderCacheRepository } from "@/server/repositories/types";
 import { fail, ok, type ProviderErrorCode, type ProviderResult } from "./contracts";
 
@@ -75,8 +76,9 @@ export async function httpJson(url: string, label: string, options: HttpOptions)
   const text = await httpText(url, label, options);
   if (!text.ok) return text;
   try {
-    return ok(JSON.parse(text.data) as unknown);
-  } catch {
+    return ok(parseJsonForStorage(text.data));
+  } catch (error: unknown) {
+    if (error instanceof UnsafeJsonKeysError) return fail("invalid_response", `${label}: response keys are not storable`);
     return fail("invalid_response", `${label}: response is not valid JSON`);
   }
 }
@@ -110,6 +112,10 @@ export const cacheKey = (providerId: string, request: string): string =>
  * empty answer stays cacheable. A cached entry that fails it counts as a miss and is overwritten by
  * the next valid answer. An invalid payload loaded from the network is still returned, so the
  * adapter's own parser reports the error. Failures are always retried on the next analysis.
+ *
+ * The cache is an optimisation, never a dependency: a failing read counts as a miss and a failing
+ * write still returns the loaded result. Both are logged with the provider id and a controlled
+ * diagnostic only, never the error message, the key or the payload.
  */
 export async function cached<T>(
   cache: ProviderCacheRepository,
@@ -119,9 +125,24 @@ export async function cached<T>(
   load: () => Promise<ProviderResult<T>>,
   isValid: (payload: T) => boolean,
 ): Promise<ProviderResult<T> & { fromCache?: boolean }> {
-  const hit = await cache.get(key);
+  let hit: unknown = null;
+  try {
+    hit = await cache.get(key);
+  } catch (error: unknown) {
+    warnCacheFailure(providerId, "read", error);
+  }
   if (hit !== null && isValid(hit as T)) return { ok: true, data: hit as T, fromCache: true };
   const result = await load();
-  if (result.ok && isValid(result.data)) await cache.set(key, providerId, result.data, ttlSeconds);
+  if (result.ok && isValid(result.data)) {
+    try {
+      await cache.set(key, providerId, result.data, ttlSeconds);
+    } catch (error: unknown) {
+      warnCacheFailure(providerId, "write", error);
+    }
+  }
   return result;
+}
+
+function warnCacheFailure(providerId: string, operation: "read" | "write", error: unknown): void {
+  console.warn(`[cache] ${providerId} ${operation} failed: ${describeStorageError(error)}`);
 }

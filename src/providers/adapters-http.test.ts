@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { MemoryCacheRepository } from "@/server/repositories/memory-repositories";
 import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
@@ -63,6 +63,25 @@ describe("http layer", () => {
     expect(await httpJson("https://x.test", "X", { timeoutMs: 500 })).toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
+  it("httpJson returns storage-safe strings", async () => {
+    stubFetch(() => new Response('{"title":"x\\u0000y","\\u0000k":["\\ud800"]}'));
+    expect(await httpJson("https://x.test", "X", { timeoutMs: 500 })).toEqual({ ok: true, data: { title: "xy", k: ["�"] } });
+  });
+
+  it("httpJson reports colliding keys as an invalid response", async () => {
+    stubFetch(() => new Response('{"a\\u0000":1,"a":2}'));
+    const result = await httpJson("https://x.test", "X", { timeoutMs: 500 });
+    expect(result).toMatchObject({ ok: false, error: { code: "invalid_response", message: "X: response keys are not storable" } });
+  });
+
+  it("httpJson keeps the JSON failure message for text that is not JSON", async () => {
+    stubFetch(() => new Response("<html>"));
+    expect(await httpJson("https://x.test", "X", { timeoutMs: 500 })).toMatchObject({
+      ok: false,
+      error: { code: "invalid_response", message: "X: response is not valid JSON" },
+    });
+  });
+
   it("serves the second call from cache", async () => {
     const calls = stubFetch(() => json({ v: 1 }));
     const cache = new MemoryCacheRepository();
@@ -99,6 +118,80 @@ describe("cached", () => {
     const result = await cached(cache, "k", "p", 60, load, () => true);
     expect(result).toEqual({ ok: true, data: { v: 1 }, fromCache: true });
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe("cached when the cache fails", () => {
+  const PAYLOAD_VALUE = "PAYLOAD-VALUE-9";
+  const dbDown = () => new Error(`db down: payload ${SECRET}`);
+  let warn: MockInstance<typeof console.warn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  /** Everything the warning printed, joined: the place where a leak would show. */
+  const warned = () => warn.mock.calls.flat().map(String).join(" ");
+  const expectNoLeak = () => {
+    for (const forbidden of [SECRET, "db down", PAYLOAD_VALUE, "cache-key-abc"]) expect(warned()).not.toContain(forbidden);
+  };
+
+  it("still answers when the cache read throws", async () => {
+    const cache = { get: vi.fn().mockRejectedValue(dbDown()), set: vi.fn().mockResolvedValue(undefined) };
+    const load = vi.fn(async () => ok({ title: PAYLOAD_VALUE }));
+
+    const result = await cached(cache, "cache-key-abc", "provider-x", 60, load, () => true);
+
+    expect(result).toEqual({ ok: true, data: { title: PAYLOAD_VALUE } });
+    expect(load).toHaveBeenCalledOnce();
+    // A failed read is a miss: the answer is still stored.
+    expect(cache.set).toHaveBeenCalledWith("cache-key-abc", "provider-x", { title: PAYLOAD_VALUE }, 60);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith("[cache] provider-x read failed: Error");
+    expectNoLeak();
+  });
+
+  it("still answers when the cache write throws", async () => {
+    const cache = { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockRejectedValue(dbDown()) };
+
+    const result = await cached(cache, "cache-key-abc", "provider-x", 60, async () => ok({ title: PAYLOAD_VALUE }), () => true);
+
+    expect(result).toEqual({ ok: true, data: { title: PAYLOAD_VALUE } });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith("[cache] provider-x write failed: Error");
+    expectNoLeak();
+  });
+
+  it("reports the SQLSTATE a database error carries, one level down", async () => {
+    const driver = Object.assign(new Error(`unsupported escape ${SECRET}`), { name: "error", code: "22P05" });
+    const wrapped = new Error(`Failed query: insert into provider_cache\nparams: ${PAYLOAD_VALUE}`, { cause: driver });
+    const cache = { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockRejectedValue(wrapped) };
+
+    await cached(cache, "cache-key-abc", "provider-x", 60, async () => ok({ title: PAYLOAD_VALUE }), () => true);
+
+    expect(warn).toHaveBeenCalledWith("[cache] provider-x write failed: Error (code 22P05)");
+    expectNoLeak();
+  });
+
+  it("answers and warns twice when both the read and the write throw", async () => {
+    const cache = { get: vi.fn().mockRejectedValue(dbDown()), set: vi.fn().mockRejectedValue(dbDown()) };
+
+    const result = await cached(cache, "cache-key-abc", "provider-x", 60, async () => ok({ title: PAYLOAD_VALUE }), () => true);
+
+    expect(result).toEqual({ ok: true, data: { title: PAYLOAD_VALUE } });
+    expect(warn.mock.calls.map(([line]) => line)).toEqual(["[cache] provider-x read failed: Error", "[cache] provider-x write failed: Error"]);
+    expectNoLeak();
+  });
+
+  it("does not warn about a write that is never attempted", async () => {
+    const cache = { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockRejectedValue(dbDown()) };
+
+    const result = await cached(cache, "cache-key-abc", "provider-x", 60, async () => ok({ error: true }), () => false);
+
+    expect(result).toEqual({ ok: true, data: { error: true } });
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

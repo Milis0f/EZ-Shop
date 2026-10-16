@@ -5,6 +5,9 @@ import type { ServerEnv } from "@/config/env";
 import type { AnalysisResult } from "@/domain/analysis";
 import type { CountryCode } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
+import { parseJsonForStorage } from "@/lib/storage-safe";
+import { ok } from "@/providers/contracts";
+import { cached } from "@/providers/http";
 import { REAL_PROVIDER_METAS } from "@/providers/registry";
 import { createTestDatabase, truncateAll, type TestDatabase } from "@/test/pglite";
 import { TEST_NOW as NOW } from "@/test/fixtures";
@@ -235,5 +238,36 @@ describe("Drizzle repositories on in-memory PGlite", () => {
     await cache.set("k2", "p", {}, -1);
     expect(await cache.get("k2")).toBeNull();
     expect(await cache.get("missing")).toBeNull();
+  });
+
+  it("stores a provider payload once it went through httpJson", async () => {
+    // A provider body with a NUL escape or a lone surrogate: Postgres refuses it in jsonb.
+    const nul = '{"t":"a\\u0000b"}';
+    const surrogate = '{"t":"a\\ud800b"}';
+    // 22P05 = untranslatable_character (U+0000), 22P02 = invalid_text_representation (lone surrogate).
+    await expect(cache.set("raw-nul", "p", JSON.parse(nul), 60)).rejects.toMatchObject({ cause: { code: "22P05" } });
+    await expect(cache.set("raw-surrogate", "p", JSON.parse(surrogate), 60)).rejects.toMatchObject({ cause: { code: "22P02" } });
+    expect(await cache.get("raw-nul")).toBeNull();
+
+    // The same bodies, parsed the way httpJson parses them, are stored.
+    await cache.set("safe-nul", "p", parseJsonForStorage(nul), 60);
+    await cache.set("safe-surrogate", "p", parseJsonForStorage(surrogate), 60);
+    expect(await cache.get("safe-nul")).toEqual({ t: "ab" });
+    expect(await cache.get("safe-surrogate")).toEqual({ t: "a�b" });
+  });
+
+  it("keeps cached() answering when Postgres rejects the payload, and logs the SQLSTATE only", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await cached(cache, "k-reject", "provider-x", 60, async () => ok(JSON.parse('{"t":"a\\u0000b-PAYLOAD-VALUE-9"}') as unknown), () => true);
+
+      expect(result).toEqual({ ok: true, data: { t: "a\u0000b-PAYLOAD-VALUE-9" } });
+      expect(await cache.get("k-reject")).toBeNull();
+      expect(warn).toHaveBeenCalledOnce();
+      // Drizzle's message embeds the SQL and its parameters: only the name and the SQLSTATE of the cause reach the log.
+      expect(warn.mock.calls[0]).toEqual(["[cache] provider-x write failed: Error (code 22P05)"]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
