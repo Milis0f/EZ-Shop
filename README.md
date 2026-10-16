@@ -116,6 +116,25 @@ docs/ARCHITECTURE.md
 
 Responses use `{ success, data, error }`.
 
+`POST /api/analyses` answers:
+
+- `415 unsupported_media_type` unless `Content-Type` is `application/json`;
+- `403 forbidden_origin` when an `Origin` header is present and is not exactly the scheme and host the
+  request was sent to (compared with the `Host` header; `null`, a path, a query, user info or a list of
+  values are refused). `X-Forwarded-Host` is never trusted;
+- `429 rate_limited` after 10 analyses per minute. `X-Forwarded-For` is ignored, so it cannot be used
+  to dodge the limit.
+
+The checks run in that order (request guard, rate limit, then body), so refused requests do not use up
+the rate limit.
+
+**Limits of the local protection.** This is not authentication: requests without an `Origin` header
+(curl, local scripts, any program on the machine) are accepted, because the origin check only stops a
+page on another site from driving the API through a visitor's browser. DNS rebinding (a foreign domain
+resolving to 127.0.0.1) passes an `Origin` = `Host` check, since the browser sends that domain as both.
+The `GET` routes are not protected. The rate limit is a single bucket for the whole API, shared by all
+callers. Authentication and per-client limits belong to the deployment project.
+
 ## Known limitations
 
 - **Node 20.17 is end-of-life** (April 2026). Tooling is pinned to Node-20-compatible versions

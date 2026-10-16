@@ -1,5 +1,6 @@
 import { apiError, apiErrorFrom, apiOk } from "@/server/api-response";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
+import { checkJsonPost } from "@/server/request-guard";
 import { createAnalysis, listRecentAnalyses } from "@/server/services";
 
 /** GET /api/analyses — recent analyses (summaries). */
@@ -11,10 +12,22 @@ export async function GET() {
   }
 }
 
-/** POST /api/analyses — run a new analysis. Body: AnalysisInput (see src/domain/schemas.ts). */
+/**
+ * One rate-limit bucket for the whole API. The client address is deliberately not part of the key:
+ * `X-Forwarded-For` is client-controlled, so keying on it lets anyone dodge the limit. Per-client
+ * limits need a trusted proxy, which belongs to the deployment project.
+ */
+const RATE_LIMIT_KEY = "analysis:api";
+
+/**
+ * POST /api/analyses — run a new analysis. Body: AnalysisInput (see src/domain/schemas.ts).
+ * Order matters: request guard, then rate limit, then body.
+ */
 export async function POST(request: Request) {
-  const client = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  const limit = checkRateLimit(`analysis:${client}`, ANALYSIS_RATE_LIMIT.limit, ANALYSIS_RATE_LIMIT.windowMs);
+  const guard = checkJsonPost(request.headers);
+  if (!guard.ok) return apiError(guard.status, guard.code, guard.message);
+
+  const limit = checkRateLimit(RATE_LIMIT_KEY, ANALYSIS_RATE_LIMIT.limit, ANALYSIS_RATE_LIMIT.windowMs);
   if (!limit.allowed) {
     return apiError(429, "rate_limited", "Trop d'analyses, réessaie plus tard.", undefined, {
       "Retry-After": String(limit.retryAfterSeconds),
