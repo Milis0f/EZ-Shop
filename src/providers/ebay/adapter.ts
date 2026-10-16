@@ -100,6 +100,17 @@ const searchSchema = z.object({
     .optional(),
 });
 
+/**
+ * The answer is a Browse search result. Every member of `searchSchema` is optional, so `{}` or an
+ * `{ errors: [...] }` body would parse: the shape must also carry `total` or `itemSummaries`, and no
+ * top-level `errors`. A search without listings (`{ total: 0 }`) is a stable answer and stays cacheable.
+ */
+export function isEbaySearch(payload: unknown): boolean {
+  const parsed = searchSchema.safeParse(payload);
+  if (!parsed.success || typeof payload !== "object" || payload === null || "errors" in payload) return false;
+  return parsed.data.total !== undefined || parsed.data.itemSummaries !== undefined;
+}
+
 export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestable {
   readonly meta = ebayMeta;
   private token?: { value: string; expiresAt: number };
@@ -153,7 +164,7 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
           this.meta.id,
           CACHE_TTL_SECONDS,
           load,
-          (payload) => searchSchema.safeParse(payload).success,
+          isEbaySearch,
         );
     if (!raw.ok) return raw;
     const parsed = searchSchema.safeParse(raw.data);

@@ -110,6 +110,15 @@ export function parseAliExpress(payload: unknown): ProviderResult<{ total: numbe
   return ok({ total: num(result.total_record_count) ?? products.length, products });
 }
 
+/**
+ * Whether an answer may be cached: a product list, or a well-formed "no products" answer (resp_code 405).
+ * An `error_response` (signature, key, quota…) or any other status is transient and must be asked again.
+ */
+export function isCacheableAliExpress(payload: unknown): boolean {
+  const parsed = parseAliExpress(payload);
+  return parsed.ok || parsed.error.code === "no_data";
+}
+
 export class AliExpressProvider implements SourcingProvider, ConnectionTestable {
   readonly meta = aliexpressMeta;
 
@@ -162,7 +171,7 @@ export class AliExpressProvider implements SourcingProvider, ConnectionTestable 
         attempts: 1,
       });
     };
-    const raw = fresh ? await load() : await cached(this.cache, key, this.meta.id, CACHE_TTL_SECONDS, load, (payload) => parseAliExpress(payload).ok);
+    const raw = fresh ? await load() : await cached(this.cache, key, this.meta.id, CACHE_TTL_SECONDS, load, isCacheableAliExpress);
     if (!raw.ok) return raw;
     const parsed = parseAliExpress(raw.data);
     if (!parsed.ok) return parsed;

@@ -170,7 +170,7 @@ describe("MyMemoryProvider", () => {
 });
 
 describe("MetaAdLibraryProvider", () => {
-  const env ={ ...baseEnv, META_GRAPH_API_VERSION: "v99.0", META_AD_LIBRARY_ACCESS_TOKEN: SECRET } as ServerEnv;
+  const env = { ...baseEnv, META_GRAPH_API_VERSION: "v99.0", META_AD_LIBRARY_ACCESS_TOKEN: SECRET } as ServerEnv;
 
   it("is not configured without a token and out of coverage outside the EU", async () => {
     expect(new MetaAdLibraryProvider(baseEnv, 500).status().state).toBe("not_configured");

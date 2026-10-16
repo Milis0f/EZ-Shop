@@ -4,7 +4,7 @@ import { MemoryCacheRepository } from "@/server/repositories/memory-repositories
 import { AliExpressProvider, parseAliExpress, signAliExpress } from "./aliexpress/adapter";
 import { isTariffDocument, parseApplicableMeasures, parseHeadingLeaves, parseSearch } from "./customs/uk-tariff-parse";
 import { isUsitcPayload, parseUsLines, parseUsRate, specialRateFor } from "./customs/usitc";
-import { describeEbayError, EbayBrowseProvider } from "./ebay/adapter";
+import { describeEbayError, EbayBrowseProvider, isEbaySearch } from "./ebay/adapter";
 import { isJsonStat } from "./eurostat/adapter";
 import { parseSuggestions } from "./google-autocomplete/adapter";
 import { toEur } from "./reference/ecb-fx";
@@ -211,6 +211,16 @@ describe("AliExpress", () => {
     await provider.searchProducts({ terms: ["socks"], shipTo: "FR" });
     expect(calls).toHaveLength(2);
   });
+
+  it("keeps a well-formed 'no products' answer (resp_code 405) cached, so empty queries do not spend quota", async () => {
+    const env = { ...baseEnv, ALIEXPRESS_APP_KEY: "app-1", ALIEXPRESS_APP_SECRET: SECRET } as ServerEnv;
+    const calls = stubFetch(() => json({ resp_result: { resp_code: 405, resp_msg: "No result", result: {} } }));
+    const provider = new AliExpressProvider(env, new MemoryCacheRepository(), 500);
+
+    expect(await provider.searchProducts({ terms: ["xyzzy"], shipTo: "FR" })).toMatchObject({ ok: false, error: { code: "no_data" } });
+    expect(await provider.searchProducts({ terms: ["xyzzy"], shipTo: "FR" })).toMatchObject({ ok: false, error: { code: "no_data" } });
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe("eBay Browse", () => {
@@ -302,6 +312,16 @@ describe("cache validity predicates", () => {
     expect(isWorldBankData([{ total: 0 }, null])).toBe(true);
     expect(isWorldBankData([{ total: 1 }, [{ indicator: { id: "X" }, country: { id: "FR" }, date: "2025", value: null }]])).toBe(true);
     expect(isWorldBankData([{ message: [{ id: "120", value: "Invalid value" }] }])).toBe(false);
+
+    // eBay Browse: every member of the schema is optional, so the shape must carry `total` or `itemSummaries`.
+    expect(isEbaySearch({ total: 0 })).toBe(true);
+    expect(isEbaySearch({ total: 3, itemSummaries: [{ price: { value: "19.99", currency: "EUR" } }] })).toBe(true);
+    expect(isEbaySearch({})).toBe(false);
+    expect(isEbaySearch({ errors: [{ errorId: 1001 }] })).toBe(false);
+    expect(isEbaySearch({ total: 3, errors: [{ errorId: 1001 }] })).toBe(false);
+    expect(isEbaySearch({ total: "3" })).toBe(false);
+    expect(isEbaySearch(null)).toBe(false);
+    expect(isEbaySearch([])).toBe(false);
   });
 
   it("apply the same rule to Wikimedia answers", () => {
