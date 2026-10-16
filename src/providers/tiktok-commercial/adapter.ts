@@ -15,6 +15,7 @@ import {
   type ProviderStatus,
 } from "../contracts";
 import { httpJson } from "../http";
+import { sharedResult, type SharedResult } from "../shared-result";
 
 /**
  * TikTok Commercial Content API (Research API — ad library), EU ads.
@@ -48,6 +49,11 @@ export const tiktokCommercialMeta: ProviderMeta = {
 };
 
 const tokenSchema = z.object({ access_token: z.string().min(1), expires_in: z.number().optional() });
+/** The token with how long to keep it, derived from the `expires_in` TikTok returned. */
+interface ClientToken {
+  readonly token: string;
+  readonly ttlMs: number;
+}
 const querySchema = z.object({
   data: z.object({
     ads: z.array(
@@ -72,7 +78,8 @@ const toCompact = (iso: string): string => iso.replaceAll("-", "");
 export class TikTokCommercialContentProvider implements AdLibraryProvider {
   readonly meta = tiktokCommercialMeta;
   readonly platform = "tiktok" as const;
-  private token?: { value: string; expiresAt: number };
+  /** Countries run in parallel on this instance: they share one token request. */
+  private readonly clientToken: SharedResult<ClientToken> = sharedResult(() => this.loadToken(), { ttlMs: (value) => value.ttlMs });
 
   constructor(
     private readonly env: ServerEnv,
@@ -137,7 +144,11 @@ export class TikTokCommercialContentProvider implements AdLibraryProvider {
   }
 
   private async getToken(): Promise<ProviderResult<string>> {
-    if (this.token && this.token.expiresAt > Date.now()) return ok(this.token.value);
+    const client = await this.clientToken.get();
+    return client.ok ? ok(client.data.token) : client;
+  }
+
+  private async loadToken(): Promise<ProviderResult<ClientToken>> {
     const raw = await httpJson(`${API}/oauth/token/`, "TikTok client token", {
       timeoutMs: this.timeoutMs,
       method: "POST",
@@ -152,7 +163,6 @@ export class TikTokCommercialContentProvider implements AdLibraryProvider {
     if (!raw.ok) return raw;
     const parsed = tokenSchema.safeParse(raw.data);
     if (!parsed.success) return fail("invalid_response", "TikTok OAuth: missing access_token");
-    this.token = { value: parsed.data.access_token, expiresAt: Date.now() + ((parsed.data.expires_in ?? 3600) - 120) * 1000 };
-    return ok(parsed.data.access_token);
+    return ok({ token: parsed.data.access_token, ttlMs: ((parsed.data.expires_in ?? 3600) - 120) * 1000 });
   }
 }

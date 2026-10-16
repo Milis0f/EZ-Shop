@@ -17,6 +17,7 @@ import {
 } from "../contracts";
 import type { ErrorDescription } from "../http";
 import { cacheKey, cached, httpJson } from "../http";
+import { sharedResult, type SharedResult } from "../shared-result";
 
 /**
  * eBay Browse API — listings matching the product on each national eBay site.
@@ -93,6 +94,11 @@ export const EBAY_ERROR_HINTS: Readonly<Record<string, string>> = {
 };
 
 const tokenSchema = z.object({ access_token: z.string().min(1), expires_in: z.number().optional() });
+/** The token with how long to keep it, derived from the `expires_in` the identity service returned. */
+interface ApplicationToken {
+  readonly token: string;
+  readonly ttlMs: number;
+}
 const searchSchema = z.object({
   total: z.number().optional(),
   itemSummaries: z
@@ -113,7 +119,8 @@ export function isEbaySearch(payload: unknown): boolean {
 
 export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestable {
   readonly meta = ebayMeta;
-  private token?: { value: string; expiresAt: number };
+  /** Countries run in parallel on this instance: they share one token request. */
+  private readonly applicationToken: SharedResult<ApplicationToken> = sharedResult(() => this.loadToken(), { ttlMs: (value) => value.ttlMs });
 
   constructor(
     private readonly env: ServerEnv,
@@ -128,7 +135,11 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
   }
 
   private async getToken(): Promise<ProviderResult<string>> {
-    if (this.token && this.token.expiresAt > Date.now()) return ok(this.token.value);
+    const application = await this.applicationToken.get();
+    return application.ok ? ok(application.data.token) : application;
+  }
+
+  private async loadToken(): Promise<ProviderResult<ApplicationToken>> {
     const basic = Buffer.from(`${this.env.EBAY_CLIENT_ID ?? ""}:${this.env.EBAY_CLIENT_SECRET ?? ""}`).toString("base64");
     const raw = await httpJson(`${API}/identity/v1/oauth2/token`, "eBay OAuth token", {
       timeoutMs: this.timeoutMs,
@@ -141,8 +152,7 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
     if (!raw.ok) return raw;
     const parsed = tokenSchema.safeParse(raw.data);
     if (!parsed.success) return fail("invalid_response", "eBay OAuth: missing access_token");
-    this.token = { value: parsed.data.access_token, expiresAt: Date.now() + Math.max(60, (parsed.data.expires_in ?? 7200) - 300) * 1000 };
-    return ok(parsed.data.access_token);
+    return ok({ token: parsed.data.access_token, ttlMs: Math.max(60, (parsed.data.expires_in ?? 7200) - 300) * 1000 });
   }
 
   private async search(marketplaceId: string, params: Record<string, string>, fresh: boolean): Promise<ProviderResult<z.infer<typeof searchSchema>>> {
@@ -209,7 +219,7 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
   async diagnose(): Promise<ConnectionCheckStep[]> {
     const steps: ConnectionCheckStep[] = [];
     if (this.status().state !== "ready") return [{ id: "token", label: "Jeton d'application", status: "skipped", detail: "App ID ou Cert ID manquant." }];
-    this.token = undefined;
+    this.applicationToken.reset();
     const token = await this.getToken();
     const hint = (message: string) => {
       const reason = /\(([A-Za-z0-9_]+)\)$/.exec(message)?.[1];

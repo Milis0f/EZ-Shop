@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { ServerEnv } from "@/config/env";
+import type { CountryCode, LanguageCode } from "@/domain/country";
 import { MemoryCacheRepository } from "@/server/repositories/memory-repositories";
+import { EbayBrowseProvider } from "./ebay/adapter";
 import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
 import { ok } from "./contracts";
 import { cached, httpJson, httpText } from "./http";
@@ -27,6 +29,16 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Response | Prom
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+type RecordedCall = { url: string; init?: RequestInit };
+const countCalls = (calls: readonly RecordedCall[], matches: (call: RecordedCall) => boolean) => calls.filter(matches).length;
+
+/** Fakes only the clock, so a token's lifetime can be crossed without waiting; real timers keep running. */
+function fakeClock(start = "2026-10-16T12:00:00Z") {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(start));
+  return (ms: number) => vi.setSystemTime(Date.now() + ms);
+}
 
 describe("http layer", () => {
   it("retries transient 5xx failures then succeeds", async () => {
@@ -348,6 +360,170 @@ describe("GoogleAdsKeywordPlannerProvider", () => {
     expect((metricsCall.init?.headers as Record<string, string>)["developer-token"]).toBeUndefined();
     expect(JSON.stringify(calls.map((c) => c.init?.headers))).not.toContain(SECRET);
   });
+
+  describe("shared lookups", () => {
+    const query = (country: CountryCode, language: LanguageCode = "fr") => ({ terms: ["chaussettes"], country, language, from: "2022-10", to: "2026-09" });
+    const SIX_COUNTRIES = ["FR", "BE", "CH", "DE", "ES", "IT"] as const;
+    const isToken = (call: RecordedCall) => call.url.startsWith("https://oauth2.googleapis.com");
+    const isCurrency = (call: RecordedCall) => String(call.init?.body).includes("customer.currency_code");
+    const isLanguage = (call: RecordedCall) => call.url.endsWith("/googleAds:search") && !isCurrency(call);
+    const isMetrics = (call: RecordedCall) => call.url.endsWith(":generateKeywordHistoricalMetrics");
+
+    const stubGoogleAds = (token: () => Response = () => json({ access_token: "ya29" })) =>
+      stubFetch((url, init) => {
+        if (url.startsWith("https://oauth2.googleapis.com")) return token();
+        const body = String(init?.body ?? "");
+        if (body.includes("customer.currency_code")) return json({ results: [{ customer: { currencyCode: "EUR" } }] });
+        if (url.endsWith("/googleAds:search")) return json({ results: [{ languageConstant: { resourceName: "languageConstants/1002" } }] });
+        return json({ results: [{ text: "chaussettes", keywordMetrics: { avgMonthlySearches: "880", competitionIndex: "20" } }] });
+      });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("shares the token, currency and language between 6 countries", async () => {
+      const calls = stubGoogleAds();
+      const provider = new GoogleAdsKeywordPlannerProvider(env, 500);
+
+      const results = await Promise.all(SIX_COUNTRIES.map((country) => provider.getKeywordMetrics(query(country))));
+
+      for (const result of results) expect(result).toMatchObject({ ok: true, data: [{ avgMonthlySearches: 880, currency: "EUR" }] });
+      expect(countCalls(calls, isToken)).toBe(1);
+      expect(countCalls(calls, isCurrency)).toBe(1);
+      expect(countCalls(calls, isLanguage)).toBe(1);
+      expect(countCalls(calls, isMetrics)).toBe(6);
+    });
+
+    it("looks each language up once", async () => {
+      const calls = stubGoogleAds();
+      const provider = new GoogleAdsKeywordPlannerProvider(env, 500);
+
+      await Promise.all([
+        ...(["FR", "BE", "CH"] as const).map((country) => provider.getKeywordMetrics(query(country, "fr"))),
+        ...(["DE", "AT", "CH"] as const).map((country) => provider.getKeywordMetrics(query(country, "de"))),
+      ]);
+
+      expect(countCalls(calls, isToken)).toBe(1);
+      expect(countCalls(calls, isCurrency)).toBe(1);
+      expect(countCalls(calls, isLanguage)).toBe(2);
+      expect(countCalls(calls, isMetrics)).toBe(6);
+    });
+
+    it("retries the token after a shared failure", async () => {
+      let tokenRequests = 0;
+      const calls = stubGoogleAds(() => (++tokenRequests === 1 ? new Response("", { status: 500 }) : json({ access_token: "ya29" })));
+      const provider = new GoogleAdsKeywordPlannerProvider(env, 500);
+
+      const failed = await Promise.all((["FR", "BE", "CH"] as const).map((country) => provider.getKeywordMetrics(query(country))));
+
+      for (const result of failed) expect(result).toMatchObject({ ok: false, error: { code: "upstream_error", message: "Google OAuth token: HTTP 500" } });
+      expect(calls).toHaveLength(1);
+
+      expect(await provider.getKeywordMetrics(query("DE"))).toMatchObject({ ok: true });
+      expect(countCalls(calls, isToken)).toBe(2);
+    });
+
+    it("fetches a new token once the 50 minutes are over", async () => {
+      const advance = fakeClock();
+      const calls = stubGoogleAds();
+      const provider = new GoogleAdsKeywordPlannerProvider(env, 500);
+
+      await provider.getKeywordMetrics(query("FR"));
+      advance(50 * 60 * 1000 - 1);
+      await provider.getKeywordMetrics(query("BE"));
+      expect(countCalls(calls, isToken)).toBe(1);
+
+      advance(1);
+      await provider.getKeywordMetrics(query("CH"));
+      expect(countCalls(calls, isToken)).toBe(2);
+      // Currency and language have no expiry.
+      expect(countCalls(calls, isCurrency)).toBe(1);
+      expect(countCalls(calls, isLanguage)).toBe(1);
+    });
+  });
+});
+
+describe("EbayBrowseProvider", () => {
+  const env = { ...baseEnv, EBAY_CLIENT_ID: "app-id", EBAY_CLIENT_SECRET: SECRET } as ServerEnv;
+  const SIX_COUNTRIES = ["FR", "BE", "CH", "DE", "ES", "IT"] as const;
+  const isToken = (call: RecordedCall) => call.url.includes("/identity/v1/oauth2/token");
+  const isSearch = (call: RecordedCall) => call.url.includes("/buy/browse/v1/item_summary/search");
+  const query = (country: CountryCode) => ({ terms: ["chaussettes"], country, language: "fr" as const });
+
+  const stubEbay = (expiresIn = 7200) =>
+    stubFetch((url) =>
+      isToken({ url }) ? json({ access_token: "tok", expires_in: expiresIn }) : json({ total: 3, itemSummaries: [{ price: { value: "10.00", currency: "EUR" } }] }),
+    );
+
+  afterEach(() => vi.useRealTimers());
+
+  it("shares the application token between 6 countries", async () => {
+    const calls = stubEbay();
+    const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
+
+    const results = await Promise.all(SIX_COUNTRIES.map((country) => provider.getListings(query(country))));
+
+    for (const result of results) expect(result).toMatchObject({ ok: true, data: { total: 3, chinaTotal: 3 } });
+    expect(countCalls(calls, isToken)).toBe(1);
+    // One listings search and one China search per country.
+    expect(countCalls(calls, isSearch)).toBe(12);
+  });
+
+  it("retries the token after a shared failure", async () => {
+    let tokenRequests = 0;
+    const calls = stubFetch((url) => {
+      if (!isToken({ url })) return json({ total: 1 });
+      return ++tokenRequests === 1 ? json({ error: "invalid_client" }, 401) : json({ access_token: "tok", expires_in: 7200 });
+    });
+    const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
+
+    const failed = await Promise.all((["FR", "BE", "CH"] as const).map((country) => provider.getListings(query(country))));
+
+    for (const result of failed) expect(result).toMatchObject({ ok: false, error: { code: "unauthorized", message: "eBay OAuth token: HTTP 401 (invalid_client)" } });
+    expect(calls).toHaveLength(1);
+    expect(await provider.getListings(query("DE"))).toMatchObject({ ok: true });
+    expect(countCalls(calls, isToken)).toBe(2);
+  });
+
+  it("keeps the token for expires_in minus 5 minutes", async () => {
+    const advance = fakeClock();
+    const calls = stubEbay(7200);
+    const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
+
+    await provider.getListings(query("FR"));
+    advance((7200 - 300) * 1000 - 1);
+    await provider.getListings(query("BE"));
+    expect(countCalls(calls, isToken)).toBe(1);
+
+    advance(1);
+    await provider.getListings(query("CH"));
+    expect(countCalls(calls, isToken)).toBe(2);
+  });
+
+  it("never keeps a token for less than 60 seconds", async () => {
+    const advance = fakeClock();
+    const calls = stubEbay(100);
+    const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
+
+    await provider.getListings(query("FR"));
+    advance(60 * 1000 - 1);
+    await provider.getListings(query("BE"));
+    expect(countCalls(calls, isToken)).toBe(1);
+
+    advance(1);
+    await provider.getListings(query("CH"));
+    expect(countCalls(calls, isToken)).toBe(2);
+  });
+
+  it("asks for a new token when the connection is diagnosed", async () => {
+    const calls = stubEbay();
+    const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
+
+    await provider.getListings(query("FR"));
+    const steps = await provider.diagnose();
+
+    expect(steps.map((step) => step.status)).toEqual(["ok", "ok"]);
+    expect(countCalls(calls, isToken)).toBe(2);
+  });
 });
 
 describe("TikTokCommercialContentProvider", () => {
@@ -378,5 +554,66 @@ describe("TikTokCommercialContentProvider", () => {
     );
     const result = await new TikTokCommercialContentProvider(env, 500).getAdActivity({ terms: ["x"], country: "DE", since: "2026-08-01" });
     expect(result).toMatchObject({ ok: false, error: { code: "upstream_error" } });
+  });
+
+  describe("shared client token", () => {
+    const SIX_EU_COUNTRIES = ["FR", "BE", "LU", "DE", "ES", "IT"] as const;
+    const isToken = (call: RecordedCall) => call.url.includes("/oauth/token/");
+    const isQuery = (call: RecordedCall) => call.url.includes("/research/adlib/ad/query/");
+    const query = (country: CountryCode) => ({ terms: ["socken"], country, since: "2026-08-01" });
+
+    const stubTikTok = (expiresIn = 3600) =>
+      stubFetch((url) =>
+        isToken({ url })
+          ? json({ access_token: "tok", expires_in: expiresIn })
+          : json({
+              data: { ads: [{ ad: { id: 1, first_shown_date: 20260901 }, advertiser: { business_id: 9 } }], has_more: false },
+              error: { code: "ok", message: "" },
+            }),
+      );
+
+    afterEach(() => vi.useRealTimers());
+
+    it("shares the client token between 6 countries", async () => {
+      const calls = stubTikTok();
+      const provider = new TikTokCommercialContentProvider(env, 500);
+
+      const results = await Promise.all(SIX_EU_COUNTRIES.map((country) => provider.getAdActivity(query(country))));
+
+      for (const result of results) expect(result).toMatchObject({ ok: true, data: { activeAds: 1 } });
+      expect(countCalls(calls, isToken)).toBe(1);
+      expect(countCalls(calls, isQuery)).toBe(6);
+    });
+
+    it("retries the token after a shared failure", async () => {
+      let tokenRequests = 0;
+      const calls = stubFetch((url) => {
+        if (!isToken({ url })) return json({ data: { ads: [] }, error: { code: "ok", message: "" } });
+        return ++tokenRequests === 1 ? new Response("", { status: 500 }) : json({ access_token: "tok" });
+      });
+      const provider = new TikTokCommercialContentProvider(env, 500);
+
+      const failed = await Promise.all((["FR", "BE", "DE"] as const).map((country) => provider.getAdActivity(query(country))));
+
+      for (const result of failed) expect(result).toMatchObject({ ok: false, error: { code: "upstream_error", message: "TikTok client token: HTTP 500" } });
+      expect(calls).toHaveLength(1);
+      expect(await provider.getAdActivity(query("ES"))).toMatchObject({ ok: true });
+      expect(countCalls(calls, isToken)).toBe(2);
+    });
+
+    it("keeps the token for expires_in minus 2 minutes", async () => {
+      const advance = fakeClock();
+      const calls = stubTikTok(3600);
+      const provider = new TikTokCommercialContentProvider(env, 500);
+
+      await provider.getAdActivity(query("FR"));
+      advance((3600 - 120) * 1000 - 1);
+      await provider.getAdActivity(query("BE"));
+      expect(countCalls(calls, isToken)).toBe(1);
+
+      advance(1);
+      await provider.getAdActivity(query("DE"));
+      expect(countCalls(calls, isToken)).toBe(2);
+    });
   });
 });

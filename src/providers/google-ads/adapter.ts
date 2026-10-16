@@ -16,6 +16,7 @@ import {
   type ProviderStatus,
 } from "../contracts";
 import { httpJson } from "../http";
+import { sharedResult, type SharedResult } from "../shared-result";
 import { describeAdsError, describeOAuthError, GOOGLE_ADS_ERROR_HINTS, reasonOf } from "./errors";
 import { monthEnum, parseCurrency, parseHistoricalMetrics, parseLanguageConstant } from "./parse";
 
@@ -58,14 +59,18 @@ export const googleAdsMeta: ProviderMeta = {
 
 const tokenSchema = z.object({ access_token: z.string().min(1) });
 
+/** An access token lasts an hour; refresh it ten minutes early. */
+const ACCESS_TOKEN_TTL_MS = 50 * 60 * 1000;
+
 /** Country criterion IDs are 2000 + ISO 3166-1 numeric (e.g. France 250 → 2250). */
 const geoTargetConstant = (isoNumeric: number): string => `geoTargetConstants/${2000 + isoNumeric}`;
 
 export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, ConnectionTestable {
   readonly meta = googleAdsMeta;
-  private accessToken?: { value: string; expiresAt: number };
-  private currency?: string;
-  private readonly languages = new Map<LanguageCode, string>();
+  /** One request per country runs in parallel on this instance: the token and the lookups are shared. */
+  private readonly accessToken: SharedResult<string> = sharedResult(() => this.loadAccessToken(), { ttlMs: () => ACCESS_TOKEN_TTL_MS });
+  private readonly currency: SharedResult<string> = sharedResult(() => this.loadCurrency());
+  private readonly languages = new Map<LanguageCode, SharedResult<string>>();
 
   constructor(
     private readonly env: ServerEnv,
@@ -81,9 +86,9 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
   async getKeywordMetrics(query: KeywordMetricsQuery): Promise<ProviderResult<readonly KeywordMetrics[]>> {
     if (this.status().state !== "ready") return fail("not_configured", "Google Ads Keyword Planner non configuré.");
 
-    const token = await this.getAccessToken();
+    const token = await this.accessToken.get();
     if (!token.ok) return token;
-    const [currency, language] = await Promise.all([this.getCurrency(token.data), this.getLanguage(token.data, query.language)]);
+    const [currency, language] = await Promise.all([this.currency.get(), this.getLanguage(query.language).get()]);
     if (!currency.ok) return currency;
     if (!language.ok) return language;
 
@@ -116,8 +121,7 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
     return parseHistoricalMetrics(raw.data, currency.data, source);
   }
 
-  private async getAccessToken(): Promise<ProviderResult<string>> {
-    if (this.accessToken && this.accessToken.expiresAt > Date.now()) return ok(this.accessToken.value);
+  private async loadAccessToken(): Promise<ProviderResult<string>> {
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       client_id: this.env.GOOGLE_ADS_CLIENT_ID ?? "",
@@ -135,31 +139,38 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
     if (!raw.ok) return raw;
     const parsed = tokenSchema.safeParse(raw.data);
     if (!parsed.success) return fail("invalid_response", "Google OAuth: missing access_token");
-    this.accessToken = { value: parsed.data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
     return ok(parsed.data.access_token);
   }
 
-  private async getCurrency(token: string): Promise<ProviderResult<string>> {
-    if (this.currency) return ok(this.currency);
-    const raw = await this.call(token, "/googleAds:search", { query: "SELECT customer.currency_code FROM customer LIMIT 1" });
+  private async loadCurrency(): Promise<ProviderResult<string>> {
+    const token = await this.accessToken.get();
+    if (!token.ok) return token;
+    const raw = await this.call(token.data, "/googleAds:search", { query: "SELECT customer.currency_code FROM customer LIMIT 1" });
     if (!raw.ok) return raw;
     const currency = parseCurrency(raw.data);
     if (!currency) return fail("invalid_response", "Google Ads: account currency not found");
-    this.currency = currency;
     return ok(currency);
   }
 
-  /** Resolve the language constant through the API instead of hard-coding IDs. */
-  private async getLanguage(token: string, code: LanguageCode): Promise<ProviderResult<string>> {
+  /** One shared lookup per language, created on first use. */
+  private getLanguage(code: LanguageCode): SharedResult<string> {
     const known = this.languages.get(code);
-    if (known) return ok(known);
-    const raw = await this.call(token, "/googleAds:search", {
+    if (known) return known;
+    const created = sharedResult(() => this.loadLanguage(code));
+    this.languages.set(code, created);
+    return created;
+  }
+
+  /** Resolve the language constant through the API instead of hard-coding IDs. */
+  private async loadLanguage(code: LanguageCode): Promise<ProviderResult<string>> {
+    const token = await this.accessToken.get();
+    if (!token.ok) return token;
+    const raw = await this.call(token.data, "/googleAds:search", {
       query: `SELECT language_constant.resource_name FROM language_constant WHERE language_constant.code = '${code}'`,
     });
     if (!raw.ok) return raw;
     const resource = parseLanguageConstant(raw.data);
     if (!resource) return fail("invalid_response", `Google Ads: language constant not found for ${code}`);
-    this.languages.set(code, resource);
     return ok(resource);
   }
 
@@ -196,13 +207,13 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
     const ACCOUNT: [string, string] = ["account", "Accès au compte Google Ads"];
     const PLANNER: [string, string] = ["planner", "Requête Keyword Planner"];
 
-    this.accessToken = undefined;
-    const token = await this.getAccessToken();
+    this.accessToken.reset();
+    const token = await this.accessToken.get();
     if (!token.ok) return [failedStep("oauth", "Connexion OAuth", token.error.message), ...remaining([ACCOUNT, PLANNER])];
     steps.push({ id: "oauth", label: "Connexion OAuth", status: "ok", detail: "ID client, secret et jeton d'actualisation acceptés par Google." });
 
-    this.currency = undefined;
-    const currency = await this.getCurrency(token.data);
+    this.currency.reset();
+    const currency = await this.currency.get();
     if (!currency.ok) return [...steps, failedStep(...ACCOUNT, currency.error.message, currency.error.code), ...remaining([PLANNER])];
     steps.push({ id: ACCOUNT[0], label: ACCOUNT[1], status: "ok", detail: `Compte accessible, devise ${currency.data}.` });
 
