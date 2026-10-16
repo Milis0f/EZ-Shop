@@ -162,7 +162,7 @@ export class AliExpressProvider implements SourcingProvider, ConnectionTestable 
         attempts: 1,
       });
     };
-    const raw = fresh ? await load() : await cached(this.cache, key, this.meta.id, CACHE_TTL_SECONDS, load);
+    const raw = fresh ? await load() : await cached(this.cache, key, this.meta.id, CACHE_TTL_SECONDS, load, (payload) => parseAliExpress(payload).ok);
     if (!raw.ok) return raw;
     const parsed = parseAliExpress(raw.data);
     if (!parsed.ok) return parsed;

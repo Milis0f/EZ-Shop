@@ -1,14 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { MemoryCacheRepository } from "@/server/repositories/memory-repositories";
-import { parseAliExpress, signAliExpress } from "./aliexpress/adapter";
-import { parseApplicableMeasures, parseHeadingLeaves, parseSearch } from "./customs/uk-tariff-parse";
-import { parseUsLines, parseUsRate, specialRateFor } from "./customs/usitc";
+import { AliExpressProvider, parseAliExpress, signAliExpress } from "./aliexpress/adapter";
+import { isTariffDocument, parseApplicableMeasures, parseHeadingLeaves, parseSearch } from "./customs/uk-tariff-parse";
+import { isUsitcPayload, parseUsLines, parseUsRate, specialRateFor } from "./customs/usitc";
 import { describeEbayError, EbayBrowseProvider } from "./ebay/adapter";
+import { isJsonStat } from "./eurostat/adapter";
 import { parseSuggestions } from "./google-autocomplete/adapter";
 import { toEur } from "./reference/ecb-fx";
 import { parseVatRates, VatRatesProvider } from "./reference/vat-rates";
-import { parseEnglishLabel, parsePageviews, parseTitleBatch, parseTitleLookup, titleCandidates } from "./wikimedia/adapter";
+import { isWorldBankData } from "./world-bank/adapter";
+import {
+  isPageviews,
+  isTitleBatch,
+  isWikidataEntities,
+  parseEnglishLabel,
+  parsePageviews,
+  parseTitleBatch,
+  parseTitleLookup,
+  titleCandidates,
+  WikimediaProvider,
+} from "./wikimedia/adapter";
 import { describeGoogleApiError, YouTubeProvider } from "./youtube/adapter";
 
 /** Parsers and adapters of data sources v2 — stubbed fetch only, no network, no real credentials. */
@@ -71,6 +83,35 @@ describe("Wikimedia", () => {
   it("maps monthly pageviews and the English Wikidata label", () => {
     expect(parsePageviews({ items: [{ timestamp: "2026010100", views: 1200 }] })).toEqual({ ok: true, data: [{ month: "2026-01", value: 1200 }] });
     expect(parseEnglishLabel({ entities: { Q43663: { labels: { en: { value: "sock" } } } } }, "Q43663")).toBe("sock");
+  });
+
+  describe("response cache", () => {
+    const noMatch = { batchcomplete: "", query: { pages: { "-1": { title: "Xyzzy", missing: "" } } } };
+    const article = { query: { pages: { "7": { title: "Xyzzy", pageprops: { wikibase_item: "Q42" } } } } };
+    const entity = { entities: { Q42: { labels: { en: { value: "xyzzy" } } } } };
+
+    it("keeps a well-formed title lookup without a match cached", async () => {
+      const calls = stubFetch(() => json(noMatch));
+      const provider = new WikimediaProvider(new MemoryCacheRepository(), 500);
+
+      expect(await provider.resolveEntity(["xyzzy"], "fr")).toMatchObject({ ok: false, error: { code: "no_data" } });
+      expect(await provider.resolveEntity(["xyzzy"], "fr")).toMatchObject({ ok: false, error: { code: "no_data" } });
+      expect(calls).toHaveLength(1);
+    });
+
+    it("does not cache a MediaWiki error answer returned with HTTP 200", async () => {
+      let titleLookups = 0;
+      const calls = stubFetch((url) => {
+        if (url.includes("wikidata.org")) return json(entity);
+        titleLookups += 1;
+        return json(titleLookups === 1 ? { error: { code: "internal_api_error_DBQueryError", info: "Exception caught" }, servedby: "mw1" } : article);
+      });
+      const provider = new WikimediaProvider(new MemoryCacheRepository(), 500);
+
+      expect(await provider.resolveEntity(["xyzzy"], "fr")).toMatchObject({ ok: false, error: { code: "no_data" } });
+      expect(await provider.resolveEntity(["xyzzy"], "fr")).toMatchObject({ ok: true, data: { wikidataId: "Q42", englishLabel: "xyzzy" } });
+      expect(calls.filter((c) => !c.url.includes("wikidata.org"))).toHaveLength(2);
+    });
   });
 });
 
@@ -153,6 +194,23 @@ describe("AliExpress", () => {
     expect(parseAliExpress({ code: "0", resp_result: { result: { total_record_count: "5", products: [product] } } })).toMatchObject({ ok: true, data: { total: 5 } });
     expect(parseAliExpress({ error_response: { code: "IncompleteSignature", msg: "x" } })).toMatchObject({ ok: false, error: { code: "unauthorized", message: "AliExpress: HTTP 200 (IncompleteSignature)" } });
   });
+
+  it("does not cache an error_response returned with HTTP 200", async () => {
+    const env = { ...baseEnv, ALIEXPRESS_APP_KEY: "app-1", ALIEXPRESS_APP_SECRET: SECRET } as ServerEnv;
+    const product = { product_title: "Socks", target_sale_price: "2.35", target_sale_price_currency: "EUR", product_detail_url: "https://x" };
+    const valid = { resp_result: { resp_code: 200, result: { total_record_count: 1, products: [product] } } };
+    let n = 0;
+    const calls = stubFetch(() => json(++n === 1 ? { error_response: { code: "IncompleteSignature", msg: "x" } } : valid));
+    const provider = new AliExpressProvider(env, new MemoryCacheRepository(), 500);
+
+    expect(await provider.searchProducts({ terms: ["socks"], shipTo: "FR" })).toMatchObject({ ok: false, error: { code: "unauthorized" } });
+    expect(await provider.searchProducts({ terms: ["socks"], shipTo: "FR" })).toMatchObject({ ok: true, data: { totalProducts: 1 } });
+    expect(calls).toHaveLength(2);
+
+    // A well-formed answer is cached as before.
+    await provider.searchProducts({ terms: ["socks"], shipTo: "FR" });
+    expect(calls).toHaveLength(2);
+  });
 });
 
 describe("eBay Browse", () => {
@@ -216,5 +274,45 @@ describe("VAT and FX", () => {
     const fx = { date: "2026-10-15", rates: { EUR: 1, GBP: 0.8461 }, source: { sourceId: "ecb-fx" as const, origin: "live" as const, collectedAt: "", connectorVersion: "1" } };
     expect(toEur(84.61, "GBP", fx)).toBeCloseTo(100, 6);
     expect(toEur(10, "XXX", fx)).toBeNull();
+  });
+});
+
+describe("cache validity predicates", () => {
+  it("accept the expected shape, empty answers included, and reject error envelopes", () => {
+    // Trade Tariff (JSON:API): a document with `data`, never one carrying `errors`.
+    expect(isTariffDocument({ data: { attributes: {} }, included: [] })).toBe(true);
+    expect(isTariffDocument({ errors: [{ detail: "Rate limit exceeded" }] })).toBe(false);
+    expect(isTariffDocument({ data: {}, errors: [] })).toBe(false);
+    expect(isTariffDocument(null)).toBe(false);
+    expect(isTariffDocument([])).toBe(false);
+    expect(isTariffDocument("Too many requests")).toBe(false);
+
+    // USITC: a list of rows; an empty list is a valid "no line".
+    expect(isUsitcPayload([])).toBe(true);
+    expect(isUsitcPayload([{ htsno: "6115.95", general: "Free" }])).toBe(true);
+    expect(isUsitcPayload({ error: "Bad request" })).toBe(false);
+    expect(isUsitcPayload([{ htsno: 6115 }])).toBe(false);
+
+    // Eurostat: a JSON-stat dataset, not the { error: [...] } answer.
+    const dataset = { id: ["geo", "time"], size: [1, 1], value: { "0": 71 }, dimension: { geo: { category: { index: { FR: 0 } } }, time: { category: { index: { "2025": 0 } } } } };
+    expect(isJsonStat(dataset)).toBe(true);
+    expect(isJsonStat({ error: [{ status: 400, label: "Bad request" }] })).toBe(false);
+
+    // World Bank: [paging, rows]; a country without data has null rows, the [{ message }] form is an error.
+    expect(isWorldBankData([{ total: 0 }, null])).toBe(true);
+    expect(isWorldBankData([{ total: 1 }, [{ indicator: { id: "X" }, country: { id: "FR" }, date: "2025", value: null }]])).toBe(true);
+    expect(isWorldBankData([{ message: [{ id: "120", value: "Invalid value" }] }])).toBe(false);
+  });
+
+  it("apply the same rule to Wikimedia answers", () => {
+    expect(isTitleBatch({ query: { pages: { "-1": { title: "Xyzzy", missing: "" } } } })).toBe(true);
+    expect(isTitleBatch({ error: { code: "maxlag", info: "Waiting for a database server" } })).toBe(false);
+    expect(isTitleBatch(null)).toBe(false);
+
+    expect(isPageviews({ items: [] })).toBe(true);
+    expect(isPageviews({ type: "problem", title: "Not found", detail: "x" })).toBe(false);
+
+    expect(isWikidataEntities({ entities: { Q1: { id: "Q1", missing: "" } }, success: 1 })).toBe(true);
+    expect(isWikidataEntities({ error: { code: "no-such-entity" }, success: 0 })).toBe(false);
   });
 });

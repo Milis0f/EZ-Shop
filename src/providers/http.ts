@@ -104,8 +104,12 @@ export const cacheKey = (providerId: string, request: string): string =>
   `${providerId}:${createHash("sha256").update(request).digest("hex").slice(0, 32)}`;
 
 /**
- * Cache-aside for public, slow-moving sources. Only successful raw payloads are cached;
- * failures are always retried on the next analysis.
+ * Cache-aside for public, slow-moving sources. Only raw payloads that `isValid` accepts are
+ * cached, so an error envelope returned with HTTP 200 (quota warning, `error_response`…) is never
+ * kept for days. `isValid` means "the expected shape, without an error envelope": a well-formed
+ * empty answer stays cacheable. A cached entry that fails it counts as a miss and is overwritten by
+ * the next valid answer. An invalid payload loaded from the network is still returned, so the
+ * adapter's own parser reports the error. Failures are always retried on the next analysis.
  */
 export async function cached<T>(
   cache: ProviderCacheRepository,
@@ -113,10 +117,11 @@ export async function cached<T>(
   providerId: string,
   ttlSeconds: number,
   load: () => Promise<ProviderResult<T>>,
+  isValid: (payload: T) => boolean,
 ): Promise<ProviderResult<T> & { fromCache?: boolean }> {
   const hit = await cache.get(key);
-  if (hit !== null) return { ok: true, data: hit as T, fromCache: true };
+  if (hit !== null && isValid(hit as T)) return { ok: true, data: hit as T, fromCache: true };
   const result = await load();
-  if (result.ok) await cache.set(key, providerId, result.data, ttlSeconds);
+  if (result.ok && isValid(result.data)) await cache.set(key, providerId, result.data, ttlSeconds);
   return result;
 }

@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { MemoryCacheRepository } from "@/server/repositories/memory-repositories";
 import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
+import { ok } from "./contracts";
 import { cached, httpJson, httpText } from "./http";
 import { MetaAdLibraryProvider } from "./meta-ad-library/adapter";
 import { TikTokCommercialContentProvider } from "./tiktok-commercial/adapter";
+import { MyMemoryProvider } from "./translation/mymemory";
 import { WorldBankProvider } from "./world-bank/adapter";
 
 /** HTTP-level tests with a stubbed fetch: no network, no real credentials. */
@@ -65,14 +67,60 @@ describe("http layer", () => {
     const calls = stubFetch(() => json({ v: 1 }));
     const cache = new MemoryCacheRepository();
     const load = () => httpJson("https://x.test/c", "X", { timeoutMs: 500 });
-    await cached(cache, "k", "p", 60, load);
-    const second = await cached(cache, "k", "p", 60, load);
+    await cached(cache, "k", "p", 60, load, () => true);
+    const second = await cached(cache, "k", "p", 60, load, () => true);
     expect(second).toMatchObject({ ok: true, data: { v: 1 }, fromCache: true });
     expect(calls).toHaveLength(1);
   });
 });
 
+describe("cached", () => {
+  it("does not store a payload the adapter rejects", async () => {
+    const cache = new MemoryCacheRepository();
+    const result = await cached(cache, "k", "p", 60, async () => ok({ error: true }), () => false);
+    // The payload is still returned, so the adapter's own parser can report the error.
+    expect(result).toEqual({ ok: true, data: { error: true } });
+    expect(await cache.get("k")).toBeNull();
+  });
+
+  it("ignores an invalid entry already in the cache and replaces it", async () => {
+    const cache = new MemoryCacheRepository();
+    await cache.set("k", "p", { stale: true }, 60);
+    const isValid = (payload: { stale?: true; fresh?: true }) => payload.fresh === true;
+    const result = await cached(cache, "k", "p", 60, async () => ok<{ stale?: true; fresh?: true }>({ fresh: true }), isValid);
+    expect(result).toEqual({ ok: true, data: { fresh: true } });
+    expect(await cache.get("k")).toEqual({ fresh: true });
+  });
+
+  it("serves a valid entry without loading", async () => {
+    const cache = new MemoryCacheRepository();
+    await cache.set("k", "p", { v: 1 }, 60);
+    const load = vi.fn(async () => ok({ v: 2 }));
+    const result = await cached(cache, "k", "p", 60, load, () => true);
+    expect(result).toEqual({ ok: true, data: { v: 1 }, fromCache: true });
+    expect(load).not.toHaveBeenCalled();
+  });
+});
+
 describe("WorldBankProvider", () => {
+  it("does not cache a message envelope returned with HTTP 200", async () => {
+    const rows = [{ indicator: { id: "X" }, country: { id: "FR" }, date: "2025", value: 42 }];
+    let answerWithError = true;
+    const calls = stubFetch(() => json(answerWithError ? [{ message: [{ id: "120", value: "Invalid value" }] }] : [{ total: 1 }, rows]));
+    const provider = new WorldBankProvider(new MemoryCacheRepository(), 500);
+
+    expect(await provider.getIndicators(["FR"])).toMatchObject({ ok: false, error: { code: "upstream_error" } });
+    expect(calls).toHaveLength(3);
+
+    answerWithError = false;
+    expect(await provider.getIndicators(["FR"])).toMatchObject({ ok: true, data: { partialErrors: [] } });
+    expect(calls).toHaveLength(6);
+
+    // A well-formed answer is cached as before.
+    expect(await provider.getIndicators(["FR"])).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(6);
+  });
+
   it("reports partial failures instead of swallowing them", async () => {
     stubFetch((url) =>
       url.includes("IT.NET.USER.ZS")
@@ -87,8 +135,42 @@ describe("WorldBankProvider", () => {
   });
 });
 
+describe("MyMemoryProvider", () => {
+  const translation = (translatedText: string, match: number) => ({ responseStatus: 200, quotaFinished: false, responseData: { translatedText, match } });
+
+  it("does not cache a quota warning returned with HTTP 200", async () => {
+    const quota = { responseStatus: 200, quotaFinished: true, responseData: { translatedText: "MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY." } };
+    let n = 0;
+    const calls = stubFetch(() => json(++n === 1 ? quota : translation("heated socks", 0.98)));
+    const provider = new MyMemoryProvider(new MemoryCacheRepository(), 500);
+
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: false, error: { code: "rate_limited" } });
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: true, data: { text: "heated socks" } });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps an uncertain translation cached: it is a stable answer, not an error", async () => {
+    const calls = stubFetch(() => json(translation("socks", 0.2)));
+    const provider = new MyMemoryProvider(new MemoryCacheRepository(), 500);
+
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: false, error: { code: "no_data" } });
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: false, error: { code: "no_data" } });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not cache an upstream status error returned with HTTP 200", async () => {
+    let n = 0;
+    const calls = stubFetch(() => json(++n === 1 ? { responseStatus: 403, responseData: { translatedText: "INVALID TARGET LANGUAGE" } } : translation("heated socks", 0.98)));
+    const provider = new MyMemoryProvider(new MemoryCacheRepository(), 500);
+
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: false, error: { code: "upstream_error" } });
+    expect(await provider.translate("chaussettes chauffantes", "fr", "en")).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(2);
+  });
+});
+
 describe("MetaAdLibraryProvider", () => {
-  const env = { ...baseEnv, META_GRAPH_API_VERSION: "v99.0", META_AD_LIBRARY_ACCESS_TOKEN: SECRET } as ServerEnv;
+  const env ={ ...baseEnv, META_GRAPH_API_VERSION: "v99.0", META_AD_LIBRARY_ACCESS_TOKEN: SECRET } as ServerEnv;
 
   it("is not configured without a token and out of coverage outside the EU", async () => {
     expect(new MetaAdLibraryProvider(baseEnv, 500).status().state).toBe("not_configured");

@@ -58,6 +58,11 @@ const jsonStatSchema = z.object({
   ),
 });
 
+/** The answer is a JSON-stat dataset, not an `{ error: [...] }` envelope: safe to cache. */
+export function isJsonStat(payload: unknown): boolean {
+  return jsonStatSchema.safeParse(payload).success;
+}
+
 /** Pure parser: latest available value per geo from a JSON-stat 2.0 dataset. */
 export function parseEurostat(
   payload: unknown,
@@ -124,8 +129,13 @@ export class EurostatProvider implements MacroIndicatorProvider {
     const since = this.now().getUTCFullYear() - LOOKBACK_YEARS;
     const url = `${BASE_URL}/${DATASET}?${geos}&ind_type=IND_TOTAL&indic_is=I_BLT12&unit=PC_IND&sinceTimePeriod=${since}&lang=EN`;
 
-    const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(url, `Eurostat ${DATASET}`, { timeoutMs: this.timeoutMs }),
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(url, `Eurostat ${DATASET}`, { timeoutMs: this.timeoutMs }),
+      isJsonStat,
     );
     if (!raw.ok) return raw;
     const parsed = parseEurostat(raw.data, covered, url, new Date().toISOString());

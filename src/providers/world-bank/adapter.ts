@@ -51,10 +51,14 @@ const rowSchema = z.object({
   value: z.number().nullable(),
 });
 
-const responseSchema = z.union([
-  z.tuple([z.object({ total: z.number() }), z.array(rowSchema).nullable()]),
-  z.tuple([z.object({ message: z.array(z.object({ id: z.string(), value: z.string() })) })]),
-]);
+const dataSchema = z.tuple([z.object({ total: z.number() }), z.array(rowSchema).nullable()]);
+const errorSchema = z.tuple([z.object({ message: z.array(z.object({ id: z.string(), value: z.string() })) })]);
+const responseSchema = z.union([dataSchema, errorSchema]);
+
+/** The answer is the [paging, rows] pair (rows may be null), not the `[{ message }]` error form: safe to cache. */
+export function isWorldBankData(payload: unknown): boolean {
+  return dataSchema.safeParse(payload).success;
+}
 
 /** Pure parser: raw World Bank payload → observations for the requested countries. */
 export function parseWorldBank(
@@ -110,8 +114,13 @@ export class WorldBankProvider implements MacroIndicatorProvider {
     countries: readonly CountryCode[],
   ): Promise<ProviderResult<MacroObservation[]>> {
     const url = `${BASE_URL}/country/${countries.join(";")}/indicator/${indicator.code}?format=json&mrnev=1&per_page=300`;
-    const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(url, `World Bank ${indicator.code}`, { timeoutMs: this.timeoutMs }),
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(url, `World Bank ${indicator.code}`, { timeoutMs: this.timeoutMs }),
+      isWorldBankData,
     );
     if (!raw.ok) return raw;
     return parseWorldBank(raw.data, indicator.id, url, new Date().toISOString());

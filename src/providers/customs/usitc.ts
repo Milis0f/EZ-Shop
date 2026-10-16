@@ -52,6 +52,13 @@ const rowSchema = z.object({
   footnotes: z.array(z.object({ value: z.string().nullable().optional() }).passthrough()).nullable().optional(),
 });
 
+const rowsSchema = z.array(rowSchema);
+
+/** The search answered with a list of rows (possibly empty), not an error object: safe to cache. */
+export function isUsitcPayload(payload: unknown): boolean {
+  return rowsSchema.safeParse(payload).success;
+}
+
 /** "Free" → 0, "13.5%" → 13.5; compound or specific rates (¢/kg…) → null. */
 export function parseUsRate(rate: string | null | undefined): number | null {
   if (!rate) return null;
@@ -79,7 +86,7 @@ export interface UsLine {
 }
 
 export function parseUsLines(payload: unknown, hs6: string, origin: string): UsLine[] {
-  const parsed = z.array(rowSchema).safeParse(payload);
+  const parsed = rowsSchema.safeParse(payload);
   if (!parsed.success) return [];
   return parsed.data.flatMap((row) => {
     const code = (row.htsno ?? "").replace(/\D/g, "");
@@ -118,8 +125,13 @@ export class UsitcProvider implements TariffProvider {
     const keyword = hs6.length === 6 ? `${hs6.slice(0, 4)}.${hs6.slice(4, 6)}` : hs6.slice(0, 4);
 
     const url = `${BASE_URL}?keyword=${keyword}`;
-    const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(url, "USITC HTS search", { timeoutMs: this.timeoutMs }),
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(url, "USITC HTS search", { timeoutMs: this.timeoutMs }),
+      isUsitcPayload,
     );
     if (!raw.ok) return raw;
     const lines = parseUsLines(raw.data, hs6, origin);

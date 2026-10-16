@@ -110,11 +110,17 @@ export class OecdProvider implements MacroIndicatorProvider {
 
     const start = addMonths(toYearMonth(this.now()), -LOOKBACK_MONTHS);
     const url = `${BASE_URL}/${DATAFLOW}/${areas.join("+")}.${KEY_SUFFIX}?startPeriod=${start}`;
-    const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpText(url, "OECD CCI", { timeoutMs: this.timeoutMs, headers: { Accept: "*/*" } }),
+    const collectedAt = new Date().toISOString();
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpText(url, "OECD CCI", { timeoutMs: this.timeoutMs, headers: { Accept: "*/*" } }),
+      (xml) => parseOecdGenericXml(xml, url, collectedAt).ok,
     );
     if (!raw.ok) return raw;
-    const parsed = parseOecdGenericXml(raw.data, url, new Date().toISOString());
+    const parsed = parseOecdGenericXml(raw.data, url, collectedAt);
     return parsed.ok ? ok({ observations: parsed.data, partialErrors: [] }) : parsed;
   }
 }

@@ -90,7 +90,7 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
   }
 
   /** The key travels in the query string: it is never part of labels, cache keys or source references. */
-  private call(path: string, params: Record<string, string>, label: string, fresh: boolean): Promise<ProviderResult<unknown>> {
+  private call(path: string, params: Record<string, string>, label: string, fresh: boolean, isValid: (payload: unknown) => boolean): Promise<ProviderResult<unknown>> {
     const query = new URLSearchParams(params).toString();
     const keyless = `${API}${path}?${query}`;
     const load = () =>
@@ -99,7 +99,7 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
         attempts: 1,
         describeError: describeGoogleApiError,
       });
-    return fresh ? load() : cached(this.cache, cacheKey(this.meta.id, keyless), this.meta.id, CACHE_TTL_SECONDS, load);
+    return fresh ? load() : cached(this.cache, cacheKey(this.meta.id, keyless), this.meta.id, CACHE_TTL_SECONDS, load, isValid);
   }
 
   getContent(query: ContentQuery): Promise<ProviderResult<ContentObservation>> {
@@ -125,6 +125,7 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
       },
       "YouTube search",
       fresh,
+      (payload) => searchSchema.safeParse(payload).success,
     );
     if (!search.ok) return search;
     const parsed = searchSchema.safeParse(search.data);
@@ -133,7 +134,7 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
 
     let views = new Map<string, number>();
     if (hits.length > 0) {
-      const stats = await this.call("/videos", { part: "statistics", id: hits.map((h) => h.id).join(",") }, "YouTube videos", fresh);
+      const stats = await this.call("/videos", { part: "statistics", id: hits.map((h) => h.id).join(",") }, "YouTube videos", fresh, (payload) => videosSchema.safeParse(payload).success);
       const parsedStats = stats.ok ? videosSchema.safeParse(stats.data) : null;
       if (parsedStats?.success) {
         views = new Map(parsedStats.data.items.flatMap((v) => (v.statistics?.viewCount ? [[v.id, Number(v.statistics.viewCount)] as const] : [])));

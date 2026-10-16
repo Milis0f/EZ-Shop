@@ -75,7 +75,14 @@ export class VatRatesProvider implements VatProvider {
     const collectedAt = new Date().toISOString();
     const needsEu = countries.some((c) => COUNTRIES[c].isEU);
     const eu = needsEu
-      ? await cached(this.cache, cacheKey(this.meta.id, URL), this.meta.id, CACHE_TTL_SECONDS, () => httpJson(URL, "vatcomply", { timeoutMs: this.timeoutMs }))
+      ? await cached(
+          this.cache,
+          cacheKey(this.meta.id, URL),
+          this.meta.id,
+          CACHE_TTL_SECONDS,
+          () => httpJson(URL, "vatcomply", { timeoutMs: this.timeoutMs }),
+          (payload) => parseVatRates(payload).ok,
+        )
       : null;
     const euRates = eu?.ok ? parseVatRates(eu.data) : null;
 

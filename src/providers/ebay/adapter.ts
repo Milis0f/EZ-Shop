@@ -145,7 +145,16 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
         describeError: describeEbayError,
       });
     };
-    const raw = fresh ? await load() : await cached(this.cache, cacheKey(this.meta.id, `${marketplaceId}|${url}`), this.meta.id, CACHE_TTL_SECONDS, load);
+    const raw = fresh
+      ? await load()
+      : await cached(
+          this.cache,
+          cacheKey(this.meta.id, `${marketplaceId}|${url}`),
+          this.meta.id,
+          CACHE_TTL_SECONDS,
+          load,
+          (payload) => searchSchema.safeParse(payload).success,
+        );
     if (!raw.ok) return raw;
     const parsed = searchSchema.safeParse(raw.data);
     return parsed.success ? ok(parsed.data) : fail("invalid_response", "eBay search: unexpected response shape");

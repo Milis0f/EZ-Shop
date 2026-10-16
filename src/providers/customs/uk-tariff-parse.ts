@@ -26,6 +26,15 @@ const relIds = (r: JsonApiResource, name: string): string[] => {
   return Array.isArray(data) ? data.map((d) => d.id) : [];
 };
 
+/**
+ * A JSON:API document the parsers can read: it has `data` and no top-level `errors`. Used to decide
+ * whether an answer may be cached, so an error returned with HTTP 200 is never kept for a month.
+ * A document without matching lines is still valid (the parsers report "none" themselves).
+ */
+export function isTariffDocument(payload: unknown): boolean {
+  return payload !== null && typeof payload === "object" && !Array.isArray(payload) && "data" in payload && !("errors" in payload);
+}
+
 // ---------- Search ----------
 
 export type SearchHit =

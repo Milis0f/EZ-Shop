@@ -88,6 +88,16 @@ const batchSchema = z.object({
     .optional(),
 });
 
+/**
+ * The answer is a MediaWiki `query` result. `query` is optional in the schema (the parser reads its absence as
+ * "no match"), but an API error answer ({ error }, sent with HTTP 200) has none: it must not be cached.
+ * A lookup where every title is missing still has a `query` and stays cacheable.
+ */
+export function isTitleBatch(payload: unknown): boolean {
+  const parsed = batchSchema.safeParse(payload);
+  return parsed.success && parsed.data.query !== undefined;
+}
+
 /** One request for every candidate: follows normalisation and redirects, keeps the first real article in candidate order. */
 export function parseTitleBatch(payload: unknown, candidates: readonly string[]): { title: string; wikidataId: string } | null {
   const parsed = batchSchema.safeParse(payload);
@@ -132,16 +142,28 @@ export function parseTitleLookup(payload: unknown): { title: string; wikidataId:
 
 const viewsSchema = z.object({ items: z.array(z.object({ timestamp: z.string(), views: z.number() })) });
 
+/** The answer has the pageviews `items` list (possibly empty), not a problem document: safe to cache. */
+export function isPageviews(payload: unknown): boolean {
+  return viewsSchema.safeParse(payload).success;
+}
+
 export function parsePageviews(payload: unknown): ProviderResult<MonthlyPoint[]> {
   const parsed = viewsSchema.safeParse(payload);
   if (!parsed.success) return fail("invalid_response", "Wikimedia pageviews: unexpected response shape");
   return ok(parsed.data.items.map((i) => ({ month: `${i.timestamp.slice(0, 4)}-${i.timestamp.slice(4, 6)}` as YearMonth, value: i.views })));
 }
 
+const entitiesSchema = z.object({
+  entities: z.record(z.string(), z.object({ sitelinks: z.record(z.string(), z.object({ title: z.string() })).optional() })),
+});
+
+/** The answer has the `entities` map of wbgetentities (a missing entity is still an entry), not an `{ error }`: safe to cache. */
+export function isWikidataEntities(payload: unknown): boolean {
+  return entitiesSchema.safeParse(payload).success;
+}
+
 export function parseSitelink(payload: unknown, id: string, site: string): string | null {
-  const parsed = z
-    .object({ entities: z.record(z.string(), z.object({ sitelinks: z.record(z.string(), z.object({ title: z.string() })).optional() })) })
-    .safeParse(payload);
+  const parsed = entitiesSchema.safeParse(payload);
   return parsed.success ? (parsed.data.entities[id]?.sitelinks?.[site]?.title ?? null) : null;
 }
 
@@ -171,17 +193,23 @@ export class WikimediaProvider implements TopicInterestProvider {
   readonly meta = wikimediaMeta;
 
   /** Cached, throttled GET; a 429 pauses Wikipedia for the cooldown instead of being retried. */
-  private get(url: string, label: string): Promise<ProviderResult<unknown>> {
-    return cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      limit(async () => {
-        if (Date.now() < blockedUntil) return fail("rate_limited", this.limitMessage(), true);
-        const result = await httpJson(url, label, { timeoutMs: this.timeoutMs, attempts: 1, headers: { "User-Agent": this.userAgent } });
-        if (!result.ok && result.error.code === "rate_limited") {
-          blockedUntil = Date.now() + COOLDOWN_MS;
-          return fail("rate_limited", this.limitMessage(), true);
-        }
-        return result;
-      }),
+  private get(url: string, label: string, isValid: (payload: unknown) => boolean): Promise<ProviderResult<unknown>> {
+    return cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () =>
+        limit(async () => {
+          if (Date.now() < blockedUntil) return fail("rate_limited", this.limitMessage(), true);
+          const result = await httpJson(url, label, { timeoutMs: this.timeoutMs, attempts: 1, headers: { "User-Agent": this.userAgent } });
+          if (!result.ok && result.error.code === "rate_limited") {
+            blockedUntil = Date.now() + COOLDOWN_MS;
+            return fail("rate_limited", this.limitMessage(), true);
+          }
+          return result;
+        }),
+      isValid,
     );
   }
 
@@ -215,7 +243,7 @@ export class WikimediaProvider implements TopicInterestProvider {
     const url =
       `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/${query.language}.wikipedia/all-access/user/${slug}` +
       `/monthly/${query.from.replace("-", "")}01/${lastDay(query.to)}`;
-    const raw = await this.get(url, "Wikimedia pageviews");
+    const raw = await this.get(url, "Wikimedia pageviews", isPageviews);
     if (!raw.ok) return raw;
     const points = parsePageviews(raw.data);
     if (!points.ok) return points;
@@ -241,7 +269,7 @@ export class WikimediaProvider implements TopicInterestProvider {
 
   private entity(id: string): Promise<ProviderResult<unknown>> {
     const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels|sitelinks&languages=en&ids=${id}`;
-    return this.get(url, "Wikidata entity");
+    return this.get(url, "Wikidata entity", isWikidataEntities);
   }
 
   /** Title of the concept's article in a language edition, from Wikidata sitelinks. */
@@ -258,7 +286,7 @@ export class WikimediaProvider implements TopicInterestProvider {
     const url =
       `https://${language}.wikipedia.org/w/api.php?action=query&format=json&redirects=1` +
       `&prop=pageprops&ppprop=wikibase_item|disambiguation&titles=${encodeURIComponent(candidates.join("|"))}`;
-    const raw = await this.get(url, "Wikipedia title lookup");
+    const raw = await this.get(url, "Wikipedia title lookup", isTitleBatch);
     return raw.ok ? parseTitleBatch(raw.data, candidates) : null;
   }
 }

@@ -69,8 +69,13 @@ export class GoogleAutocompleteProvider implements SuggestProvider {
     const results = await Promise.all(
       terms.map(async (term) => {
         const url = `${BASE_URL}?client=firefox&hl=${query.language}&gl=${query.country.toLowerCase()}&q=${encodeURIComponent(term)}`;
-        const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-          httpJson(url, "Google Autocomplete", { timeoutMs: this.timeoutMs }),
+        const raw = await cached(
+          this.cache,
+          cacheKey(this.meta.id, url),
+          this.meta.id,
+          CACHE_TTL_SECONDS,
+          () => httpJson(url, "Google Autocomplete", { timeoutMs: this.timeoutMs }),
+          (payload) => parseSuggestions(payload).ok,
         );
         return raw.ok ? parseSuggestions(raw.data) : raw;
       }),

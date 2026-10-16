@@ -50,6 +50,15 @@ export function parseMyMemory(payload: unknown): ProviderResult<{ text: string; 
   return ok({ text, match });
 }
 
+/**
+ * Whether an answer may be cached: a translation, or a stable "no usable translation" (empty or too
+ * uncertain). A quota warning or a non-200 status is transient and must be asked again.
+ */
+export function isCacheableTranslation(payload: unknown): boolean {
+  const parsed = parseMyMemory(payload);
+  return parsed.ok || parsed.error.code === "no_data";
+}
+
 export class MyMemoryProvider implements TranslationProvider {
   readonly meta = myMemoryMeta;
 
@@ -65,8 +74,13 @@ export class MyMemoryProvider implements TranslationProvider {
   async translate(text: string, from: LanguageCode, to: LanguageCode): Promise<ProviderResult<{ text: string; match: number }>> {
     if (from === to) return ok({ text, match: 1 });
     const url = `${URL}?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
-    const raw = await cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(url, "MyMemory", { timeoutMs: this.timeoutMs }),
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(url, "MyMemory", { timeoutMs: this.timeoutMs }),
+      isCacheableTranslation,
     );
     return raw.ok ? parseMyMemory(raw.data) : raw;
   }

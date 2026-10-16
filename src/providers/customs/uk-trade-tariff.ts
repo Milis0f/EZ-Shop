@@ -12,7 +12,7 @@ import {
   type TariffRegime,
 } from "../contracts";
 import { cacheKey, cached, httpJson } from "../http";
-import { parseApplicableMeasures, parseHeadingLeaves, parseNodeDescription, parseSearch } from "./uk-tariff-parse";
+import { isTariffDocument, parseApplicableMeasures, parseHeadingLeaves, parseNodeDescription, parseSearch } from "./uk-tariff-parse";
 
 /**
  * GOV.UK Trade Tariff API — open, no key (rate limited since 2026-09; a key raises the limit).
@@ -82,8 +82,13 @@ export class UkTradeTariffProvider implements TariffProvider {
 
   private get(path: string, label: string): Promise<ProviderResult<unknown>> {
     const url = `${BASE_URL}${path}`;
-    return cached(this.cache, cacheKey(this.meta.id, url), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(url, label, { timeoutMs: this.timeoutMs, headers: { Accept: "application/json" } }),
+    return cached(
+      this.cache,
+      cacheKey(this.meta.id, url),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(url, label, { timeoutMs: this.timeoutMs, headers: { Accept: "application/json" } }),
+      isTariffDocument,
     );
   }
 

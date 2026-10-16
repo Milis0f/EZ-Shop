@@ -41,8 +41,13 @@ export class EcbFxProvider implements FxProvider {
   }
 
   async getEurRates(): Promise<ProviderResult<FxRates>> {
-    const raw = await cached(this.cache, cacheKey(this.meta.id, URL), this.meta.id, CACHE_TTL_SECONDS, () =>
-      httpJson(URL, "Frankfurter (ECB)", { timeoutMs: this.timeoutMs }),
+    const raw = await cached(
+      this.cache,
+      cacheKey(this.meta.id, URL),
+      this.meta.id,
+      CACHE_TTL_SECONDS,
+      () => httpJson(URL, "Frankfurter (ECB)", { timeoutMs: this.timeoutMs }),
+      (payload) => schema.safeParse(payload).success,
     );
     if (!raw.ok) return raw;
     const parsed = schema.safeParse(raw.data);
