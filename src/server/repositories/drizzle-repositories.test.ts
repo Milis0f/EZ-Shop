@@ -215,7 +215,7 @@ describe("Drizzle repositories on in-memory PGlite", () => {
     const created = await analyses.create(newAnalysis);
 
     // Postgres refuses U+0000 in text: the message is made storable before it is written.
-    await analyses.fail(created.id, "boom ");
+    await analyses.fail(created.id, "boom\u0000");
 
     const stored = await analyses.findById(created.id);
     expect(stored?.status).toBe("failed");
