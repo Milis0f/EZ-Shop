@@ -3,6 +3,7 @@ import { ANALYSIS_SCHEMA_VERSION, type AnalysisResult, type AnalysisSummary } fr
 import { ASSUMPTION_KEYS } from "@/domain/assumption";
 import type { CountryCode } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
+import { toStorageSafeText } from "@/lib/storage-safe";
 import type { Database } from "../db/client";
 import * as t from "../db/schema";
 import { toSummary } from "./summary";
@@ -177,7 +178,7 @@ export class DrizzleAnalysisRepository implements AnalysisRepository {
   async fail(id: string, error: string): Promise<void> {
     await this.db
       .update(t.analyses)
-      .set({ status: "failed", error: error.slice(0, 2_000), completedAt: new Date() })
+      .set({ status: "failed", error: toStorageSafeText(error).slice(0, 2_000), completedAt: new Date() })
       .where(eq(t.analyses.id, id));
   }
 

@@ -6,6 +6,7 @@ import { analysisInputSchema, type AnalysisInput } from "@/domain/schemas";
 import { analyzeCountry } from "@/engine/analyze-country";
 import { readSourcing } from "@/engine/economics/market-margin";
 import { expandProduct } from "@/engine/terms/expand";
+import { describeStorageError } from "@/lib/storage-safe";
 import {
   createProviderSet,
   listProviders,
@@ -13,7 +14,7 @@ import {
   snapshotStatuses,
   type ProviderSet,
 } from "@/providers/registry";
-import type { Repositories } from "../repositories/types";
+import type { AnalysisRepository, Repositories } from "../repositories/types";
 import { COLLECTION, collectCountry, collectMacro, mapWithConcurrency, type TopicMemo } from "./collect";
 import { collectGlobal } from "./collect-global";
 import { addMachineTranslations } from "./translate";
@@ -121,8 +122,21 @@ export async function runAnalysis(raw: unknown, deps: PipelineDeps): Promise<Ana
     });
     return result;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown pipeline error";
-    await deps.repositories.analyses.fail(created.id, message);
+    await recordFailure(deps.repositories.analyses, created.id, error);
     throw error;
+  }
+}
+
+/**
+ * Marks the analysis as failed. If that write fails too, the caller must still see the pipeline
+ * error, so the recording error is logged (name and SQLSTATE only) and swallowed.
+ */
+async function recordFailure(repo: AnalysisRepository, id: string, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : "Unknown pipeline error";
+  try {
+    await repo.fail(id, message);
+  } catch (recordingError: unknown) {
+    // Never the raw message: a database error can embed the SQL and its parameters.
+    console.error(`[runAnalysis] could not record the failure of analysis ${id}: ${describeStorageError(recordingError)}`);
   }
 }

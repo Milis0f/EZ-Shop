@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { DATA_INSUFFICIENT, isKnown } from "@/domain/datum";
 import { aliexpressMeta } from "@/providers/aliexpress/adapter";
@@ -8,7 +8,7 @@ import { ebayMeta } from "@/providers/ebay/adapter";
 import { googleAutocompleteMeta } from "@/providers/google-autocomplete/adapter";
 import { ecbFxMeta } from "@/providers/reference/ecb-fx";
 import { vatRatesMeta } from "@/providers/reference/vat-rates";
-import { createProviderSet, MockDataNotAllowedError } from "@/providers/registry";
+import { createProviderSet, MockDataNotAllowedError, type ProviderSet } from "@/providers/registry";
 import {
   unavailableContent,
   unavailableFx,
@@ -22,8 +22,10 @@ import {
 } from "@/providers/unavailable";
 import { myMemoryMeta } from "@/providers/translation/mymemory";
 import { wikimediaMeta } from "@/providers/wikimedia/adapter";
+import { worldBankMeta } from "@/providers/world-bank/adapter";
 import { youtubeMeta } from "@/providers/youtube/adapter";
 import { createMemoryRepositories } from "../repositories/memory-repositories";
+import type { Repositories } from "../repositories/types";
 import { AnalysisValidationError, runAnalysis } from "./run-analysis";
 
 const NOW = new Date("2026-10-14T12:00:00Z");
@@ -106,5 +108,66 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
   it("refuses mock data in production", () => {
     const prod = { ...devEnv, NODE_ENV: "production" } as ServerEnv;
     expect(() => createProviderSet("mock", { env: prod, cache: createMemoryRepositories().cache })).toThrow(MockDataNotAllowedError);
+  });
+});
+
+describe("runAnalysis when the pipeline crashes after the analysis row exists", () => {
+  const crash = new Error("collector crashed");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** Mock set whose only macro collector throws: the crash happens after `create`, inside the try block. */
+  function crashingProviders(repositories: Repositories): ProviderSet {
+    const base = createProviderSet("mock", { env: devEnv, cache: repositories.cache, now: () => NOW });
+    return {
+      ...base,
+      macro: [
+        {
+          meta: worldBankMeta,
+          indicators: [],
+          status: () => ({ state: "ready", detail: "" }),
+          getIndicators: async () => {
+            throw crash;
+          },
+        },
+      ],
+    };
+  }
+
+  it("rethrows the pipeline error when recording the failure also fails", async () => {
+    const repositories = createMemoryRepositories();
+    const recording = vi.spyOn(repositories.analyses, "fail").mockImplementation(async () => {
+      throw Object.assign(new Error("db down SECRET-TOKEN-123"), { code: "08006" });
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders(repositories) }),
+    ).rejects.toBe(crash);
+
+    expect(recording).toHaveBeenCalledOnce();
+    const [id] = recording.mock.calls[0];
+    // One string: the analysis id and the SQLSTATE, never the database's message.
+    expect(logged.mock.calls).toEqual([
+      [`[runAnalysis] could not record the failure of analysis ${id}: Error (code 08006)`],
+    ]);
+    const text = String(logged.mock.calls[0][0]);
+    expect(text).not.toContain("db down");
+    expect(text).not.toContain("SECRET-TOKEN-123");
+  });
+
+  it("still records the failure when it can", async () => {
+    const repositories = createMemoryRepositories();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders(repositories) }),
+    ).rejects.toBe(crash);
+
+    // The memory repository keeps no result for a failed analysis, so its status shows in the summaries.
+    expect(await repositories.analyses.listRecent(5)).toMatchObject([{ status: "failed" }]);
+    expect(logged).not.toHaveBeenCalled();
   });
 });

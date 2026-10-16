@@ -210,6 +210,18 @@ describe("Drizzle repositories on in-memory PGlite", () => {
     expect(stored?.completedAt).toBeDefined();
   });
 
+  it("records a failure message that contains NUL", async () => {
+    const { newAnalysis } = await buildValidPayload();
+    const created = await analyses.create(newAnalysis);
+
+    // Postgres refuses U+0000 in text: the message is made storable before it is written.
+    await analyses.fail(created.id, "boom ");
+
+    const stored = await analyses.findById(created.id);
+    expect(stored?.status).toBe("failed");
+    expect(stored?.error).toBe("boom");
+  });
+
   it("keeps one product row and unique terms across runs", async () => {
     await analyse();
     await analyse();
