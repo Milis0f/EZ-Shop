@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { DATA_INSUFFICIENT, insufficient, isKnown, observed } from "@/domain/datum";
+import { addMonths } from "@/domain/time";
 import { createRng } from "@/lib/random";
 import { kpDatum, syntheticSeries, TEST_NOW, testSource, trendsDatum } from "@/test/fixtures";
 import { analyzeDemand } from "./analyze";
 import { buildDemandHistory, sumByMonth } from "./history";
+import { annualGrowthPct, fitDemandModel, forecastPoints } from "./model";
 
 const noKp = insufficient("Keyword Planner non connecté", ["google-ads-keyword-planner"]);
 const noTrends = insufficient("Trends non connecté", ["google-trends"]);
@@ -106,5 +108,55 @@ describe("analyzeDemand", () => {
     expect(result.seasonality.status).toBe(DATA_INSUFFICIENT);
     expect(result.forecast.status).toBe(DATA_INSUFFICIENT);
     expect(result.futureGrowthPct.status).toBe(DATA_INSUFFICIENT);
+  });
+
+  it("tags new trend, seasonality and forecast with the v2 method", () => {
+    expect(isKnown(analysis.trend) && analysis.trend.method).toBe("log_linear_ols_monthly_dummies_v2");
+    expect(isKnown(analysis.seasonality) && analysis.seasonality.method).toBe("log_linear_ols_monthly_dummies_v2");
+    expect(isKnown(analysis.forecast) && analysis.forecast.method).toBe("log_linear_ols_monthly_dummies_v2");
+    expect(isKnown(analysis.forecast) && analysis.forecast.value.method).toBe("log_linear_ols_monthly_dummies_v2");
+
+    const short = syntheticSeries({ months: 18, base: 2_000, annualGrowth: 0, amplitude: 0.2, peakMonth: 6 });
+    const trendOnly = analyzeDemand({ keywordMetrics: kpDatum(short), searchInterest: noTrends }, TEST_NOW).analysis;
+    expect(isKnown(trendOnly.trend) && trendOnly.trend.method).toBe("log_linear_ols_trend_only_v2");
+  });
+});
+
+describe("demand model on calendar months", () => {
+  // 36 months of a noiseless +20 %/year curve, with four consecutive months (indices 10..13) missing.
+  const full = syntheticSeries({ months: 36, base: 1_000, annualGrowth: 0.2, amplitude: 0, peakMonth: 1 });
+  const gapped = full.filter((_, i) => i < 10 || i > 13);
+
+  it("measures growth on calendar months when months are missing", () => {
+    const model = fitDemandModel(gapped);
+    expect(model).not.toBeNull();
+    expect(annualGrowthPct(model!)).toBeCloseTo(20, 0);
+  });
+
+  it("forecasts from the month after the last observed one", () => {
+    const model = fitDemandModel(gapped)!;
+    const last = gapped[gapped.length - 1];
+    const points = forecastPoints(model, 12);
+    expect(points[0].month).toBe(addMonths(last.month, 1));
+    const expected = last.value * Math.pow(1.2, 1 / 12);
+    expect(Math.abs(points[0].p50 - expected) / expected).toBeLessThan(0.01);
+  });
+
+  it("gives the same model for unsorted input without mutating it", () => {
+    const rng = createRng("demand-shuffle");
+    const shuffled = [...gapped];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const before = shuffled.map((p) => p.month);
+    expect(before).not.toEqual(gapped.map((p) => p.month));
+
+    const fromShuffled = fitDemandModel(shuffled)!;
+    const fromSorted = fitDemandModel(gapped)!;
+    expect(fromShuffled.fit.beta).toEqual(fromSorted.fit.beta);
+    expect(fromShuffled.series.map((p) => p.month)).toEqual(gapped.map((p) => p.month));
+    expect(forecastPoints(fromShuffled, 12)).toEqual(forecastPoints(fromSorted, 12));
+    expect(shuffled.map((p) => p.month)).toEqual(before);
   });
 });

@@ -1,26 +1,30 @@
 import { FORECAST_PARAMS } from "@/config/scoring";
 import type { ForecastPoint, MonthlySeries } from "@/domain/market";
-import { addMonths, monthOfYear } from "@/domain/time";
+import { addMonths, monthOfYear, monthsBetween } from "@/domain/time";
 import { variance, Z90 } from "../stats/descriptive";
 import { ols, predictionStdError, type OlsFit } from "../stats/ols";
 
 /**
- * Demand model on log1p(values):
- *   log1p(y_t) = a + b·t + Σ_m s_m·[month(t) = m] + ε_t      (seasonal, ≥ 24 months)
- *   log1p(y_t) = a + b·t + ε_t                               (trend only, 12–23 months)
+ * Demand model on log1p(values), with t = calendar months since the first observed month
+ * (a missing month leaves a gap in t, it never shifts the points that follow):
+ *   log1p(y_t) = a + b·t + Σ_m s_m·[month(t) = m] + ε_t      (seasonal, ≥ 24 points)
+ *   log1p(y_t) = a + b·t + ε_t                               (trend only, 12–23 points)
  * Limits: residuals assumed i.i.d. normal (autocorrelation ignored → intervals may be too narrow);
  * the trend is extrapolated linearly in logs.
  */
 
 export const MODEL_METHOD = {
-  seasonal: "log_linear_ols_monthly_dummies_v1",
-  trendOnly: "log_linear_ols_trend_only_v1",
+  seasonal: "log_linear_ols_monthly_dummies_v2",
+  trendOnly: "log_linear_ols_trend_only_v2",
 } as const;
 
 export interface DemandModel {
   readonly kind: "seasonal" | "trend_only";
   readonly fit: OlsFit;
+  /** Input sorted by month (a copy): `fit.residuals` is index-aligned with it. */
   readonly series: MonthlySeries;
+  /** Months between the first and the last observed point. */
+  readonly lastT: number;
   readonly design: (t: number, month: number) => number[];
 }
 
@@ -31,14 +35,17 @@ const seasonalRow = (t: number, month: number): number[] => [
 ];
 const trendRow = (t: number): number[] => [1, t];
 
-export function fitDemandModel(series: MonthlySeries): DemandModel | null {
-  if (series.length < FORECAST_PARAMS.minMonthsForTrend) return null;
+export function fitDemandModel(input: MonthlySeries): DemandModel | null {
+  if (input.length < FORECAST_PARAMS.minMonthsForTrend) return null;
+  const series = input.toSorted((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
   const kind = series.length >= FORECAST_PARAMS.minMonthsForSeasonality ? "seasonal" : "trend_only";
   const design = kind === "seasonal" ? seasonalRow : (t: number) => trendRow(t);
-  const x = series.map((p, t) => design(t, monthOfYear(p.month)));
+  const origin = series[0].month;
+  const x = series.map((p) => design(monthsBetween(origin, p.month), monthOfYear(p.month)));
   const y = series.map((p) => Math.log1p(Math.max(0, p.value)));
   const fit = ols(x, y);
-  return fit ? { kind, fit, series, design } : null;
+  const lastT = monthsBetween(origin, series[series.length - 1].month);
+  return fit ? { kind, fit, series, lastT, design } : null;
 }
 
 /** Compound annual growth implied by the slope, in %. */
@@ -68,11 +75,10 @@ export function seasonalProfile(model: DemandModel): SeasonalProfile | null {
 
 export function forecastPoints(model: DemandModel, horizon: number): ForecastPoint[] {
   const last = model.series[model.series.length - 1];
-  const n = model.series.length;
   return Array.from({ length: horizon }, (_, i) => {
     const h = i + 1;
     const month = addMonths(last.month, h);
-    const x0 = model.design(n - 1 + h, monthOfYear(month));
+    const x0 = model.design(model.lastT + h, monthOfYear(month));
     const center = x0.reduce((s, v, j) => s + v * model.fit.beta[j], 0);
     const se = predictionStdError(model.fit, x0);
     const back = (v: number) => Math.max(0, Math.expm1(v));
