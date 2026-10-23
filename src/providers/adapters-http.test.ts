@@ -7,6 +7,7 @@ import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
 import { ok } from "./contracts";
 import { cached, httpJson, httpText } from "./http";
 import { MetaAdLibraryProvider } from "./meta-ad-library/adapter";
+import { OecdProvider } from "./oecd/adapter";
 import { TikTokCommercialContentProvider } from "./tiktok-commercial/adapter";
 import { MyMemoryProvider } from "./translation/mymemory";
 import { WorldBankProvider } from "./world-bank/adapter";
@@ -106,6 +107,13 @@ describe("http layer", () => {
 });
 
 describe("cached", () => {
+  let warn: MockInstance<typeof console.warn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
   it("treats a cache value that makes an adapter validator throw as a miss", async () => {
     const cache = new MemoryCacheRepository();
     await cache.set("k", "oecd", {}, 60);
@@ -116,7 +124,27 @@ describe("cached", () => {
 
     expect(result).toEqual({ ok: true, data: xml });
     expect(load).toHaveBeenCalledOnce();
+    // The bad entry is overwritten by the fresh answer, and an invalid entry is not worth a log line.
     expect(await cache.get("k")).toBe(xml);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("returns a loaded payload whose validator throws, stores nothing and logs one controlled line", async () => {
+    const cache = new MemoryCacheRepository();
+    const loaded = ok({ title: "fresh" });
+    const isValid = (): boolean => {
+      throw new Error(`boom ${SECRET} payload`);
+    };
+
+    const result = await cached(cache, "k", "p", 60, async () => loaded, isValid);
+
+    expect(result).toBe(loaded);
+    expect(await cache.get("k")).toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith("[cache] p validate failed: Error");
+    const printed = warn.mock.calls.flat().map(String).join(" ");
+    expect(printed).not.toContain(SECRET);
+    expect(printed).not.toContain("boom");
   });
 
   it("does not store a payload the adapter rejects", async () => {
@@ -216,6 +244,39 @@ describe("cached when the cache fails", () => {
 
     expect(result).toEqual({ ok: true, data: { error: true } });
     expect(cache.set).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("OecdProvider cache", () => {
+  const xml =
+    '<?xml version="1.0"?><message:GenericData><generic:Series><generic:SeriesKey><generic:Value id="REF_AREA" value="FRA" /></generic:SeriesKey>' +
+    '<generic:Obs><generic:ObsDimension id="TIME_PERIOD" value="2026-09" /><generic:ObsValue value="97.75892" /></generic:Obs></generic:Series></message:GenericData>';
+  let warn: MockInstance<typeof console.warn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  it("treats a cached value that is not a string as a miss and replaces it", async () => {
+    const calls = stubFetch(() => new Response(xml));
+    const cache = new MemoryCacheRepository();
+    const set = vi.spyOn(cache, "set");
+    const provider = new OecdProvider(cache, 500, () => new Date("2026-10-16T12:00:00Z"));
+
+    expect(await provider.getIndicators(["FR"])).toMatchObject({ ok: true, data: { observations: [{ country: "FR", value: 97.75892 }] } });
+    expect(calls).toHaveLength(1);
+    // The adapter's own key: the same request must find what is seeded under it.
+    const key = String(set.mock.calls[0][0]);
+    expect(key.startsWith("oecd:")).toBe(true);
+
+    await cache.set(key, "oecd", { not: "a string" }, 60);
+    const second = await provider.getIndicators(["FR"]);
+
+    expect(second).toMatchObject({ ok: true, data: { observations: [{ country: "FR", value: 97.75892 }] } });
+    expect(calls).toHaveLength(2);
+    expect(await cache.get(key)).toBe(xml);
     expect(warn).not.toHaveBeenCalled();
   });
 });

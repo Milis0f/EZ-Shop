@@ -117,7 +117,8 @@ export class OecdProvider implements MacroIndicatorProvider {
       this.meta.id,
       CACHE_TTL_SECONDS,
       () => httpText(url, "OECD CCI", { timeoutMs: this.timeoutMs, headers: { Accept: "*/*" } }),
-      (xml) => parseOecdGenericXml(xml, url, collectedAt).ok,
+      // Cached data is untyped: anything but a string is not an SDMX-ML payload.
+      (xml) => typeof xml === "string" && parseOecdGenericXml(xml, url, collectedAt).ok,
     );
     if (!raw.ok) return raw;
     const parsed = parseOecdGenericXml(raw.data, url, collectedAt);

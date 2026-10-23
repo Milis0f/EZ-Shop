@@ -113,9 +113,16 @@ export const cacheKey = (providerId: string, request: string): string =>
  * the next valid answer. An invalid payload loaded from the network is still returned, so the
  * adapter's own parser reports the error. Failures are always retried on the next analysis.
  *
+ * `isValid` should not throw, but cached data is untyped, so two cases are told apart:
+ * - On a cached entry, a throw means the entry does not have the expected shape: it is an invalid
+ *   entry, hence a miss, handled silently like any other invalid entry.
+ * - On a freshly loaded payload, a throw can only be a bug in the predicate. The payload is returned
+ *   unchanged and not stored, and one controlled line is logged, so the bug is not mistaken for
+ *   "never cache" (a quota spent on every analysis) without a trace.
+ *
  * The cache is an optimisation, never a dependency: a failing read counts as a miss and a failing
- * write still returns the loaded result. Both are logged with the provider id and a controlled
- * diagnostic only, never the error message, the key or the payload.
+ * write still returns the loaded result. All of these are logged with the provider id and a
+ * controlled diagnostic only, never the error message, the key or the payload.
  */
 export async function cached<T>(
   cache: ProviderCacheRepository,
@@ -131,9 +138,9 @@ export async function cached<T>(
   } catch (error: unknown) {
     warnCacheFailure(providerId, "read", error);
   }
-  if (hit !== null && isValidSafely(isValid, hit)) return { ok: true, data: hit as T, fromCache: true };
+  if (hit !== null && isValidEntry(isValid, hit)) return { ok: true, data: hit as T, fromCache: true };
   const result = await load();
-  if (result.ok && isValidSafely(isValid, result.data)) {
+  if (result.ok && isValidLoaded(isValid, result.data, providerId)) {
     try {
       await cache.set(key, providerId, result.data, ttlSeconds);
     } catch (error: unknown) {
@@ -143,15 +150,25 @@ export async function cached<T>(
   return result;
 }
 
-function isValidSafely<T>(isValid: (payload: T) => boolean, payload: unknown): boolean {
+/** A cached entry is untyped: one that breaks the predicate is old or corrupted data, so it is a miss. Silent on purpose. */
+function isValidEntry<T>(isValid: (payload: T) => boolean, entry: unknown): boolean {
   try {
-    return isValid(payload as T);
+    return isValid(entry as T);
   } catch {
-    // Old or corrupted cache data must be a miss. Do not log validator errors: they may contain payload data.
     return false;
   }
 }
 
-function warnCacheFailure(providerId: string, operation: "read" | "write", error: unknown): void {
+/** A loaded payload has the adapter's type: a throw is a bug in the predicate, so it is not stored and is logged once. */
+function isValidLoaded<T>(isValid: (payload: T) => boolean, payload: T, providerId: string): boolean {
+  try {
+    return isValid(payload);
+  } catch (error: unknown) {
+    warnCacheFailure(providerId, "validate", error);
+    return false;
+  }
+}
+
+function warnCacheFailure(providerId: string, operation: "read" | "write" | "validate", error: unknown): void {
   console.warn(`[cache] ${providerId} ${operation} failed: ${describeStorageError(error)}`);
 }
