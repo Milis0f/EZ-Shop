@@ -106,6 +106,19 @@ describe("http layer", () => {
 });
 
 describe("cached", () => {
+  it("treats a cache value that makes an adapter validator throw as a miss", async () => {
+    const cache = new MemoryCacheRepository();
+    await cache.set("k", "oecd", {}, 60);
+    const xml = "<GenericData />";
+    const load = vi.fn(async () => ok(xml));
+
+    const result = await cached(cache, "k", "oecd", 60, load, (value) => value.includes("GenericData"));
+
+    expect(result).toEqual({ ok: true, data: xml });
+    expect(load).toHaveBeenCalledOnce();
+    expect(await cache.get("k")).toBe(xml);
+  });
+
   it("does not store a payload the adapter rejects", async () => {
     const cache = new MemoryCacheRepository();
     const result = await cached(cache, "k", "p", 60, async () => ok({ error: true }), () => false);

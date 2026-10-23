@@ -131,9 +131,9 @@ export async function cached<T>(
   } catch (error: unknown) {
     warnCacheFailure(providerId, "read", error);
   }
-  if (hit !== null && isValid(hit as T)) return { ok: true, data: hit as T, fromCache: true };
+  if (hit !== null && isValidSafely(isValid, hit)) return { ok: true, data: hit as T, fromCache: true };
   const result = await load();
-  if (result.ok && isValid(result.data)) {
+  if (result.ok && isValidSafely(isValid, result.data)) {
     try {
       await cache.set(key, providerId, result.data, ttlSeconds);
     } catch (error: unknown) {
@@ -141,6 +141,15 @@ export async function cached<T>(
     }
   }
   return result;
+}
+
+function isValidSafely<T>(isValid: (payload: T) => boolean, payload: unknown): boolean {
+  try {
+    return isValid(payload as T);
+  } catch {
+    // Old or corrupted cache data must be a miss. Do not log validator errors: they may contain payload data.
+    return false;
+  }
 }
 
 function warnCacheFailure(providerId: string, operation: "read" | "write", error: unknown): void {
