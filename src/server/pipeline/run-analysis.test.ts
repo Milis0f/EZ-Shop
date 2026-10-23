@@ -109,10 +109,10 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
     const repositories = createMemoryRepositories();
     const create = vi.spyOn(repositories.analyses, "create");
 
-    await expect(
-      runAnalysis({ ...input, productName: "Lampe\u0000LED" }, { repositories, env: devEnv, now: () => NOW }),
-    ).rejects.toBeInstanceOf(AnalysisValidationError);
+    const promise = runAnalysis({ ...input, productName: "Lampe\u0000LED" }, { repositories, env: devEnv, now: () => NOW });
 
+    await expect(promise).rejects.toBeInstanceOf(AnalysisValidationError);
+    await expect(promise).rejects.toMatchObject({ issues: [expect.objectContaining({ path: "productName" })] });
     expect(create).not.toHaveBeenCalled();
     expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
   });

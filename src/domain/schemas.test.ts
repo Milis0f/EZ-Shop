@@ -15,10 +15,26 @@ describe("analysisInputSchema user text", () => {
     }
   });
 
-  it("rejects a lone surrogate in a product name", () => {
+  it("rejects a lone high surrogate in a product name", () => {
     const result = parse("Lampe \ud800");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.issues[0].path).toEqual(["productName"]);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({
+        path: ["productName"],
+        message: "Le nom du produit contient des caractères non autorisés.",
+      });
+    }
+  });
+
+  it("rejects a lone low surrogate in a product name", () => {
+    const result = parse("Lampe \udc00");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({
+        path: ["productName"],
+        message: "Le nom du produit contient des caractères non autorisés.",
+      });
+    }
   });
 
   it("rejects control characters in an extra term", () => {
