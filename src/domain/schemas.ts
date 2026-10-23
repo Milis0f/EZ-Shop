@@ -17,9 +17,21 @@ const distributionSchema = z.discriminatedUnion("type", [
     .refine((d) => d.min <= d.mode && d.mode <= d.max, { message: "min ≤ mode ≤ max requis" }),
 ]);
 
+function userText(min: number, max: number, minMessage: string | undefined, forbiddenMessage: string) {
+  return z
+    .string()
+    .refine(
+      (value) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(value) && value.isWellFormed(),
+      forbiddenMessage,
+    )
+    .overwrite((value) => value.replace(/[\t\n\r]+/g, " ").trim())
+    .min(min, minMessage)
+    .max(max);
+}
+
 const extraTermSchema = z.object({
   language: z.enum(LANGUAGE_CODES),
-  term: z.string().trim().min(2).max(80),
+  term: userText(2, 80, undefined, "Ce terme contient des caractères non autorisés."),
 });
 
 const economicsSchema = z.object({
@@ -30,7 +42,7 @@ const economicsSchema = z.object({
 });
 
 export const analysisInputSchema = z.object({
-  productName: z.string().trim().min(2, "Nom de produit trop court").max(80),
+  productName: userText(2, 80, "Nom de produit trop court", "Le nom du produit contient des caractères non autorisés."),
   inputLanguage: z.enum(LANGUAGE_CODES).default("fr"),
   /** Translations / synonyms supplied by the user — the only trusted multilingual terms today. */
   extraTerms: z.array(extraTermSchema).max(40).default([]),

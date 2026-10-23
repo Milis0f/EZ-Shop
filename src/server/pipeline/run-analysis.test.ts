@@ -105,6 +105,18 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
     expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
   });
 
+  it("rejects forbidden characters before creating an analysis", async () => {
+    const repositories = createMemoryRepositories();
+    const create = vi.spyOn(repositories.analyses, "create");
+
+    await expect(
+      runAnalysis({ ...input, productName: "Lampe\u0000LED" }, { repositories, env: devEnv, now: () => NOW }),
+    ).rejects.toBeInstanceOf(AnalysisValidationError);
+
+    expect(create).not.toHaveBeenCalled();
+    expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
+  });
+
   it("refuses mock data in production", () => {
     const prod = { ...devEnv, NODE_ENV: "production" } as ServerEnv;
     expect(() => createProviderSet("mock", { env: prod, cache: createMemoryRepositories().cache })).toThrow(MockDataNotAllowedError);
