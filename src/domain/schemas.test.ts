@@ -15,6 +15,21 @@ describe("analysisInputSchema user text", () => {
     }
   });
 
+  it.each(["\u0000", "\u000B"])(
+    "reports only the forbidden-character issue for a product name made of nothing else (%j)",
+    (productName) => {
+      const result = parse(productName);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toHaveLength(1);
+        expect(result.error.issues[0]).toMatchObject({
+          path: ["productName"],
+          message: "Le nom du produit contient des caractères non autorisés.",
+        });
+      }
+    },
+  );
+
   it("rejects a lone high surrogate in a product name", () => {
     const result = parse("Lampe \ud800");
     expect(result.success).toBe(false);

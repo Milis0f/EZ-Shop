@@ -183,7 +183,8 @@ describe("Drizzle repositories on in-memory PGlite", () => {
     expect(newest.id).toBe(second.id);
     expect((await analyses.listRecent(5)).map((s) => s.id)).toEqual([second.id, first.id]);
 
-    // Best score wins; the tie-break on confidence is covered by toSummary's own tests.
+    // Best score wins. The confidence tie-break in this expected value mirrors `toSummary` but no test
+    // checks it on its own. The newest-first order relies on the database clock (`created_at` defaults to now()).
     const best = second.countries
       .filter((c) => isKnown(c.scoring.score))
       .toSorted((a, b) => {

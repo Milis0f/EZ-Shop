@@ -119,9 +119,10 @@ Responses use `{ success, data, error }`.
 `POST /api/analyses` answers:
 
 - `415 unsupported_media_type` unless `Content-Type` is `application/json`;
-- `403 forbidden_origin` when an `Origin` header is present and is not exactly the scheme and host the
-  request was sent to (compared with the `Host` header; `null`, a path, a query, user info or a list of
-  values are refused). `X-Forwarded-Host` is never trusted;
+- `403 forbidden_origin` when an `Origin` header is present and is not exactly an `http` or `https`
+  scheme followed by the host and port the request was sent to (only host and port are compared with the
+  `Host` header, the scheme is not matched against the request's; `null`, a path, a query, user info or a
+  list of values are refused). `X-Forwarded-Host` is never trusted;
 - `429 rate_limited` after 10 analyses per minute. `X-Forwarded-For` is ignored, so it cannot be used
   to dodge the limit.
 

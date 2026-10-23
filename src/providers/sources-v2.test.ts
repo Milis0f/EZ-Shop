@@ -240,6 +240,29 @@ describe("eBay Browse", () => {
     expect(JSON.stringify(result)).not.toContain(SECRET);
   });
 
+  it.each([
+    ["an empty object", {}],
+    ["an errors body", { errors: [{ errorId: 1001 }] }],
+  ])("refuses a 200 answer that is %s instead of reporting an observed total of 0", async (_label, body) => {
+    stubFetch((url) => (url.endsWith("/identity/v1/oauth2/token") ? json({ access_token: "tok", expires_in: 7200 }) : json(body)));
+
+    const result = await new EbayBrowseProvider(env, new MemoryCacheRepository(), 500).getListings({ terms: ["chaussettes"], country: "FR", language: "fr" });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "invalid_response", message: "eBay search: unexpected response shape" } });
+    expect(result).not.toHaveProperty("data");
+  });
+
+  it("reports chinaTotal as null, not 0, when the China-located search answers with an unexpected shape", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/identity/v1/oauth2/token")) return json({ access_token: "tok", expires_in: 7200 });
+      return url.includes("itemLocationCountry") ? json({}) : json({ total: 12 });
+    });
+
+    const result = await new EbayBrowseProvider(env, new MemoryCacheRepository(), 500).getListings({ terms: ["chaussettes"], country: "FR", language: "fr" });
+
+    expect(result).toMatchObject({ ok: true, data: { total: 12, chinaTotal: null } });
+  });
+
   it("never borrows another country's site", async () => {
     const result = await new EbayBrowseProvider(env, new MemoryCacheRepository(), 500).getListings({ terms: ["x"], country: "LU", language: "fr" });
     expect(result).toMatchObject({ ok: false, error: { code: "unsupported_country" } });

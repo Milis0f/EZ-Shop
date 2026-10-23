@@ -177,8 +177,9 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
           isEbaySearch,
         );
     if (!raw.ok) return raw;
+    // `isEbaySearch` also refuses `{}` and `{ errors: [...] }`, which `searchSchema` alone would accept as an invented total of 0.
     const parsed = searchSchema.safeParse(raw.data);
-    return parsed.success ? ok(parsed.data) : fail("invalid_response", "eBay search: unexpected response shape");
+    return parsed.success && isEbaySearch(raw.data) ? ok(parsed.data) : fail("invalid_response", "eBay search: unexpected response shape");
   }
 
   getListings(query: CountryTermsQuery): Promise<ProviderResult<ListingsObservation>> {

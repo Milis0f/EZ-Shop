@@ -1,7 +1,7 @@
 import { ok, type ProviderResult } from "./contracts";
 
 export interface SharedResult<T> {
-  /** The kept value, the load already in flight, or a new load: never two loads at once. */
+  /** The kept value, the load already in flight, or a new load: never two loads at once within one generation (a `reset()` starts a new one). */
   get(): Promise<ProviderResult<T>>;
   /** Forgets the kept value and the load in flight. A later `get()` loads again. */
   reset(): void;
@@ -31,7 +31,8 @@ interface Kept<T> {
  * of a later `get()`.
  */
 export function sharedResult<T>(load: () => Promise<ProviderResult<T>>, options: SharedResultOptions<T> = {}): SharedResult<T> {
-  const now = options.now ?? Date.now;
+  // Looked up at each call, so a fake clock installed after construction still applies.
+  const now = options.now ?? (() => Date.now());
   let generation = 0;
   let kept: Kept<T> | undefined;
   let inFlight: Promise<ProviderResult<T>> | undefined;

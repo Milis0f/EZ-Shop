@@ -20,10 +20,12 @@ const distributionSchema = z.discriminatedUnion("type", [
 function userText(min: number, max: number, minMessage: string | undefined, forbiddenMessage: string) {
   return z
     .string()
-    .refine(
-      (value) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(value) && value.isWellFormed(),
-      forbiddenMessage,
-    )
+    // `abort` stops the chain here: without it a value made only of a forbidden character would also
+    // fail `.min()` after the overwrite, and the form would show that last, misleading issue.
+    .refine((value) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(value) && value.isWellFormed(), {
+      message: forbiddenMessage,
+      abort: true,
+    })
     .overwrite((value) => value.replace(/[\t\n\r]+/g, " ").trim())
     .min(min, minMessage)
     .max(max);
