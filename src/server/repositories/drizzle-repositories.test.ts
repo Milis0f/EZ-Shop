@@ -8,7 +8,7 @@ import { isKnown } from "@/domain/datum";
 import { parseJsonForStorage } from "@/lib/storage-safe";
 import { ok } from "@/providers/contracts";
 import { cached } from "@/providers/http";
-import { REAL_PROVIDER_METAS } from "@/providers/registry";
+import { createProviderSet, REAL_PROVIDER_METAS, type ProviderSet } from "@/providers/registry";
 import { createTestDatabase, truncateAll, type TestDatabase } from "@/test/pglite";
 import { TEST_NOW as NOW } from "@/test/fixtures";
 import type { Database } from "../db/client";
@@ -17,7 +17,7 @@ import { runAnalysis } from "../pipeline/run-analysis";
 import { DrizzleAnalysisRepository } from "./drizzle-analysis-repository";
 import { DrizzleCacheRepository } from "./drizzle-cache-repository";
 import { createMemoryRepositories, MemoryAnalysisRepository } from "./memory-repositories";
-import type { CompletedAnalysis, NewAnalysis, ObservationRecord } from "./types";
+import type { CompletedAnalysis, NewAnalysis, ObservationRecord, ProviderCacheRepository } from "./types";
 
 /**
  * Characterisation tests: real migrations on in-memory PGlite, no mock of the database layer.
@@ -26,11 +26,11 @@ import type { CompletedAnalysis, NewAnalysis, ObservationRecord } from "./types"
 
 const devEnv = { NODE_ENV: "development", PGLITE_DATA_DIR: ".data/test", PROVIDER_HTTP_TIMEOUT_MS: 1000 } as ServerEnv;
 
-// Same mock-mode input as src/server/pipeline/run-analysis.test.ts.
+// Same input as src/server/pipeline/run-analysis.test.ts. The input refuses mock data, so the offline
+// fixtures come in through the providers seam.
 const input = {
   productName: "Chaussettes chauffantes",
   countries: ["FR", "DE", "US"],
-  dataMode: "mock",
   extraTerms: [
     { language: "de", term: "beheizbare Socken" },
     { language: "en", term: "heated socks" },
@@ -80,14 +80,17 @@ afterEach(() => {
   expect(networkGuard).not.toHaveBeenCalled();
 });
 
+const mockProviders = (providerCache: ProviderCacheRepository, now: Date): ProviderSet =>
+  createProviderSet("mock", { env: devEnv, cache: providerCache, now: () => now });
+
 function analyse(now: Date = NOW): Promise<AnalysisResult> {
-  return runAnalysis(input, { repositories: { analyses, cache }, env: devEnv, now: () => now });
+  return runAnalysis(input, { repositories: { analyses, cache }, env: devEnv, now: () => now, providers: mockProviders(cache, now) });
 }
 
 /** A valid CompletedAnalysis (and the NewAnalysis that produced it), built without touching the database under test. */
 async function buildValidPayload(): Promise<{ newAnalysis: NewAnalysis; completed: CompletedAnalysis }> {
   const memory = createMemoryRepositories();
-  const result = await runAnalysis(input, { repositories: memory, env: devEnv, now: () => NOW });
+  const result = await runAnalysis(input, { repositories: memory, env: devEnv, now: () => NOW, providers: mockProviders(memory.cache, NOW) });
   const completed = (memory.analyses as MemoryAnalysisRepository).persisted(result.id)!;
   const newAnalysis: NewAnalysis = {
     product: result.product,

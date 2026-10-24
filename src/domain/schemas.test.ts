@@ -91,3 +91,114 @@ describe("analysisInputSchema user text", () => {
     expect(result).toMatchObject({ success: true, data: { productName: "Lampe  LED ❄️ été" } });
   });
 });
+
+const BASE = { productName: "Casquette", countries: ["FR"] };
+const PRODUCT_URL = "https://fr.aliexpress.com/item/1005006123456789.html?spm=a2g0o.home";
+
+/** Issues as the pipeline reports them: dotted path and message. */
+function issuesOf(raw: unknown): Array<{ path: string; message: string }> {
+  const result = analysisInputSchema.safeParse(raw);
+  return result.success ? [] : result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
+}
+
+describe("analysisInputSchema supplier URL", () => {
+  it("keeps a recognised product page address", () => {
+    const result = analysisInputSchema.safeParse({ ...BASE, supplierUrl: PRODUCT_URL });
+    expect(result).toMatchObject({ success: true, data: { supplierUrl: PRODUCT_URL } });
+  });
+
+  it("accepts 2000 characters and refuses 2001", () => {
+    const prefix = "https://fr.aliexpress.com/item/1005006123456789.html?q=";
+    const atLimit = prefix + "a".repeat(2000 - prefix.length);
+
+    expect(analysisInputSchema.safeParse({ ...BASE, supplierUrl: atLimit })).toMatchObject({ success: true, data: { supplierUrl: atLimit } });
+    expect(issuesOf({ ...BASE, supplierUrl: `${atLimit}a` })).toEqual([{ path: "supplierUrl", message: expect.any(String) }]);
+  });
+
+  it("refuses a short link with the French guidance", () => {
+    expect(issuesOf({ ...BASE, supplierUrl: "https://s.click.aliexpress.com/e/_DmXyZ12" })).toEqual([
+      { path: "supplierUrl", message: "Lien court : ouvre-le et colle l'adresse finale de la fiche produit." },
+    ]);
+  });
+
+  it("refuses a non-web address with the parser's message", () => {
+    expect(issuesOf({ ...BASE, supplierUrl: "javascript:alert(1)" })).toEqual([
+      { path: "supplierUrl", message: "Adresse refusée : seules les adresses web en http ou https sont acceptées." },
+    ]);
+  });
+
+  it("accepts an address that is not a supplier page", () => {
+    const result = analysisInputSchema.safeParse({ ...BASE, supplierUrl: "https://www.amazon.fr/dp/B0C1234567" });
+    expect(result).toMatchObject({ success: true, data: { supplierUrl: "https://www.amazon.fr/dp/B0C1234567" } });
+  });
+
+  it("refuses control characters that the database could not store", () => {
+    expect(issuesOf({ ...BASE, supplierUrl: `${PRODUCT_URL}&x=\u0000` })).toEqual([
+      { path: "supplierUrl", message: expect.any(String) },
+    ]);
+  });
+});
+
+describe("analysisInputSchema category", () => {
+  it.each([
+    ["a", false],
+    ["ab", true],
+    ["x".repeat(60), true],
+    ["x".repeat(61), false],
+  ])("bounds the category to 2–60 characters (%j accepted: %s)", (category, accepted) => {
+    const result = analysisInputSchema.safeParse({ ...BASE, category });
+    if (accepted) expect(result).toMatchObject({ success: true, data: { category } });
+    else expect(issuesOf({ ...BASE, category }).map((i) => i.path)).toEqual(["category"]);
+  });
+});
+
+describe("analysisInputSchema economics", () => {
+  it.each([
+    ["supplierPrice", 0, false],
+    ["supplierPrice", 0.01, true],
+    ["supplierPrice", 100_000, true],
+    ["supplierPrice", 100_000.01, false],
+    ["supplierPrice", Number.NaN, false],
+    ["shippingCost", -0.01, false],
+    ["shippingCost", 0, true],
+    ["shippingCost", 100_000, true],
+    ["shippingCost", 100_000.01, false],
+    ["targetMarginPct", 0.99, false],
+    ["targetMarginPct", 1, true],
+    ["targetMarginPct", 95, true],
+    ["targetMarginPct", 95.01, false],
+    ["sellingPrice", 0, false],
+    ["sellingPrice", 100_000, true],
+  ])("bounds %s (%d accepted: %s)", (field, value, accepted) => {
+    const raw = { ...BASE, economics: { currency: "EUR", [field]: value } };
+    const result = analysisInputSchema.safeParse(raw);
+    if (accepted) expect(result).toMatchObject({ success: true, data: { economics: { [field]: value } } });
+    else expect(issuesOf(raw).map((i) => i.path)).toEqual([`economics.${field}`]);
+  });
+
+  it("reads a pre-V1 landed cost as the supplier price with no separate shipping", () => {
+    const result = analysisInputSchema.safeParse({ ...BASE, economics: { currency: "EUR", landedCost: 9 } });
+    expect(result.success).toBe(true);
+    expect(result.data?.economics).toEqual({ currency: "EUR", landedCost: 9, supplierPrice: 9, shippingCost: 0 });
+  });
+
+  it("keeps the typed supplier price and shipping when a landed cost is also given", () => {
+    const result = analysisInputSchema.safeParse({
+      ...BASE,
+      economics: { currency: "EUR", landedCost: 12, supplierPrice: 7, shippingCost: 3 },
+    });
+    expect(result.data?.economics).toEqual({ currency: "EUR", landedCost: 12, supplierPrice: 7, shippingCost: 3 });
+  });
+});
+
+describe("analysisInputSchema data mode", () => {
+  it("defaults to live data", () => {
+    expect(analysisInputSchema.safeParse(BASE)).toMatchObject({ success: true, data: { dataMode: "live" } });
+  });
+
+  it("refuses mock data with the French message", () => {
+    expect(issuesOf({ ...BASE, dataMode: "mock" })).toEqual([
+      { path: "dataMode", message: "Les données fictives ont été retirées de l'application." },
+    ]);
+  });
+});

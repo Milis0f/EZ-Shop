@@ -34,7 +34,6 @@ const devEnv = { NODE_ENV: "development", PGLITE_DATA_DIR: ".data/test", PROVIDE
 const input = {
   productName: "Chaussettes chauffantes",
   countries: ["FR", "DE", "US"],
-  dataMode: "mock",
   extraTerms: [
     { language: "de", term: "beheizbare Socken" },
     { language: "en", term: "heated socks" },
@@ -42,10 +41,14 @@ const input = {
   economics: { currency: "EUR", sellingPrice: 29, landedCost: 9 },
 };
 
+/** The input refuses mock data: tests inject the offline fixtures through the providers seam. */
+const mockProviders = (repositories: Repositories): ProviderSet =>
+  createProviderSet("mock", { env: devEnv, cache: repositories.cache, now: () => NOW });
+
 describe("runAnalysis (mock providers, in-memory repositories)", () => {
   it("analyses every requested country and persists the audit trail", async () => {
     const repositories = createMemoryRepositories();
-    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW });
+    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders(repositories) });
 
     expect(result.status).toBe("completed");
     expect(result.countries.map((c) => c.country)).toEqual(["FR", "DE", "US"]);
@@ -66,7 +69,26 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
     expect(persisted.snapshots.every((s) => s.country !== "US")).toBe(true);
 
     const [summary] = await repositories.analyses.listRecent(5);
-    expect(summary).toMatchObject({ id: result.id, status: "completed", dataMode: "mock", countryCount: 3 });
+    expect(summary).toMatchObject({ id: result.id, status: "completed", dataMode: "live", countryCount: 3 });
+  });
+
+  it("still runs a pre-V1 landed cost, read as the supplier price with no separate shipping", async () => {
+    const repositories = createMemoryRepositories();
+    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders(repositories) });
+
+    expect(result.economics).toEqual({ currency: "EUR", sellingPrice: 29, landedCost: 9, supplierPrice: 9, shippingCost: 0 });
+  });
+
+  it("refuses mock data before writing anything", async () => {
+    const repositories = createMemoryRepositories();
+
+    const promise = runAnalysis({ ...input, dataMode: "mock" }, { repositories, env: devEnv, now: () => NOW });
+
+    await expect(promise).rejects.toBeInstanceOf(AnalysisValidationError);
+    await expect(promise).rejects.toMatchObject({
+      issues: [{ path: "dataMode", message: "Les données fictives ont été retirées de l'application." }],
+    });
+    expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
   });
 
   it("returns DATA_INSUFFICIENT everywhere a live connector is not configured", async () => {
@@ -132,7 +154,7 @@ describe("runAnalysis when the pipeline crashes after the analysis row exists", 
 
   /** Mock set whose only macro collector throws: the crash happens after `create`, inside the try block. */
   function crashingProviders(repositories: Repositories): ProviderSet {
-    const base = createProviderSet("mock", { env: devEnv, cache: repositories.cache, now: () => NOW });
+    const base = mockProviders(repositories);
     return {
       ...base,
       macro: [

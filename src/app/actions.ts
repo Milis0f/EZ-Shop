@@ -8,7 +8,7 @@ import { MockDataNotAllowedError } from "@/providers/registry";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { createAnalysis } from "@/server/services";
 
-import type { SearchFormState } from "./search-form-state";
+import { searchFormStateFrom, type SearchFormState } from "./search-form-state";
 
 const optionalNumber = (value: FormDataEntryValue | null): number | undefined => {
   if (typeof value !== "string" || value.trim() === "") return undefined;
@@ -49,17 +49,23 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
     return { fieldErrors: { extraTerms: `Format attendu « de: terme1, terme2 ». Lignes invalides : ${invalid.join(" | ")}` } };
   }
 
-  const raw: AnalysisInputRaw = {
+  // `dataMode` is passed as posted: the schema refuses anything but live data, with its own message.
+  const raw: Omit<AnalysisInputRaw, "dataMode"> & { readonly dataMode?: string } = {
     productName: String(formData.get("productName") ?? ""),
+    supplierUrl: optionalText(formData.get("supplierUrl")),
+    category: optionalText(formData.get("category")),
     inputLanguage: String(formData.get("inputLanguage") ?? "fr") as LanguageCode,
     extraTerms: terms,
     countries: formData.getAll("countries").map(String) as AnalysisInputRaw["countries"],
-    dataMode: formData.get("dataMode") === "mock" ? "mock" : "live",
+    dataMode: optionalText(formData.get("dataMode")),
     originCountry: (optionalText(formData.get("originCountry")) as AnalysisInputRaw["originCountry"]) ?? undefined,
     hsCode: optionalText(formData.get("hsCode")),
     economics: {
       currency: "EUR",
       sellingPrice: optionalNumber(formData.get("sellingPrice")),
+      supplierPrice: optionalNumber(formData.get("supplierPrice")),
+      shippingCost: optionalNumber(formData.get("shippingCost")),
+      targetMarginPct: optionalNumber(formData.get("targetMarginPct")),
       landedCost: optionalNumber(formData.get("landedCost")),
     },
   };
@@ -68,9 +74,7 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
   try {
     id = (await createAnalysis(raw)).id;
   } catch (error: unknown) {
-    if (error instanceof AnalysisValidationError) {
-      return { fieldErrors: Object.fromEntries(error.issues.map((i) => [i.path.split(".")[0] || "form", i.message])) };
-    }
+    if (error instanceof AnalysisValidationError) return searchFormStateFrom(error.issues);
     if (error instanceof MockDataNotAllowedError) return { error: "Les données mock sont désactivées dans cet environnement." };
     console.error("[submitAnalysis]", error);
     return { error: "L'analyse a échoué. Consulte les logs serveur." };
