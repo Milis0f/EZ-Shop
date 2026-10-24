@@ -204,11 +204,11 @@ async function ConnectorList() {
 function ConnectorsSkeleton() {
   return (
     <div role="status" aria-label="Chargement des sources">
-      <Skeleton className="mt-12 h-36 rounded-[0.875rem]" />
+      <Skeleton className="mt-12 h-36 rounded-panel" />
       <Skeleton className="mt-16 h-5 w-56" />
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-52 rounded-[0.875rem]" />
+          <Skeleton key={i} className="h-52 rounded-panel" />
         ))}
       </div>
     </div>

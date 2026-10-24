@@ -40,12 +40,12 @@ function AdvancedHome() {
 
       <div className="mt-12 grid items-start gap-8 lg:grid-cols-[1fr_19rem]">
         <section aria-label="Nouvelle analyse" className="animate-enter" style={stagger(1)}>
-          <Suspense fallback={<Skeleton className="h-[38rem] w-full rounded-[0.875rem]" />}>
+          <Suspense fallback={<Skeleton className="h-[38rem] w-full rounded-panel" />}>
             <SearchFormWithMode />
           </Suspense>
         </section>
         <aside aria-label="État des sources" className="animate-enter lg:sticky lg:top-8" style={stagger(2)}>
-          <Suspense fallback={<Skeleton className="h-80 w-full rounded-[0.875rem]" />}>
+          <Suspense fallback={<Skeleton className="h-80 w-full rounded-panel" />}>
             <ConnectorsSummary />
           </Suspense>
         </aside>
@@ -55,7 +55,7 @@ function AdvancedHome() {
         <h2 id="recent-title" className="mb-6 text-lg font-semibold tracking-tight">
           Analyses récentes
         </h2>
-        <Suspense fallback={<Skeleton className="h-56 w-full rounded-[0.875rem]" />}>
+        <Suspense fallback={<Skeleton className="h-56 w-full rounded-panel" />}>
           <RecentAnalyses />
         </Suspense>
       </section>

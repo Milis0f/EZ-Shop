@@ -16,8 +16,8 @@ export function AnalysisSkeleton() {
         ))}
       </div>
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
-        <Skeleton className="h-[26rem] rounded-[0.875rem]" />
-        <Skeleton className="h-64 rounded-[0.875rem]" />
+        <Skeleton className="h-[26rem] rounded-panel" />
+        <Skeleton className="h-64 rounded-panel" />
       </div>
       <div className="panel mt-16 space-y-4 p-5">
         {Array.from({ length: 6 }, (_, i) => (

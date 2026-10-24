@@ -233,11 +233,11 @@ function CountrySkeleton() {
           <Skeleton className="h-9 w-64" />
           <Skeleton className="mt-4 h-4 w-80" />
         </div>
-        <Skeleton className="h-28 w-[30rem] max-w-full rounded-[0.875rem]" />
+        <Skeleton className="h-28 w-[30rem] max-w-full rounded-panel" />
       </div>
-      <Skeleton className="mt-10 h-24 rounded-[0.875rem]" />
+      <Skeleton className="mt-10 h-24 rounded-panel" />
       <Skeleton className="mt-20 h-5 w-48" />
-      <Skeleton className="mt-6 h-[22rem] rounded-[0.875rem]" />
+      <Skeleton className="mt-6 h-[22rem] rounded-panel" />
     </div>
   );
 }

@@ -30,7 +30,7 @@ function NavLinks({ pathname }: { pathname: string | null }) {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground",
+              "interactive flex items-center gap-3 rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface hover:text-foreground",
               active && "bg-surface text-foreground",
             )}
           >
