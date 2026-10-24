@@ -12,6 +12,9 @@ const optionalSecret = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
+/** Local LLM (GGUF) read by src/server/ai/engine.ts, relative to the project root unless absolute. */
+export const DEFAULT_LOCAL_AI_MODEL_PATH = ".data/models/Qwen3.5-9B-Q4_K_M.gguf";
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -22,6 +25,18 @@ const envSchema = z.object({
   /** Explicit switch for development fixtures. Defaults to true outside production. */
   ALLOW_MOCK_DATA: z.enum(["true", "false"]).optional(),
   PROVIDER_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(12_000),
+
+  // Local AI (node-llama-cpp, runs on this machine). Its text only rewords stored analyses, never adds data.
+  // On by default; an empty value keeps the default. "false" turns it off without touching the model file.
+  LOCAL_AI_ENABLED: z
+    .enum(["true", "false", ""])
+    .default("true")
+    .transform((v) => v !== "false"),
+  LOCAL_AI_MODEL_PATH: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : DEFAULT_LOCAL_AI_MODEL_PATH)),
 
   // Google Trends API (alpha, access on application only).
   GOOGLE_TRENDS_API_KEY: optionalSecret,
