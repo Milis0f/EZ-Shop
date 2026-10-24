@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AnalysisHeader } from "@/components/analysis/analysis-header";
 import { AnalysisSkeleton } from "@/components/analysis/analysis-skeleton";
+import { AiInsight } from "@/components/analysis/ai-insight";
 import { AnalysisSummary } from "@/components/analysis/analysis-summary";
 import { AssumptionsTable } from "@/components/analysis/assumptions-table";
 import { CountryRanking } from "@/components/analysis/country-ranking";
@@ -85,6 +86,13 @@ function AdvancedAnalysis({ analysis, points, unscored, created }: { analysis: A
       <AnalysisHeader analysis={analysis} />
 
       <AnalysisSummary countries={analysis.countries} />
+
+      <section aria-labelledby="ai-title" className="mt-8 max-w-4xl">
+        <SectionTitle id="ai-title" title="Lecture par l'IA locale">
+          Une reformulation de cette analyse par un modèle qui tourne sur ton ordinateur. Ce n&apos;est pas une donnée.
+        </SectionTitle>
+        <AiInsight analysisId={analysis.id} />
+      </section>
 
       <section aria-labelledby="map-title" className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
         <div className="panel animate-enter p-6" style={{ "--stagger": 5 } as React.CSSProperties}>

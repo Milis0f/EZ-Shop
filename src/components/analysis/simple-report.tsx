@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { AnimatedNumber } from "@/components/motion/animated-number";
+import { AiInsight } from "@/components/analysis/ai-insight";
 import { DemandChart } from "@/components/country/demand-chart";
 import { CountryTag } from "@/components/data/country-tag";
 import { ModeToggle } from "@/components/layout/mode-toggle";
@@ -158,6 +159,10 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
             Pays le plus prometteur : <span className="font-medium">{COUNTRIES[ranked[0].country].nameFr}</span> ({verdictFor(ranked[0]).title.toLowerCase()}).
           </p>
         )}
+      </section>
+
+      <section aria-label="Lecture par l'IA locale" className="mt-6">
+        <AiInsight analysisId={analysis.id} />
       </section>
 
       <div className="animate-enter mt-6" style={{ "--stagger": 2 } as React.CSSProperties}>

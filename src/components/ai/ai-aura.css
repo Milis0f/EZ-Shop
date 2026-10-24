@@ -1,0 +1,228 @@
+/*
+ * The "mini aura": the single visual signature of anything the local AI wrote.
+ * A graphite tile ringed by a 1px iridescent halo (a masked conic gradient) and a faint blurred glow.
+ * Layers, inside the tile's own stacking context: glow (::after, behind) < surface < halo ring (::before).
+ * Plain global stylesheet with ai- prefixed classes: next.config.ts routes every *.css through the
+ * Tailwind loader as plain CSS, so CSS modules are not hashed in this project.
+ */
+
+/* Registered so the conic angle interpolates; without @property it stays still (static fallback). */
+@property --ai-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.ai-aura {
+  --ai-lilac: #c4b5ff;
+  --ai-ice: #8fdcff;
+  --ai-pearl: color-mix(in oklab, var(--craie) 38%, transparent);
+  --ai-halo: conic-gradient(
+    from var(--ai-angle),
+    var(--ai-lilac),
+    var(--ai-ice) 28%,
+    var(--ai-pearl) 50%,
+    var(--ai-lilac) 72%,
+    var(--ai-ice) 88%,
+    var(--ai-lilac)
+  );
+
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--radius-tile);
+}
+
+.ai-aura-surface {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  background-color: var(--surface);
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+/* Halo ring: the gradient shows only in the 1px padding band (content box masked out). */
+.ai-aura::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--ai-halo);
+  opacity: 0.9;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+/* Outer glow: the same gradient, blurred and faint, behind the opaque surface. */
+.ai-aura::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--ai-halo);
+  filter: blur(16px);
+  opacity: 0.2;
+  pointer-events: none;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+/* Thinking: the halo turns slowly and breathes. */
+.ai-aura[data-state="thinking"]::before {
+  animation:
+    ai-spin 6s linear infinite,
+    ai-breathe-ring 3.2s ease-in-out infinite;
+}
+
+.ai-aura[data-state="thinking"]::after {
+  animation:
+    ai-spin 6s linear infinite,
+    ai-breathe-glow 3.2s ease-in-out infinite;
+}
+
+/* Ready: static halo, one soft settle when the content arrives. */
+.ai-aura[data-state="ready"]::before {
+  animation: ai-settle-ring 1.2s var(--ease-out) both;
+}
+
+.ai-aura[data-state="ready"]::after {
+  animation: ai-settle-glow 1.2s var(--ease-out) both;
+}
+
+/* Off: no halo, the plain hairline of any tile. */
+.ai-aura[data-state="off"]::before,
+.ai-aura[data-state="off"]::after {
+  opacity: 0;
+  animation: none;
+}
+
+.ai-aura[data-state="off"] .ai-aura-surface {
+  border-color: var(--line);
+}
+
+@keyframes ai-spin {
+  to {
+    --ai-angle: 360deg;
+  }
+}
+
+@keyframes ai-breathe-ring {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes ai-breathe-glow {
+  0%,
+  100% {
+    opacity: 0.08;
+  }
+  50% {
+    opacity: 0.24;
+  }
+}
+
+@keyframes ai-settle-ring {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+
+@keyframes ai-settle-glow {
+  from {
+    opacity: 0.4;
+    filter: blur(22px);
+  }
+  to {
+    opacity: 0.2;
+    filter: blur(16px);
+  }
+}
+
+/* ---------- Badge « IA locale » ---------- */
+
+.ai-badge {
+  --ai-lilac: #c4b5ff;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.5rem;
+  padding: 0 0.625rem 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ai-badge-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, #ffffff, var(--ai-lilac) 55%, #8fdcff);
+  box-shadow: 0 0 8px 1px color-mix(in oklab, var(--ai-lilac) 60%, transparent);
+}
+
+.ai-badge[data-state="thinking"] .ai-badge-dot {
+  animation: ai-pulse 1.6s ease-in-out infinite;
+}
+
+.ai-badge[data-state="off"] .ai-badge-dot {
+  background: var(--kind-missing);
+  box-shadow: none;
+}
+
+@keyframes ai-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 6px 0 color-mix(in oklab, var(--ai-lilac) 45%, transparent);
+  }
+  50% {
+    transform: scale(1.18);
+    box-shadow: 0 0 12px 2px color-mix(in oklab, var(--ai-lilac) 75%, transparent);
+  }
+}
+
+/* ---------- Content arrival ---------- */
+
+.ai-reveal {
+  animation: ai-reveal var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--stagger, 0) * 70ms);
+}
+
+@keyframes ai-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-aura::before,
+  .ai-aura::after,
+  .ai-badge .ai-badge-dot,
+  .ai-reveal {
+    animation: none !important;
+  }
+}
