@@ -14,362 +14,371 @@
  * entrance waits, then plays once when it scrolls in. It only ever applies to screens, never to print.
  */
 
-/* ---------- Segmented control ---------- */
+/* Declared first so the order holds whichever stylesheet loads first (same order as Tailwind). */
+@layer theme, base, components, utilities;
 
-.mk-segmented {
-  --seg-pad: 4px;
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  max-width: 100%;
-  gap: 2px;
-  padding: var(--seg-pad);
-  border: 1px solid var(--trait);
-  border-radius: var(--radius-pill);
-  background-color: var(--graphite);
-}
+/* Component layer: utilities passed through className (px-8, hidden, w-full...) override these defaults. */
+@layer components {
+  /* ---------- Segmented control ---------- */
 
-.mk-segmented[data-disabled] {
-  opacity: 0.5;
-}
-
-/* The craie thumb, measured onto the checked option (--thumb-x, --thumb-w). Hidden until measured. */
-.mk-segmented-thumb {
-  position: absolute;
-  z-index: -1;
-  inset-block: var(--seg-pad);
-  left: 0;
-  width: var(--thumb-w, 0px);
-  transform: translateX(var(--thumb-x, 0px));
-  border-radius: var(--radius-pill);
-  background-color: var(--craie);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.mk-segmented[data-thumb] .mk-segmented-thumb {
-  opacity: 1;
-}
-
-/* Only a choice slides the thumb; the first placement and resizes snap ("ready"). */
-.mk-segmented[data-thumb="live"] .mk-segmented-thumb {
-  transition:
-    transform var(--dur-slow) var(--ease-spring),
-    width var(--dur-slow) var(--ease-spring);
-}
-
-.mk-segmented-option {
-  position: relative;
-  display: inline-flex;
-  min-width: 0;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 20px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background-color: transparent;
-  color: var(--brume);
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: color var(--dur-base) var(--ease-out);
-}
-
-.mk-segmented-option:hover:not(:disabled) {
-  color: var(--craie);
-}
-
-.mk-segmented-option[aria-checked="true"] {
-  color: var(--noir);
-}
-
-.mk-segmented-option:disabled {
-  cursor: default;
-}
-
-/* Server render and first paint: the checked option carries the craie itself, exactly where the thumb will sit. */
-.mk-segmented:not([data-thumb]) .mk-segmented-option[aria-checked="true"] {
-  background-color: var(--craie);
-}
-
-/* ---------- Ring loader ---------- */
-
-.mk-ring {
-  display: inline-block;
-  flex: none;
-  line-height: 0;
-}
-
-.mk-ring-sm {
-  width: 16px;
-  height: 16px;
-}
-
-.mk-ring-md {
-  width: 22px;
-  height: 22px;
-}
-
-/* A loader turns at constant speed: the only linear motion in the kit. */
-.mk-ring-svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  animation: mk-ring-spin calc(var(--dur-slow) * 2) linear infinite;
-}
-
-.mk-ring-track,
-.mk-ring-arc {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.75;
-}
-
-.mk-ring-track {
-  opacity: 0.2;
-}
-
-.mk-ring-arc {
-  stroke-linecap: round;
-  stroke-dasharray: 26 100;
-  animation: mk-ring-breathe calc(var(--dur-slow) * 3) var(--ease-out) infinite alternate;
-}
-
-@keyframes mk-ring-spin {
-  to {
-    transform: rotate(360deg);
+  .mk-segmented {
+    --seg-pad: 4px;
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    max-width: 100%;
+    gap: 2px;
+    padding: var(--seg-pad);
+    border: 1px solid var(--trait);
+    border-radius: var(--radius-pill);
+    background-color: var(--graphite);
   }
-}
 
-@keyframes mk-ring-breathe {
-  to {
-    stroke-dasharray: 60 100;
+  .mk-segmented[data-disabled] {
+    opacity: 0.5;
   }
-}
 
-/* ---------- Pending button ---------- */
-
-/* Both labels share one grid cell, so the button is as wide as the longer one and never jumps. */
-.mk-pending-button {
-  position: relative;
-  display: inline-grid;
-  min-height: 48px;
-  place-items: center;
-  padding: 0 26px;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background-color: var(--craie);
-  color: var(--noir);
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out),
-    transform var(--dur-base) var(--ease-spring);
-}
-
-.mk-pending-button:hover:not(:disabled) {
-  background-color: color-mix(in oklab, var(--craie) 86%, var(--noir));
-}
-
-.mk-pending-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.mk-pending-button:disabled {
-  cursor: default;
-}
-
-.mk-pending-button[aria-busy="true"] {
-  cursor: progress;
-}
-
-.mk-pending-button:disabled:not([aria-busy="true"]) {
-  opacity: 0.5;
-}
-
-.mk-pending-layer {
-  grid-area: 1 / 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition:
-    opacity var(--dur-base) var(--ease-out),
-    transform var(--dur-base) var(--ease-out);
-}
-
-.mk-pending-button[aria-busy="true"] .mk-pending-idle {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.mk-pending-button:not([aria-busy="true"]) .mk-pending-busy {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-/* ---------- Reveal ---------- */
-
-/* Rise and fade once, in order: --i is the item's place, --reveal-step the gap (capped at 12 steps). */
-.mk-reveal-item {
-  animation: mk-reveal-rise var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(min(var(--i, 0), 12) * var(--reveal-step, 60ms));
-}
-
-@keyframes mk-reveal-rise {
-  from {
+  /* The craie thumb, measured onto the checked option (--thumb-x, --thumb-w). Hidden until measured. */
+  .mk-segmented-thumb {
+    position: absolute;
+    z-index: -1;
+    inset-block: var(--seg-pad);
+    left: 0;
+    width: var(--thumb-w, 0px);
+    transform: translateX(var(--thumb-x, 0px));
+    border-radius: var(--radius-pill);
+    background-color: var(--craie);
     opacity: 0;
-    transform: translateY(10px);
-    filter: blur(2px);
+    pointer-events: none;
   }
-}
 
-/* ---------- Progress ring ---------- */
-
-.mk-progress-ring {
-  position: relative;
-  display: inline-grid;
-  flex: none;
-  width: var(--ring-size);
-  height: var(--ring-size);
-  place-items: center;
-}
-
-.mk-progress-ring-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  transform: rotate(-90deg);
-}
-
-.mk-progress-ring-track {
-  fill: none;
-  stroke: var(--ardoise);
-}
-
-/* pathLength is 100 on the arcs, so the offset is simply 100 minus the value. */
-.mk-progress-ring-arc {
-  fill: none;
-  stroke: var(--ring-color, var(--craie));
-  stroke-linecap: round;
-  stroke-dasharray: 100 100;
-  stroke-dashoffset: var(--ring-offset, 100);
-  animation: mk-ring-draw calc(var(--dur-slow) * 2) var(--ease-out) backwards;
-  animation-delay: var(--ring-delay, 0ms);
-  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
-}
-
-.mk-progress-ring-glow {
-  opacity: 0.55;
-}
-
-.mk-progress-ring[data-empty] .mk-progress-ring-arc {
-  visibility: hidden;
-}
-
-.mk-progress-ring-center {
-  position: relative;
-  display: grid;
-  place-items: center;
-  text-align: center;
-}
-
-@keyframes mk-ring-draw {
-  from {
-    stroke-dashoffset: 100;
+  .mk-segmented[data-thumb] .mk-segmented-thumb {
+    opacity: 1;
   }
-}
 
-/* ---------- Drawn path ---------- */
+  /* Only a choice slides the thumb; the first placement and resizes snap ("ready"). */
+  .mk-segmented[data-thumb="live"] .mk-segmented-thumb {
+    transition:
+      transform var(--dur-slow) var(--ease-spring),
+      width var(--dur-slow) var(--ease-spring);
+  }
 
-.mk-draw-path[data-draw="drawing"] {
-  transition: stroke-dashoffset calc(var(--dur-slow) * 2) var(--ease-out);
-}
+  .mk-segmented-option {
+    position: relative;
+    display: inline-flex;
+    min-width: 0;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background-color: transparent;
+    color: var(--brume);
+    font: inherit;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color var(--dur-base) var(--ease-out);
+  }
 
-/* ---------- Expand ---------- */
+  /* Never on the checked option: craie text on the craie thumb would vanish (touch keeps :hover after a tap). */
+  @media (hover: hover) {
+    .mk-segmented-option:hover:not(:disabled):not([aria-checked="true"]) {
+      color: var(--craie);
+    }
+  }
 
-/* Height follows the content (grid rows 0fr to 1fr): no measuring, works for any content. */
-.mk-expand {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows var(--dur-slow) var(--ease-out),
-    opacity var(--dur-base) var(--ease-out);
-}
+  .mk-segmented-option[aria-checked="true"] {
+    color: var(--noir);
+  }
 
-.mk-expand[data-open] {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
+  .mk-segmented-option:disabled {
+    cursor: default;
+  }
 
-/* Clipped, but with room for the focus ring of what is inside (2px ring, 2px offset). */
-.mk-expand-inner {
-  min-height: 0;
-  overflow: hidden;
-  overflow: clip;
-  overflow-clip-margin: 6px;
-}
+  /* Server render and first paint: the checked option carries the craie itself, exactly where the thumb will sit. */
+  .mk-segmented:not([data-thumb]) .mk-segmented-option[aria-checked="true"] {
+    background-color: var(--craie);
+  }
 
-/* ---------- Deferred entrances and the no-script guard ---------- */
+  /* ---------- Ring loader ---------- */
 
-@media screen and (prefers-reduced-motion: no-preference) {
-  .mk-reveal-group[data-motion="defer"] .mk-reveal-item {
+  .mk-ring {
+    display: inline-block;
+    flex: none;
+    line-height: 0;
+  }
+
+  .mk-ring-sm {
+    width: 16px;
+    height: 16px;
+  }
+
+  .mk-ring-md {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* A loader turns at constant speed: the only linear motion in the kit. */
+  .mk-ring-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    animation: mk-ring-spin calc(var(--dur-slow) * 2) linear infinite;
+  }
+
+  .mk-ring-track,
+  .mk-ring-arc {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.75;
+  }
+
+  .mk-ring-track {
+    opacity: 0.2;
+  }
+
+  .mk-ring-arc {
+    stroke-linecap: round;
+    stroke-dasharray: 26 100;
+    animation: mk-ring-breathe calc(var(--dur-slow) * 3) var(--ease-out) infinite alternate;
+  }
+
+  @keyframes mk-ring-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes mk-ring-breathe {
+    to {
+      stroke-dasharray: 60 100;
+    }
+  }
+
+  /* ---------- Pending button ---------- */
+
+  /* Both labels share one grid cell, so the button is as wide as the longer one and never jumps. */
+  .mk-pending-button {
+    position: relative;
+    display: inline-grid;
+    min-height: 48px;
+    place-items: center;
+    padding: 0 26px;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background-color: var(--craie);
+    color: var(--noir);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      opacity var(--dur-fast) var(--ease-out),
+      transform var(--dur-base) var(--ease-spring);
+  }
+
+  .mk-pending-button:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--craie) 86%, var(--noir));
+  }
+
+  .mk-pending-button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .mk-pending-button:disabled {
+    cursor: default;
+  }
+
+  .mk-pending-button[aria-busy="true"] {
+    cursor: progress;
+  }
+
+  .mk-pending-button:disabled:not([aria-busy="true"]) {
+    opacity: 0.5;
+  }
+
+  .mk-pending-layer {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition:
+      opacity var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+
+  .mk-pending-button[aria-busy="true"] .mk-pending-idle {
     opacity: 0;
-    animation: none;
+    transform: translateY(-8px);
   }
 
-  .mk-progress-ring[data-motion="defer"] .mk-progress-ring-arc {
-    visibility: hidden;
-    animation: none;
-  }
-}
-
-/* A drawn path stays hidden from the first paint until its script measures it: no flash of the full line. */
-@media screen and (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-  .mk-draw-path:not([data-draw]) {
-    opacity: 0;
-  }
-}
-
-/* ---------- Reduced motion ---------- */
-
-@media (prefers-reduced-motion: reduce) {
-  .mk-segmented[data-thumb="live"] .mk-segmented-thumb,
-  .mk-segmented-option,
-  .mk-pending-button,
-  .mk-pending-layer,
-  .mk-progress-ring-arc,
-  .mk-draw-path[data-draw="drawing"],
-  .mk-expand {
-    transition: none;
-  }
-
-  .mk-ring-svg,
-  .mk-ring-arc,
-  .mk-reveal-item,
-  .mk-progress-ring-arc {
-    animation: none;
-  }
-
-  .mk-pending-button:active:not(:disabled),
-  .mk-pending-button[aria-busy="true"] .mk-pending-idle,
   .mk-pending-button:not([aria-busy="true"]) .mk-pending-busy {
-    transform: none;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  /* ---------- Reveal ---------- */
+
+  /* Rise and fade once, in order: --i is the item's place, --reveal-step the gap (capped at 12 steps). */
+  .mk-reveal-item {
+    animation: mk-reveal-rise var(--dur-slow) var(--ease-out) both;
+    animation-delay: calc(min(var(--i, 0), 12) * var(--reveal-step, 60ms));
+  }
+
+  @keyframes mk-reveal-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+      filter: blur(2px);
+    }
+  }
+
+  /* ---------- Progress ring ---------- */
+
+  .mk-progress-ring {
+    position: relative;
+    display: inline-grid;
+    flex: none;
+    width: var(--ring-size);
+    height: var(--ring-size);
+    place-items: center;
+  }
+
+  .mk-progress-ring-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform: rotate(-90deg);
+  }
+
+  .mk-progress-ring-track {
+    fill: none;
+    stroke: var(--ardoise);
+  }
+
+  /* pathLength is 100 on the arcs, so the offset is simply 100 minus the value. */
+  .mk-progress-ring-arc {
+    fill: none;
+    stroke: var(--ring-color, var(--craie));
+    stroke-linecap: round;
+    stroke-dasharray: 100 100;
+    stroke-dashoffset: var(--ring-offset, 100);
+    animation: mk-ring-draw calc(var(--dur-slow) * 2) var(--ease-out) backwards;
+    animation-delay: var(--ring-delay, 0ms);
+    transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+  }
+
+  .mk-progress-ring-glow {
+    opacity: 0.55;
+  }
+
+  .mk-progress-ring[data-empty] .mk-progress-ring-arc {
+    visibility: hidden;
+  }
+
+  .mk-progress-ring-center {
+    position: relative;
+    display: grid;
+    place-items: center;
+    text-align: center;
+  }
+
+  @keyframes mk-ring-draw {
+    from {
+      stroke-dashoffset: 100;
+    }
+  }
+
+  /* ---------- Drawn path ---------- */
+
+  .mk-draw-path[data-draw="drawing"] {
+    transition: stroke-dashoffset calc(var(--dur-slow) * 2) var(--ease-out);
+  }
+
+  /* ---------- Expand ---------- */
+
+  /* Height follows the content (grid rows 0fr to 1fr): no measuring, works for any content. */
+  .mk-expand {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--dur-slow) var(--ease-out),
+      opacity var(--dur-base) var(--ease-out);
+  }
+
+  .mk-expand[data-open] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  /* Clipped, but with room for the focus ring of what is inside (2px ring, 2px offset). */
+  .mk-expand-inner {
+    min-height: 0;
+    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: 6px;
+  }
+
+  /* ---------- Deferred entrances and the no-script guard ---------- */
+
+  @media screen and (prefers-reduced-motion: no-preference) {
+    .mk-reveal-group[data-motion="defer"] .mk-reveal-item {
+      opacity: 0;
+      animation: none;
+    }
+
+    .mk-progress-ring[data-motion="defer"] .mk-progress-ring-arc {
+      visibility: hidden;
+      animation: none;
+    }
+  }
+
+  /* A drawn path stays hidden from the first paint until its script measures it: no flash of the full line. */
+  @media screen and (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+    .mk-draw-path:not([data-draw]) {
+      opacity: 0;
+    }
+  }
+
+  /* ---------- Reduced motion ---------- */
+
+  @media (prefers-reduced-motion: reduce) {
+    .mk-segmented[data-thumb="live"] .mk-segmented-thumb,
+    .mk-segmented-option,
+    .mk-pending-button,
+    .mk-pending-layer,
+    .mk-progress-ring-arc,
+    .mk-draw-path[data-draw="drawing"],
+    .mk-expand {
+      transition: none;
+    }
+
+    .mk-ring-svg,
+    .mk-ring-arc,
+    .mk-reveal-item,
+    .mk-progress-ring-arc {
+      animation: none;
+    }
+
+    .mk-pending-button:active:not(:disabled),
+    .mk-pending-button[aria-busy="true"] .mk-pending-idle,
+    .mk-pending-button:not([aria-busy="true"]) .mk-pending-busy {
+      transform: none;
+    }
   }
 }

@@ -179,7 +179,7 @@ function RevealDemo() {
   const [run, setRun] = useState(0);
   return (
     <LabPanel title="Apparition échelonnée" hint="Les éléments montent et apparaissent une seule fois, l'un après l'autre (60 ms d'écart).">
-      <RevealGroup key={run} as="ul" trigger="mount" className="flex flex-wrap gap-2.5">
+      <RevealGroup key={run} as="ul" trigger="visible" className="flex flex-wrap gap-2.5">
         {SIGNALS.map((signal, index) => (
           <Reveal key={signal} as="li" index={index} className="rounded-pill border border-line bg-surface-2 px-4 py-2 text-sm">
             {signal}
