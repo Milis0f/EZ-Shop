@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Expand } from "./expand";
 
 interface DisclosureProps {
   /** Always-visible row content; the whole row toggles the panel. */
@@ -14,7 +15,7 @@ interface DisclosureProps {
 }
 
 /**
- * Accessible disclosure whose panel height animates smoothly (grid rows 0fr → 1fr),
+ * Accessible disclosure whose panel height animates smoothly (<Expand>: grid rows 0fr → 1fr),
  * in every modern browser. Content stays in the DOM, so it is searchable and printable.
  */
 export function Disclosure({ summary, children, defaultOpen = false, className, summaryClassName }: DisclosureProps) {
@@ -42,18 +43,9 @@ export function Disclosure({ summary, children, defaultOpen = false, className, 
           className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[var(--dur-slow)] ease-[var(--ease-standard)]", open && "rotate-180")}
         />
       </button>
-      <div
-        id={panelId}
-        role="region"
-        aria-labelledby={buttonId}
-        className={cn(
-          "grid transition-[grid-template-rows,opacity] duration-[var(--dur-slow)] ease-[var(--ease-standard)]",
-          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-        )}
-        inert={!open}
-      >
-        <div className="min-h-0 overflow-hidden">{children}</div>
-      </div>
+      <Expand open={open} id={panelId} role="region" aria-labelledby={buttonId}>
+        {children}
+      </Expand>
     </div>
   );
 }

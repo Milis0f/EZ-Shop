@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { formatCompact, formatDecimal, formatInt, formatMoney, formatPct } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { motionDuration, motionEasing } from "./motion-tokens";
 import { prefersReducedMotion } from "./use-reduced-motion";
 
 export type NumberFormat = "int" | "decimal" | "compact" | "percent" | "percentSigned" | "money";
@@ -10,7 +12,7 @@ interface AnimatedNumberProps {
   readonly value: number;
   readonly format: NumberFormat;
   readonly currency?: string;
-  /** Total duration in ms. */
+  /** Total duration in ms. Default: twice the slow motion token (--dur-slow). */
   readonly duration?: number;
   readonly className?: string;
 }
@@ -32,26 +34,29 @@ function formatter(format: NumberFormat, currency: string): (v: number) => strin
   }
 }
 
-const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
-
 /**
  * Counts up to a real value once, when it first enters the viewport.
- * - Server and no-script render show the final value.
+ * - Server and no-script render show the final value, so hydration always matches.
  * - Screen readers always get the final value (the moving digits are aria-hidden).
  * - prefers-reduced-motion: no count, final value immediately.
  * Text is written straight to the DOM node each frame: no React re-render per frame.
- * The final width is reserved while counting, so neighbours never shift; digits stay proportional
- * (tabular figures in this typeface would also space out commas, "%" and "€").
+ * Tabular figures keep every digit the same width while it counts, and the final width is
+ * reserved meanwhile, so neighbours never shift. Duration and easing come from the motion tokens.
  */
-export function AnimatedNumber({ value, format, currency = "EUR", duration = 900, className }: AnimatedNumberProps) {
+export function AnimatedNumber({ value, format, currency = "EUR", duration, className }: AnimatedNumberProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const final = formatter(format, currency)(value);
 
   useLayoutEffect(() => {
     const node = ref.current;
-    if (!node || prefersReducedMotion() || !Number.isFinite(value) || value === 0) return;
+    if (!node) return;
+    // A previous run's cleanup may have written the previous value: the current one always wins.
+    if (node.textContent !== final) node.textContent = final;
+    if (prefersReducedMotion() || !Number.isFinite(value) || value === 0) return;
 
     const display = formatter(format, currency);
+    const total = duration ?? motionDuration("slow") * 2;
+    const ease = motionEasing("out");
     let frame = 0;
     let primed = false;
     const release = () => {
@@ -69,10 +74,10 @@ export function AnimatedNumber({ value, format, currency = "EUR", duration = 900
     const run = () => {
       const start = performance.now();
       const tick = (now: number) => {
-        const t = Math.min(1, (now - start) / duration);
+        const t = total > 0 ? Math.min(1, (now - start) / total) : 1;
         if (t >= 1) release();
         else {
-          node.textContent = display(value * easeOutExpo(t));
+          node.textContent = display(value * ease(t));
           frame = requestAnimationFrame(tick);
         }
       };
@@ -120,7 +125,7 @@ export function AnimatedNumber({ value, format, currency = "EUR", duration = 900
   }, [value, format, currency, duration, final]);
 
   return (
-    <span className={className}>
+    <span className={cn("tabular-nums", className)}>
       <span ref={ref} aria-hidden>
         {final}
       </span>
