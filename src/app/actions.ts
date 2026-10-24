@@ -8,13 +8,8 @@ import { MockDataNotAllowedError } from "@/providers/registry";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { createAnalysis } from "@/server/services";
 
+import { parseFormNumber } from "./form-values";
 import { searchFormStateFrom, type SearchFormState } from "./search-form-state";
-
-const optionalNumber = (value: FormDataEntryValue | null): number | undefined => {
-  if (typeof value !== "string" || value.trim() === "") return undefined;
-  const n = Number(value.replace(",", "."));
-  return Number.isFinite(n) ? n : Number.NaN;
-};
 
 const optionalText = (value: FormDataEntryValue | null): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
@@ -62,11 +57,11 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
     hsCode: optionalText(formData.get("hsCode")),
     economics: {
       currency: "EUR",
-      sellingPrice: optionalNumber(formData.get("sellingPrice")),
-      supplierPrice: optionalNumber(formData.get("supplierPrice")),
-      shippingCost: optionalNumber(formData.get("shippingCost")),
-      targetMarginPct: optionalNumber(formData.get("targetMarginPct")),
-      landedCost: optionalNumber(formData.get("landedCost")),
+      sellingPrice: parseFormNumber(formData.get("sellingPrice")),
+      supplierPrice: parseFormNumber(formData.get("supplierPrice")),
+      shippingCost: parseFormNumber(formData.get("shippingCost")),
+      targetMarginPct: parseFormNumber(formData.get("targetMarginPct")),
+      landedCost: parseFormNumber(formData.get("landedCost")),
     },
   };
 

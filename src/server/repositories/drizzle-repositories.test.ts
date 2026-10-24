@@ -5,6 +5,7 @@ import type { ServerEnv } from "@/config/env";
 import type { AnalysisResult } from "@/domain/analysis";
 import type { CountryCode } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
+import type { AnalysisInput } from "@/domain/schemas";
 import { parseJsonForStorage } from "@/lib/storage-safe";
 import { ok } from "@/providers/contracts";
 import { cached } from "@/providers/http";
@@ -123,10 +124,26 @@ describe("Drizzle repositories on in-memory PGlite", () => {
     expect(columns).toEqual([{ dataType: "jsonb" }]);
   });
 
-  it("persists a mock analysis and reads it back unchanged", async () => {
+  it("persists an analysis and reads it back unchanged", async () => {
     const result = await analyse();
 
     expect(await analyses.findById(result.id)).toEqual(result);
+  });
+
+  it("reads back a stored pre-V1 mock analysis with its data mode", async () => {
+    const { newAnalysis, completed } = await buildValidPayload();
+    // The input schema now refuses mock data, so the old row is rebuilt as it was stored before V1.
+    const storedInput = { ...newAnalysis.input, dataMode: "mock" } as unknown as AnalysisInput;
+    const created = await analyses.create({ ...newAnalysis, input: storedInput, dataMode: "mock" });
+    await analyses.complete({
+      ...completed,
+      result: { ...completed.result, id: created.id, input: storedInput, dataMode: "mock" },
+      productId: created.productId,
+    });
+
+    const stored = await analyses.findById(created.id);
+    expect(stored).toMatchObject({ status: "completed", dataMode: "mock", input: { dataMode: "mock" } });
+    expect((await analyses.listRecent(1))[0]).toMatchObject({ id: created.id, dataMode: "mock" });
   });
 
   it("writes the audit rows of a completed analysis", async () => {

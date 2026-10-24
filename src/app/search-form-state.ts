@@ -24,16 +24,27 @@ const FIELDS_WITH_MESSAGE: ReadonlySet<string> = new Set([
   "economics",
 ]);
 
+/** Distinct messages in their first order, as one text: each message is a sentence that names its field. */
+function joinMessages(messages: readonly string[]): string {
+  return [...new Set(messages)].join(" ");
+}
+
 /**
  * Turns validation issues into the form state. An issue no field can show (a refused data mode, the whole
- * input) becomes the form error, so a refusal is never silent.
+ * input) becomes the form error, so a refusal is never silent. Every message is kept: the prices share one
+ * slot, and showing only one would hide the others until the next submit.
  */
 export function searchFormStateFrom(issues: readonly InputIssue[]): SearchFormState {
   const located = issues.map((issue) => ({ field: issue.path.split(".")[0], message: issue.message }));
   const onFields = located.filter((issue) => FIELDS_WITH_MESSAGE.has(issue.field));
-  const error = located.find((issue) => !FIELDS_WITH_MESSAGE.has(issue.field))?.message;
+  const formMessages = located.filter((issue) => !FIELDS_WITH_MESSAGE.has(issue.field)).map((issue) => issue.message);
+  const fields = [...new Set(onFields.map((issue) => issue.field))];
   return {
-    ...(error !== undefined && { error }),
-    ...(onFields.length > 0 && { fieldErrors: Object.fromEntries(onFields.map((issue) => [issue.field, issue.message])) }),
+    ...(formMessages.length > 0 && { error: joinMessages(formMessages) }),
+    ...(fields.length > 0 && {
+      fieldErrors: Object.fromEntries(
+        fields.map((field) => [field, joinMessages(onFields.filter((issue) => issue.field === field).map((issue) => issue.message))]),
+      ),
+    }),
   };
 }

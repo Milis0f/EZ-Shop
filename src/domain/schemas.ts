@@ -44,15 +44,23 @@ const extraTermSchema = z.object({
 
 /**
  * Supplier product page, recognised offline. Short links and non-web addresses are refused with the parser's
- * guidance; an address that is not a supplier page is kept as typed (nothing is ever fetched from it).
+ * guidance; an address that is not a supplier page is kept as typed (nothing is ever fetched from it), so
+ * views link only to `parseSupplierUrl(...).canonicalUrl`, never to this text. A blank value means no address.
  */
 const supplierUrlSchema = safeText("L'adresse contient des caractères non autorisés.")
   .trim()
   .max(2000, { message: "Adresse trop longue (2 000 caractères au plus).", abort: true })
   .superRefine((value, ctx) => {
+    if (value === "") return;
+    // A web address never holds whitespace: prose or a broken paste is refused instead of stored.
+    if (/\s/.test(value)) {
+      ctx.addIssue({ code: "custom", message: "Adresse invalide : colle l'adresse complète de la fiche produit, sans espace." });
+      return;
+    }
     const parsed = parseSupplierUrl(value);
     if (parsed.kind === "short_link" || parsed.kind === "invalid") ctx.addIssue({ code: "custom", message: parsed.message });
-  });
+  })
+  .transform((value) => (value === "" ? undefined : value));
 
 const MAX_AMOUNT_EUR = 100_000;
 
@@ -60,12 +68,15 @@ const MAX_AMOUNT_EUR = 100_000;
 const amount = (label: string) =>
   z.number({ error: `${label} : saisis un nombre.` }).max(MAX_AMOUNT_EUR, `${label} : 100 000 € au plus.`);
 
+const LANDED_COST_WITH_SHIPPING_MESSAGE =
+  "Coût de revient : il inclut déjà la livraison. Indique plutôt le prix fournisseur et les frais de livraison.";
+
 const economicsSchema = z
   .object({
     /** Single input currency for now. TODO: per-country FX conversion (ECB reference rates). */
     currency: z.literal("EUR"),
     /** « Prix de vente envisagé ». */
-    sellingPrice: z.number().positive().max(MAX_AMOUNT_EUR).optional(),
+    sellingPrice: amount("Prix de vente").positive("Prix de vente : indique un montant supérieur à 0 €.").optional(),
     /** Supplier unit price. */
     supplierPrice: amount("Prix fournisseur").positive("Prix fournisseur : indique un montant supérieur à 0 €.").optional(),
     /** Shipping cost to the customer, per unit. */
@@ -75,10 +86,16 @@ const economicsSchema = z
       .min(1, "Marge visée : entre 1 et 95 %.")
       .max(95, "Marge visée : entre 1 et 95 %.")
       .optional(),
-    /** Pre-V1 alias: one unit cost, product and delivery together. */
-    landedCost: z.number().nonnegative().max(MAX_AMOUNT_EUR).optional(),
+    /** Pre-V1 alias: one unit cost, product and delivery together. Above 0, since it can stand for the supplier price. */
+    landedCost: amount("Coût de revient").positive("Coût de revient : indique un montant supérieur à 0 €.").optional(),
   })
   // A pre-V1 landed cost already includes delivery: it stands for the supplier price, with no shipping on top.
+  // A typed shipping cost would be dropped by that reading, so it is refused rather than silently replaced.
+  .superRefine((economics, ctx) => {
+    if (economics.landedCost !== undefined && economics.supplierPrice === undefined && (economics.shippingCost ?? 0) > 0) {
+      ctx.addIssue({ code: "custom", path: ["landedCost"], message: LANDED_COST_WITH_SHIPPING_MESSAGE });
+    }
+  })
   .transform((economics) =>
     economics.landedCost !== undefined && economics.supplierPrice === undefined
       ? { ...economics, supplierPrice: economics.landedCost, shippingCost: 0 }

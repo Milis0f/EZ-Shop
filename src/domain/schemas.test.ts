@@ -132,6 +132,21 @@ describe("analysisInputSchema supplier URL", () => {
     expect(result).toMatchObject({ success: true, data: { supplierUrl: "https://www.amazon.fr/dp/B0C1234567" } });
   });
 
+  it.each(["", "   "])("treats a blank address as no address (%j)", (supplierUrl) => {
+    const result = analysisInputSchema.safeParse({ ...BASE, supplierUrl });
+    expect(result.success).toBe(true);
+    expect(result.data?.supplierUrl).toBeUndefined();
+  });
+
+  it.each(["casquette rouge", "https://www.amazon.fr/dp/B0C\n1234567", "https://www.amazon.fr/dp/B0C 1234567"])(
+    "refuses an address with whitespace inside (%j)",
+    (supplierUrl) => {
+      expect(issuesOf({ ...BASE, supplierUrl })).toEqual([
+        { path: "supplierUrl", message: "Adresse invalide : colle l'adresse complète de la fiche produit, sans espace." },
+      ]);
+    },
+  );
+
   it("refuses control characters that the database could not store", () => {
     expect(issuesOf({ ...BASE, supplierUrl: `${PRODUCT_URL}&x=\u0000` })).toEqual([
       { path: "supplierUrl", message: expect.any(String) },
@@ -176,10 +191,35 @@ describe("analysisInputSchema economics", () => {
     else expect(issuesOf(raw).map((i) => i.path)).toEqual([`economics.${field}`]);
   });
 
+  it.each([
+    ["sellingPrice", Number.NaN, "Prix de vente : saisis un nombre."],
+    ["sellingPrice", 0, "Prix de vente : indique un montant supérieur à 0 €."],
+    ["sellingPrice", 100_000.01, "Prix de vente : 100 000 € au plus."],
+    ["landedCost", Number.NaN, "Coût de revient : saisis un nombre."],
+    ["landedCost", 0, "Coût de revient : indique un montant supérieur à 0 €."],
+    ["landedCost", 100_000.01, "Coût de revient : 100 000 € au plus."],
+  ])("explains a refused %s in French (%d)", (field, value, message) => {
+    expect(issuesOf({ ...BASE, economics: { currency: "EUR", [field]: value } })).toEqual([{ path: `economics.${field}`, message }]);
+  });
+
   it("reads a pre-V1 landed cost as the supplier price with no separate shipping", () => {
     const result = analysisInputSchema.safeParse({ ...BASE, economics: { currency: "EUR", landedCost: 9 } });
     expect(result.success).toBe(true);
     expect(result.data?.economics).toEqual({ currency: "EUR", landedCost: 9, supplierPrice: 9, shippingCost: 0 });
+  });
+
+  it("refuses a shipping cost on top of a landed cost that already includes delivery", () => {
+    expect(issuesOf({ ...BASE, economics: { currency: "EUR", landedCost: 10, shippingCost: 4 } })).toEqual([
+      {
+        path: "economics.landedCost",
+        message: "Coût de revient : il inclut déjà la livraison. Indique plutôt le prix fournisseur et les frais de livraison.",
+      },
+    ]);
+  });
+
+  it("accepts a zero shipping cost next to a landed cost, since nothing is replaced", () => {
+    const result = analysisInputSchema.safeParse({ ...BASE, economics: { currency: "EUR", landedCost: 10, shippingCost: 0 } });
+    expect(result.data?.economics).toEqual({ currency: "EUR", landedCost: 10, supplierPrice: 10, shippingCost: 0 });
   });
 
   it("keeps the typed supplier price and shipping when a landed cost is also given", () => {
