@@ -8,7 +8,7 @@ import { formatCompact, formatMoney, formatPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { sortByScore } from "./country-ranking";
 
-const STICKY = "sticky left-0 z-20 bg-surface shadow-[1px_0_0_var(--line)] transition-colors duration-[var(--dur-fast)]";
+const STICKY = "sticky left-0 z-20 bg-surface after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line transition-colors duration-[var(--dur-fast)]";
 
 /**
  * Data sources v2, one row per country: what the market shows (eBay), what one unit costs once

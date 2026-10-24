@@ -25,7 +25,7 @@ export function DatumValue<T>({ datum, format, className, compact = false }: Dat
           <span
             tabIndex={0}
             className={cn(
-              "hatch inline-flex items-center rounded-[3px] border border-kind-missing/70 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground",
+              "hatch inline-flex items-center rounded-pill border border-kind-missing/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground",
               className,
             )}
           >

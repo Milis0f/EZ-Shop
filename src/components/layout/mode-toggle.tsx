@@ -44,12 +44,13 @@ export function ModeToggle({ className, variant = "link", label: forced }: { cla
       onClick={() => setMode(next)}
       aria-pressed={mode === "advanced"}
       className={cn(
-        "interactive inline-flex items-center gap-1.5 rounded-lg text-sm",
+        "interactive inline-flex items-center gap-1.5 rounded-pill text-sm whitespace-nowrap",
         variant === "button" ? "border border-line px-3 py-1.5 text-xs font-medium hover:bg-surface-2" : "px-2 py-1 text-muted-foreground hover:text-foreground",
         className,
       )}
     >
-      <SlidersHorizontal className="size-3.5" aria-hidden />
+      {/* The button stays on one line; on phones the icon gives way so the header row fits in 390px. */}
+      <SlidersHorizontal className={cn("size-3.5", variant === "button" && "max-sm:hidden")} aria-hidden />
       {label}
       {variant === "link" && next === "advanced" && <ChevronDown className="size-3.5" aria-hidden />}
     </button>

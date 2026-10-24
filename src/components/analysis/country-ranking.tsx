@@ -24,7 +24,7 @@ interface CountryRankingProps {
 }
 
 /** Pinned first column: opaque so scrolled cells pass under it, above the row overlay and tooltips. */
-const STICKY = "sticky left-0 z-20 bg-surface shadow-[1px_0_0_var(--line)] transition-colors duration-[var(--dur-fast)]";
+const STICKY = "sticky left-0 z-20 bg-surface after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line transition-colors duration-[var(--dur-fast)]";
 
 const capped = (c: CountryAnalysis) => isKnown(c.scoring.score) && c.scoring.score.value.cap !== undefined;
 

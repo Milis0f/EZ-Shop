@@ -54,7 +54,7 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
         onClick={open}
         aria-haspopup="dialog"
         className={cn(
-          "interactive inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium",
+          "interactive inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium whitespace-nowrap",
           missing > 0 ? "border-foreground/20 bg-foreground text-background hover:bg-foreground/85" : "border-line hover:bg-surface-2",
         )}
       >
@@ -95,14 +95,14 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
               type="button"
               onClick={close}
               aria-label="Fermer"
-              className="interactive -mr-2 rounded-md p-1.5 text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              className="interactive -mr-2 rounded-pill p-1.5 text-muted-foreground hover:bg-surface-2 hover:text-foreground"
             >
               <X className="size-4" aria-hidden />
             </button>
           </header>
 
           {CONNECTOR_GUIDES[providerId] && (
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line px-6 py-3 text-xs">
+            <div className="flex flex-col gap-1 border-b border-line px-6 py-3 text-xs min-[900px]:flex-row min-[900px]:items-baseline min-[900px]:gap-4">
               <p className="min-w-0 flex-1 text-foreground">{CONNECTOR_GUIDES[providerId].brings}</p>
               <p className="text-muted-foreground">
                 {CONNECTOR_GUIDES[providerId].cost}

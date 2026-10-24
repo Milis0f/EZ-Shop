@@ -57,7 +57,7 @@ function StepItem({ index, step, done, last, children }: { index: number; step: 
             href={step.link.url}
             target="_blank"
             rel="noreferrer"
-            className="interactive mt-2.5 inline-flex items-center gap-1 rounded-md border border-line px-2.5 py-1 text-xs font-medium hover:bg-surface-2"
+            className="interactive mt-2.5 inline-flex items-center gap-1 rounded-pill border border-line px-2.5 py-1 text-xs font-medium hover:bg-surface-2"
           >
             {step.link.label}
             <ArrowUpRight className="size-3" aria-hidden />
@@ -136,13 +136,13 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
             Écrit dans .env.local, jamais renvoyé au navigateur.
           </p>
           <div className="ml-auto flex gap-2">
-            <button type="button" onClick={onCancel} className="interactive rounded-lg px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
+            <button type="button" onClick={onCancel} className="interactive rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
               {state.status === "saved" ? "Fermer" : "Annuler"}
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="interactive rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/85 disabled:opacity-60"
+              className="interactive rounded-pill bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/85 disabled:opacity-60"
             >
               {pending ? "Enregistrement…" : "Enregistrer"}
             </button>
@@ -271,7 +271,7 @@ function ManualInstructions({ fields, reason, onClose }: { fields: readonly Fiel
         </button>
       </div>
       <div className="flex justify-end">
-        <button type="button" onClick={onClose} className="interactive rounded-lg px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
+        <button type="button" onClick={onClose} className="interactive rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
           Fermer
         </button>
       </div>

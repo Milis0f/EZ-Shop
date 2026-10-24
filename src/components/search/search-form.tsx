@@ -15,7 +15,7 @@ import { ModeSwitch } from "./mode-switch";
 const fieldClass = "mt-2 text-xs leading-relaxed text-muted-foreground";
 const errorClass = "animate-slide-down mt-2 text-xs text-decision-avoid";
 const control =
-  "w-full rounded-lg border border-line bg-surface px-3 text-sm text-foreground transition-colors duration-[var(--dur-fast)] hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring";
+  "w-full rounded-pill border border-line bg-surface-2 px-4 text-sm text-foreground transition-colors duration-[var(--dur-fast)] hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring";
 
 export function SearchForm({ mockAllowed }: { mockAllowed: boolean }) {
   const [state, action, pending] = useActionState(submitAnalysis, INITIAL_SEARCH_STATE);
@@ -60,7 +60,7 @@ export function SearchForm({ mockAllowed }: { mockAllowed: boolean }) {
           name="extraTerms"
           rows={3}
           placeholder={"de: beheizbare Socken\nen: heated socks"}
-          className={cn(control, "mt-3 py-2.5 font-normal")}
+          className={cn(control, "mt-3 rounded-tile py-2.5 font-normal")}
           aria-invalid={Boolean(errors.extraTerms)}
         />
         <p className={fieldClass}>

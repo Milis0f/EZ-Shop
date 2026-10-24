@@ -99,7 +99,7 @@ function SuggestionList({ suggestions }: { suggestions: SearchSuggestions }) {
           key={s}
           className={cn(
             "rounded-full border px-2.5 py-1 text-xs",
-            intent.has(s) ? "border-decision-prioritize/40 text-foreground" : shops.has(s) ? "border-kind-estimate/40 text-foreground" : "border-line text-muted-foreground",
+            intent.has(s) ? "border-decision-prioritize/40 text-foreground" : shops.has(s) ? "border-foreground/50 text-foreground" : "border-line text-muted-foreground",
           )}
         >
           {s}
@@ -117,7 +117,7 @@ export function InterestPanel({ signals }: { signals: CountrySignalsV2 }) {
         <h3 className="text-sm font-medium">Recherches associées</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           Suggestions Google du pays. <span className="text-foreground">Contour vert</span> : intention d&apos;achat.{" "}
-          <span className="text-foreground">Contour ambré</span> : marketplace ou enseigne citée.
+          <span className="text-foreground">Contour clair</span> : marketplace ou enseigne citée.
         </p>
         <div className="mt-4">
           {isKnown(searchSuggestions) ? <SuggestionList suggestions={searchSuggestions.value} /> : <DatumValue datum={searchSuggestions} format={() => null} />}

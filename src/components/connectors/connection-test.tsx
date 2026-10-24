@@ -40,7 +40,7 @@ export function ConnectionTest({ providerId }: { providerId: ProviderId }) {
           type="button"
           onClick={run}
           disabled={pending}
-          className="interactive inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:bg-surface-2 disabled:opacity-60"
+          className="interactive inline-flex shrink-0 items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-xs font-medium whitespace-nowrap hover:bg-surface-2 disabled:opacity-60"
         >
           <PlugZap className="size-3.5" aria-hidden />
           {pending ? "Test en cours…" : result ? "Relancer" : "Tester"}

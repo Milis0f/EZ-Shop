@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
       <aside className="border-b border-line bg-background simple:hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-r lg:border-b-0">
-        <div className="flex items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:block lg:px-8 lg:py-10">
+        <div className="flex items-center justify-between gap-3 px-4 py-5 sm:gap-4 sm:px-6 lg:block lg:px-8 lg:py-10">
           <Link href="/" className="block rounded-menu">
             <span className="font-display text-lg font-bold tracking-tight whitespace-nowrap">EZ-Shop</span>
             <span className="mt-1 hidden text-xs text-muted-foreground lg:block">Potentiel produit avant lancement</span>

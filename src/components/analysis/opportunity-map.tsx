@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { CartesianGrid, LabelList, ReferenceArea, ReferenceLine, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { motionDuration } from "@/components/motion/motion-tokens";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 
@@ -55,6 +57,8 @@ function withClusterLabels(points: readonly MapPoint[]): LabelledPoint[] {
 export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMapProps) {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
+  // The points draw in once, on the slow motion token (read from the stylesheet).
+  const drawMs = useMemo(() => motionDuration("slow"), []);
   const t = thresholds;
   const data = withClusterLabels(points);
 
@@ -91,7 +95,7 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
             const p = payload?.[0]?.payload as MapPoint | undefined;
             if (!p) return null;
             return (
-              <div className="rounded-md border border-line bg-popover px-3 py-2 text-xs shadow-none">
+              <div className="rounded-md border border-line bg-popover px-3 py-2 text-xs">
                 <p className="font-medium">{p.name}</p>
                 <p>Score {Math.round(p.score)}/100, confiance {p.confidence} %</p>
                 {p.mock && <p className="text-kind-mock">Valeurs fictives (mock)</p>}
@@ -104,7 +108,7 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           fill="var(--foreground)"
           className="cursor-pointer"
           isAnimationActive={!reducedMotion}
-          animationDuration={600}
+          animationDuration={drawMs}
           onClick={(entry) => {
             const code = (entry as unknown as { payload?: MapPoint }).payload?.code;
             if (code) router.push(`/analyses/${analysisId}/${code.toLowerCase()}`);

@@ -39,7 +39,7 @@ function Block({ id, children }: { id: SectionId; children: ReactNode }) {
 
 /** A formula reads as a statement, set apart from the prose around it. */
 const Formula = ({ children }: { children: ReactNode }) => (
-  <p className="rounded-lg border-l-2 border-foreground/40 bg-surface-2/60 px-4 py-3 text-[15px] text-foreground">{children}</p>
+  <p className="rounded-tile bg-surface-2/60 px-5 py-3 text-[15px] text-foreground">{children}</p>
 );
 
 export default function MethodologyPage() {
