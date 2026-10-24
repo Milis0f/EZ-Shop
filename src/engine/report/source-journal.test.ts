@@ -7,6 +7,7 @@ import {
   type CountryAnalysis,
   type ProviderStatusSnapshot,
 } from "@/domain/analysis";
+import type { CountryCode } from "@/domain/country";
 import { insufficient, observed } from "@/domain/datum";
 import type { SourceRef } from "@/domain/provenance";
 import { analysisInputSchema } from "@/domain/schemas";
@@ -18,7 +19,7 @@ const none = (p: string) => insufficient(`${p} indisponible`, [p]);
 const NOW_ISO = TEST_NOW.toISOString();
 
 /** A real country result: only the autocomplete signal is known, everything else is missing. */
-function country(code: "FR" | "DE", issues: CollectionIssue[], autocomplete: SourceRef | null = testSource("google-autocomplete")): CountryAnalysis {
+function country(code: CountryCode, issues: CollectionIssue[], autocomplete: SourceRef | null = testSource("google-autocomplete")): CountryAnalysis {
   return analyzeCountry(
     {
       country: code,
@@ -118,6 +119,37 @@ describe("source journal", () => {
     const result = analysis([country("FR", [], mock)], [snapshot("google-autocomplete", "mock")], { dataMode: "mock" });
 
     expect(sourceJournal(result)).toEqual([]);
+  });
+
+  it("gives each provider and country a single outcome: a precise issue wins over the provider-wide state", () => {
+    const result = analysis(
+      [country("FR", [], null), country("CH", [issue("meta-ad-library", "unsupported_country")], null)],
+      [snapshot("meta-ad-library", "not_configured")],
+    );
+
+    expect(sourceJournal(result)).toEqual([
+      { providerId: "meta-ad-library", name: "Meta Ad Library", countries: ["CH"], status: "failed", errorCode: "unsupported_country" },
+      { providerId: "meta-ad-library", name: "Meta Ad Library", countries: ["FR"], status: "not_configured" },
+    ]);
+  });
+
+  it("reports nothing for a development mock analysis, whose issues and stubs are not real provider outcomes", () => {
+    const result = analysis(
+      [country("FR", [], null), country("US", [issue("meta-ad-library", "unsupported_country")], null)],
+      [snapshot("meta-ad-library", "mock"), snapshot("google-autocomplete", "not_implemented")],
+      { dataMode: "mock" },
+    );
+
+    expect(sourceJournal(result)).toEqual([]);
+  });
+
+  it("counts the machine translation as used for the countries queried with a machine-translated term", () => {
+    const machine = { term: "heated socks", language: "en" as const, kind: "translation" as const, source: "machine" as const };
+    const result = analysis([country("FR", [], null), { ...country("GB", [], null), terms: [machine] }], [snapshot("mymemory", "ready")]);
+
+    expect(sourceJournal(result)).toEqual([
+      { providerId: "mymemory", name: "Traduction automatique (MyMemory)", countries: ["GB"], status: "used" },
+    ]);
   });
 
   it("counts the analysis-level customs code as used for every analysed country", () => {

@@ -1,12 +1,12 @@
-import type { AnalysisResult } from "@/domain/analysis";
+import type { AnalysisResult, CountryAnalysis } from "@/domain/analysis";
 import type { CountryCode } from "@/domain/country";
 import { PROVIDER_IDS, type ProviderId, type SourceRef } from "@/domain/provenance";
 import { SOURCE_LABELS } from "@/lib/format";
 
 /**
  * Readable journal of the data sources of one analysis, for the expert mode.
- * Built only from what the analysis already stores: the sources of every datum, the collection
- * issues and the provider snapshots. Nothing is fetched and no date is made up.
+ * Built only from what the analysis already stores: the sources of every datum, the machine-translated
+ * terms, the collection issues and the provider snapshots. Nothing is fetched and no date is made up.
  */
 
 export type JournalStatus = "used" | "failed" | "not_configured" | "not_implemented";
@@ -50,10 +50,15 @@ const usedEntries = (node: unknown, countries: readonly CountryCode[]): Entry[] 
     .filter((s) => s.origin === "live" && PROVIDERS.has(s.sourceId))
     .flatMap((s) => countries.map((country) => ({ providerId: s.sourceId as ProviderId, status: "used" as const, country, collectedAt: s.collectedAt })));
 
+/** Machine translations come only from MyMemory: a country queried with one used it, even though no datum cites it. */
+const translationEntries = (c: CountryAnalysis): Entry[] =>
+  c.terms.some((t) => t.source === "machine") ? [{ providerId: "mymemory", status: "used", country: c.country }] : [];
+
 function collectEntries(analysis: AnalysisResult): Entry[] {
   const everyCountry = analysis.input.countries;
   const perCountry = analysis.countries.flatMap((c) => [
     ...usedEntries(c, [c.country]),
+    ...translationEntries(c),
     ...c.issues.map((issue): Entry =>
       UNSET_STATUSES.has(issue.code)
         ? { providerId: issue.providerId, status: issue.code as JournalStatus, country: c.country }
@@ -62,11 +67,18 @@ function collectEntries(analysis: AnalysisResult): Entry[] {
   ]);
   // Analysis-level data (absent before the context column existed) serves every analysed country.
   const analysisLevel = usedEntries([analysis.sourcing, analysis.classification], everyCountry);
-  // A provider-wide state holds for every country, including the ones it was never called for.
+  const known = [...perCountry, ...analysisLevel];
+  // A provider-wide state only fills the countries with no precise outcome: the adapters check
+  // coverage before configuration, so an unsupported country stays a coverage gap, not a missing key.
+  const seen = new Set(known.map((e) => `${e.providerId}|${e.country}`));
   const unset = analysis.providers
     .filter((p) => UNSET_STATUSES.has(p.state))
-    .flatMap((p) => everyCountry.map((country): Entry => ({ providerId: p.providerId, status: p.state as JournalStatus, country })));
-  return [...perCountry, ...analysisLevel, ...unset];
+    .flatMap((p) =>
+      everyCountry
+        .filter((country) => !seen.has(`${p.providerId}|${country}`))
+        .map((country): Entry => ({ providerId: p.providerId, status: p.state as JournalStatus, country })),
+    );
+  return [...known, ...unset];
 }
 
 const oldest = (a: string | undefined, b: string | undefined): string | undefined =>
@@ -78,6 +90,9 @@ const rank = (list: readonly string[], value: string): number => {
 };
 
 export function sourceJournal(analysis: AnalysisResult): JournalRow[] {
+  // A development mock run fakes some providers and stubs the others as not implemented: none of
+  // it is a real provider outcome, and the page already flags the analysis as fictitious.
+  if (analysis.dataMode === "mock") return [];
   const countryOrder = analysis.input.countries;
   const groups = new Map<string, { readonly first: Entry; readonly countries: Set<CountryCode>; collectedAt?: string }>();
   for (const entry of collectEntries(analysis)) {
