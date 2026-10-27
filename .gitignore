@@ -49,3 +49,9 @@ next-env.d.ts
 
 # Playwright MCP screenshots and logs
 .playwright-mcp/
+
+# local-only files never published
+*.gguf
+.superpowers/
+/Screenshot*.png
+/20.9.0
