@@ -8,6 +8,7 @@ import { ENV_FIELDS, type EnvEditorAccess, type FieldState } from "@/config/conn
 import type { GuideStep } from "@/config/connector-guides";
 import type { ProviderId } from "@/domain/provenance";
 import { cn } from "@/lib/utils";
+import { PendingButton } from "@/components/motion/pending-button";
 import { ConnectionTest } from "./connection-test";
 
 interface ConnectorFormProps {
@@ -23,7 +24,7 @@ interface ConnectorFormProps {
 }
 
 const inputClass =
-  "h-10 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-decision-avoid/60";
+  "h-11 w-full rounded-pill border border-line bg-background px-4 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-verdict-surveiller/60";
 
 /** Every variable of one connector. Submitted by hand so a failed save never wipes what was typed. */
 /** Guide steps with every field placed once: leftovers go to a final "values" step. */
@@ -41,7 +42,7 @@ function StepItem({ index, step, done, last, children }: { index: number; step: 
         aria-hidden
         className={cn(
           "relative z-10 flex size-7 items-center justify-center rounded-full border text-xs font-semibold transition-colors duration-[var(--dur-base)]",
-          done ? "border-kind-observed/40 bg-kind-observed/15 text-kind-observed" : "border-line bg-surface text-muted-foreground",
+          done ? "border-foreground/30 bg-foreground text-background" : "border-line bg-surface text-muted-foreground",
         )}
       >
         {done ? <Check className="animate-check size-3.5" strokeWidth={3} /> : index}
@@ -122,7 +123,7 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
               key={state.savedAt ?? state.message}
               className={cn(
                 "animate-slide-down mb-4 flex items-start gap-2 text-sm",
-                state.status === "saved" ? "text-kind-observed" : "text-decision-avoid",
+                state.status === "saved" ? "text-kind-observed" : "text-verdict-surveiller",
               )}
             >
               {state.status === "saved" && <CircleCheck className="animate-check mt-0.5 size-4 shrink-0" aria-hidden />}
@@ -139,13 +140,9 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
             <button type="button" onClick={onCancel} className="interactive rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
               {state.status === "saved" ? "Fermer" : "Annuler"}
             </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="interactive rounded-pill bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/85 disabled:opacity-60"
-            >
-              {pending ? "Enregistrement…" : "Enregistrer"}
-            </button>
+            <PendingButton pending={pending} pendingLabel="Enregistrement" className="min-h-10 px-5 text-sm">
+              Enregistrer
+            </PendingButton>
           </div>
         </div>
       </footer>
@@ -155,12 +152,12 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
 
 function FieldStatus({ state, removing }: { state: FieldState; removing: boolean }) {
   const [label, tone] = removing
-    ? ["Sera retirée", "text-decision-avoid"]
+    ? ["Sera retirée", "text-verdict-surveiller"]
     : state.set
       ? ["Définie", "text-kind-observed"]
       : state.optional
         ? ["Facultative", "text-muted-foreground"]
-        : ["À renseigner", "text-decision-test"];
+        : ["À renseigner", "text-verdict-surveiller"];
   return (
     <span className={cn("flex items-center gap-1.5 text-[11px] whitespace-nowrap", tone)}>
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
@@ -205,7 +202,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
           data-lpignore="true"
           aria-invalid={Boolean(error)}
           aria-describedby={hintId}
-          className={cn(inputClass, spec.secret && "pr-10 font-mono text-[13px] placeholder:font-sans placeholder:text-sm")}
+          className={cn(inputClass, spec.secret && "pr-12 font-mono text-[13px] placeholder:font-sans placeholder:text-sm")}
         />
         {spec.secret && (
           <button
@@ -214,7 +211,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
             aria-label={revealed ? "Masquer la valeur" : "Afficher la valeur"}
             aria-pressed={revealed}
             disabled={removing}
-            className="interactive absolute inset-y-1 right-1 flex w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            className="interactive absolute inset-y-1.5 right-1.5 flex w-8 items-center justify-center rounded-pill text-muted-foreground hover:bg-surface-2 hover:text-foreground"
           >
             {revealed ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
           </button>
@@ -224,7 +221,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
 
       <div id={hintId} className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="max-w-[60ch] leading-relaxed">
-          {error ? <span className="text-decision-avoid">{error}</span> : spec.help}
+          {error ? <span className="text-verdict-surveiller">{error}</span> : spec.help}
           {spec.helpUrl && !error && (
             <>
               {" "}
@@ -259,12 +256,12 @@ function ManualInstructions({ fields, reason, onClose }: { fields: readonly Fiel
   return (
     <div className="space-y-4 px-6 py-6 text-sm">
       <p className="text-muted-foreground">{reason}</p>
-      <div className="relative rounded-lg border border-line bg-background">
+      <div className="relative overflow-hidden rounded-tile border border-line bg-background">
         <pre className="overflow-x-auto px-4 py-3 text-xs leading-relaxed">{template}</pre>
         <button
           type="button"
           onClick={copy}
-          className="interactive absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+          className="interactive absolute top-2 right-2 inline-flex items-center gap-1 rounded-pill bg-surface-2 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
         >
           <Copy className="size-3" aria-hidden />
           {copied ? "Copié" : "Copier"}

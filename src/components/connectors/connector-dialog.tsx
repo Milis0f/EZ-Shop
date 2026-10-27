@@ -8,6 +8,7 @@ import { TESTABLE_PROVIDERS, type EnvEditorAccess, type FieldState } from "@/con
 import { CONNECTOR_GUIDES } from "@/config/connector-guides";
 import { cn } from "@/lib/utils";
 import { ConnectorForm } from "./connector-form";
+import "./connectors.css";
 
 interface ConnectorDialogProps {
   readonly providerId: ProviderId;
@@ -54,18 +55,18 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
         onClick={open}
         aria-haspopup="dialog"
         className={cn(
-          "interactive inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium whitespace-nowrap",
+          "interactive inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill border px-4 text-[13px] font-medium whitespace-nowrap",
           missing > 0 ? "border-foreground/20 bg-foreground text-background hover:bg-foreground/85" : "border-line hover:bg-surface-2",
         )}
       >
-        <KeyRound className="size-3.5" aria-hidden />
+        <KeyRound className="size-3.5" strokeWidth={1.5} aria-hidden />
         {configured ? "Modifier" : "Configurer"}
       </button>
 
       <dialog
         ref={ref}
         aria-labelledby={titleId}
-        className="modal"
+        className="modal cx-sheet"
         onPointerDown={(e) => {
           pressedOnBackdrop.current = e.target === e.currentTarget;
         }}
@@ -75,6 +76,7 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
         }}
       >
         <div className="flex max-h-[inherit] flex-col">
+          <span aria-hidden className="cx-sheet-handle" />
           <header className="flex items-start justify-between gap-4 border-b border-line px-6 pt-5 pb-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
@@ -112,7 +114,7 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
           )}
 
           {NOTICES[verification] && (
-            <p className="border-b border-line bg-decision-test/8 px-6 py-3 text-xs leading-relaxed text-decision-test">{NOTICES[verification]}</p>
+            <p className="border-b border-line px-6 py-3 text-xs leading-relaxed text-verdict-surveiller">{NOTICES[verification]}</p>
           )}
 
           <ConnectorForm

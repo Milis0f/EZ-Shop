@@ -35,7 +35,7 @@ export function DecisionZones({ t }: { t: Thresholds }) {
             </span>
           ))}
         </div>
-        <div className="relative aspect-[16/9] overflow-hidden rounded-lg border border-line">
+        <div className="relative aspect-[16/9] overflow-hidden rounded-tile border border-line">
           <Zone x0={0} x1={t.minConfidence} y0={0} y1={100} className="hatch border-r border-line bg-decision-explore/10 text-decision-explore" label={DECISION_LABELS.exploratory_only} />
           <Zone x0={t.minConfidence} x1={100} y0={0} y1={t.testScore} className="border-t border-line bg-decision-avoid/10 text-decision-avoid" label={DECISION_LABELS.avoid} />
           {/* Label at the bottom of its zone, against the line it shares with "avoid", clear of "prioritize". */}

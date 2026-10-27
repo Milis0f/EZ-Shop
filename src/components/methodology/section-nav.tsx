@@ -29,7 +29,7 @@ export function SectionNav({ items }: SectionNavProps) {
 
   return (
     <nav aria-label="Sommaire">
-      <ul className="space-y-0.5 border-l border-line text-sm">
+      <ul className="space-y-1 text-sm">
         {items.map((item) => {
           const current = item.id === active;
           return (
@@ -38,8 +38,8 @@ export function SectionNav({ items }: SectionNavProps) {
                 href={`#${item.id}`}
                 aria-current={current ? "location" : undefined}
                 className={cn(
-                  "-ml-px block border-l py-1.5 pl-4 transition-colors duration-[var(--dur-base)]",
-                  current ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                  "block rounded-pill px-4 py-2 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
+                  current ? "bg-surface-2 text-foreground" : "text-muted-foreground hover:bg-surface hover:text-foreground",
                 )}
               >
                 {item.label}

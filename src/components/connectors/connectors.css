@@ -1,0 +1,60 @@
+/*
+ * Sources page: the configuration dialog becomes a bottom sheet on phones. A global stylesheet
+ * (prefix cx-), because CSS Modules export no class names in this project. It refines the shared
+ * .modal of globals.css with a higher specificity, in the same components layer.
+ */
+
+@layer theme, base, components, utilities;
+
+@layer components {
+  .cx-sheet-handle {
+    display: none;
+  }
+
+  @media (max-width: 639.98px) {
+    .modal.cx-sheet {
+      margin: auto 0 0;
+      width: 100%;
+      max-width: 100%;
+      max-height: calc(100dvh - 2.5rem);
+      border-bottom: 0;
+      border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+      opacity: 1;
+      transform: translateY(100%);
+      transition:
+        transform var(--dur-slow) var(--ease-out),
+        overlay var(--dur-slow) allow-discrete,
+        display var(--dur-slow) allow-discrete;
+    }
+
+    .modal.cx-sheet[open] {
+      transform: none;
+    }
+
+    @starting-style {
+      .modal.cx-sheet[open] {
+        opacity: 1;
+        transform: translateY(100%);
+      }
+    }
+
+    /* A short grip at the top says the panel is a sheet. */
+    .cx-sheet-handle {
+      display: block;
+      width: 40px;
+      height: 4px;
+      margin: 10px auto 0;
+      border-radius: var(--radius-pill);
+      background-color: var(--trait);
+    }
+  }
+
+  @media (max-width: 639.98px) and (prefers-reduced-motion: reduce) {
+    .modal.cx-sheet,
+    .modal.cx-sheet[open] {
+      transform: none;
+      transition: none;
+    }
+  }
+}

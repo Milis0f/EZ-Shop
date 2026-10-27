@@ -6,11 +6,12 @@ import { testConnectorConnection } from "@/app/connectors/actions";
 import type { ConnectorTestResult } from "@/app/connectors/form-state";
 import type { ProviderId } from "@/domain/provenance";
 import type { ConnectionCheckStep } from "@/providers/contracts";
+import { RingLoader } from "@/components/motion/ring-loader";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<ConnectionCheckStep["status"], { icon: typeof CircleCheck; tone: string; label: string }> = {
   ok: { icon: CircleCheck, tone: "text-kind-observed", label: "Réussi" },
-  error: { icon: CircleX, tone: "text-decision-avoid", label: "Échec" },
+  error: { icon: CircleX, tone: "text-verdict-surveiller", label: "Échec" },
   skipped: { icon: CircleDashed, tone: "text-muted-foreground", label: "Non testé" },
 };
 
@@ -31,7 +32,7 @@ export function ConnectionTest({ providerId }: { providerId: ProviderId }) {
   const passed = result?.ok === true && result.steps.every((s) => s.status === "ok");
 
   return (
-    <section aria-label="Test de connexion" className={cn("rounded-xl border p-4", passed ? "border-kind-observed/40" : "border-line")}>
+    <section aria-label="Test de connexion" className={cn("rounded-tile border p-4", passed ? "border-foreground/30" : "border-line")}>
       <div className="flex items-center justify-between gap-4">
         <p className="min-w-0 text-xs text-muted-foreground">
           {passed ? "Connexion vérifiée : la source sera utilisée à la prochaine analyse." : "Appels réels, en lecture seule, avec les valeurs enregistrées."}
@@ -40,21 +41,16 @@ export function ConnectionTest({ providerId }: { providerId: ProviderId }) {
           type="button"
           onClick={run}
           disabled={pending}
+          aria-busy={pending || undefined}
           className="interactive inline-flex shrink-0 items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-xs font-medium whitespace-nowrap hover:bg-surface-2 disabled:opacity-60"
         >
-          <PlugZap className="size-3.5" aria-hidden />
-          {pending ? "Test en cours…" : result ? "Relancer" : "Tester"}
+          {pending ? <RingLoader size="sm" /> : <PlugZap className="size-3.5" strokeWidth={1.5} aria-hidden />}
+          {pending ? "Test en cours" : result ? "Relancer" : "Tester"}
         </button>
       </div>
 
-      {pending && (
-        <div aria-hidden className="mt-4 h-0.5 overflow-hidden rounded-full bg-surface-2">
-          <div className="animate-indeterminate h-full w-2/5 rounded-full bg-foreground/60" />
-        </div>
-      )}
-
       <div aria-live="polite">
-        {!pending && result && !result.ok && <p className="animate-slide-down mt-4 text-sm text-decision-avoid">{result.message}</p>}
+        {!pending && result && !result.ok && <p className="animate-slide-down mt-4 text-sm text-verdict-surveiller">{result.message}</p>}
         {!pending && result?.ok && (
           <ol className="mt-4 space-y-3">
             {result.steps.map((step, i) => {
