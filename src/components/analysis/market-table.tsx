@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CountryTag } from "@/components/data/country-tag";
 import { DatumValue } from "@/components/data/datum-value";
+import { insufficient } from "@/domain/datum";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CountryAnalysis } from "@/domain/analysis";
 import { COUNTRIES } from "@/domain/country";
@@ -8,11 +9,14 @@ import { formatCompact, formatMoney, formatPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { sortByScore } from "./country-ranking";
 
+/** Analyses stored before scoring 2026.10-v3 have no margins from the owner's inputs. */
+const NOT_IN_OLD_ANALYSIS = insufficient("Non calculé dans cette analyse ancienne.");
+
 const STICKY = "sticky left-0 z-20 bg-surface after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line transition-colors duration-[var(--dur-fast)]";
 
 /**
- * Data sources v2, one row per country: what the market shows (eBay), what one unit costs once
- * imported, and the indirect interest signals. Rows follow the ranking order of the comparison above.
+ * Data sources v2, one row per country: eBay supply, what one unit costs once imported and the margin
+ * at the owner's price, and the indirect interest signals. Rows follow the ranking order of the comparison above.
  */
 export function MarketTable({ analysisId, countries }: { analysisId: string; countries: readonly CountryAnalysis[] }) {
   const rows = sortByScore(countries).filter((c) => c.signals);
@@ -26,10 +30,9 @@ export function MarketTable({ analysisId, countries }: { analysisId: string; cou
             <TableRow className="border-line hover:bg-transparent">
               <TableHead className={cn(STICKY, "pl-5")}>Pays</TableHead>
               <TableHead className="text-right">Annonces eBay</TableHead>
-              <TableHead className="text-right">Prix médian HT</TableHead>
               <TableHead className="text-right">Droit / unité</TableHead>
               <TableHead className="text-right">Coût rendu</TableHead>
-              <TableHead className="text-right">Marge marché</TableHead>
+              <TableHead className="text-right">Marge à ton prix</TableHead>
               <TableHead className="text-right">Vendeurs Chine</TableHead>
               <TableHead className="text-right">Suggestions</TableHead>
               <TableHead className="pr-5 text-right">Vidéos 12 mois</TableHead>
@@ -51,16 +54,13 @@ export function MarketTable({ analysisId, countries }: { analysisId: string; cou
                     <DatumValue datum={s.marketplace} format={(m) => formatCompact(m.listings)} compact />
                   </TableCell>
                   <TableCell className="text-right">
-                    <DatumValue datum={s.marketPriceExVatEur} format={(v) => formatMoney(v)} compact />
-                  </TableCell>
-                  <TableCell className="text-right">
                     <DatumValue datum={s.taxes} format={(t) => (t.dutyPerUnitEur === null ? "non calculé" : formatMoney(t.dutyPerUnitEur))} compact />
                   </TableCell>
                   <TableCell className="text-right">
-                    <DatumValue datum={s.unitCostEur} format={(v) => formatMoney(v)} compact />
+                    <DatumValue datum={s.landedUnitCostEur ?? NOT_IN_OLD_ANALYSIS} format={(v) => formatMoney(v)} compact />
                   </TableCell>
                   <TableCell className="text-right">
-                    <DatumValue datum={s.marketMarginPct} format={(v) => formatPct(v)} compact />
+                    <DatumValue datum={s.marginAtPlannedPrice ?? NOT_IN_OLD_ANALYSIS} format={(v) => formatPct(v)} compact />
                   </TableCell>
                   <TableCell className="text-right">
                     <DatumValue datum={s.marketplace} format={(m) => (m.chinaShare === null ? "—" : formatPct(m.chinaShare * 100))} compact />

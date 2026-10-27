@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAssumptions } from "@/config/assumptions";
-import { CRITERION_WEIGHTS } from "@/config/scoring";
+import { CRITERION_WEIGHTS, SCORING_MODEL_VERSION } from "@/config/scoring";
 import { DATA_INSUFFICIENT, insufficient, isKnown, observed } from "@/domain/datum";
 import { kpDatum, syntheticSeries, TEST_NOW, testSource, trendsDatum } from "@/test/fixtures";
 import { analyzeCountry, type CountrySignals } from "./analyze-country";
@@ -113,6 +113,45 @@ describe("analyzeCountry — honesty rules", () => {
       : mockKp;
     const result = analyzeCountry(signals({ keywordMetrics: tainted }), options());
     expect(result.scoring.confidence.mockTainted).toBe(true);
+  });
+});
+
+describe("analyzeCountry — margins and disabled statistics", () => {
+  const LICENCE = "statistique dérivée désactivée en attendant la vérification de la licence";
+
+  it("without a price, the country margins are DATA_INSUFFICIENT", () => {
+    const result = analyzeCountry(signals({ keywordMetrics: kpDatum(series) }), options());
+    expect(result.signals?.landedUnitCostEur?.status).toBe(DATA_INSUFFICIENT);
+    expect(result.signals?.marginAtPlannedPrice?.status).toBe(DATA_INSUFFICIENT);
+    expect(result.signals?.minPriceForTargetMargin?.status).toBe(DATA_INSUFFICIENT);
+  });
+
+  it("computes the margin at the owner's price from the typed inputs", () => {
+    const vat = observed({ country: "FR" as const, standardRatePct: 20, source: testSource("vat-rates") }, "percent", [testSource("vat-rates")]);
+    const base = signals();
+    const result = analyzeCountry(signals({ v2: { ...base.v2, vat } }), {
+      ...options(),
+      economics: { currency: "EUR" as const, sellingPrice: 30, supplierPrice: 8, shippingCost: 3, targetMarginPct: 40 },
+    });
+    const s = result.signals;
+    expect(s?.landedUnitCostEur && isKnown(s.landedUnitCostEur) && s.landedUnitCostEur.value).toBe(11);
+    expect(s?.marginAtPlannedPrice && isKnown(s.marginAtPlannedPrice) && s.marginAtPlannedPrice.value).toBe(56);
+    expect(s?.minPriceForTargetMargin && isKnown(s.minPriceForTargetMargin) && s.minPriceForTargetMargin.value).toEqual({ exVatEur: 18.33, inclVatEur: 22 });
+    expect(s?.marketMarginPct).toBeUndefined();
+    expect(s?.marketPriceExVatEur).toBeUndefined();
+  });
+
+  it("market margin and video interest are insufficient pending the licence check", () => {
+    const result = analyzeCountry(signals({ keywordMetrics: kpDatum(series) }), options(30, 10));
+    for (const id of ["market_margin", "video_interest"] as const) {
+      const c = result.scoring.criteria.find((x) => x.id === id)!;
+      expect(c.status).toBe(DATA_INSUFFICIENT);
+      expect(c.explanation.toLowerCase()).toContain(LICENCE);
+    }
+  });
+
+  it("uses scoring model 2026.10-v3", () => {
+    expect(SCORING_MODEL_VERSION).toBe("2026.10-v3");
   });
 });
 

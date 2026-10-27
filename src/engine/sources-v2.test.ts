@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { insufficient, isKnown, observed, type Datum } from "@/domain/datum";
-import type { ImportTaxes, MarketplaceListings } from "@/domain/signals";
-import type { FxRates, ListingsObservation, SuggestionsObservation, TariffDuties, VatRate } from "@/providers/contracts";
+import { isKnown, observed, type Datum } from "@/domain/datum";
+import type { UnitEconomics } from "@/domain/analysis";
+import type { ImportTaxes } from "@/domain/signals";
+import type { ContentObservation, FxRates, ListingsObservation, SuggestionsObservation, TariffDuties, VatRate } from "@/providers/contracts";
 import { TEST_NOW, testSource } from "@/test/fixtures";
-import { countryMargin, userValue } from "./economics/market-margin";
-import { readMarketplace, readSuggestions } from "./signals/indirect";
+import { unitMargins, userValue } from "./economics/market-margin";
+import { readContent, readMarketplace, readSuggestions } from "./signals/indirect";
 import { computeImportTaxes, type TaxInputs } from "./taxes/import-taxes";
 
 const fx: Datum<FxRates> = observed(
@@ -75,34 +76,72 @@ describe("indirect signals", () => {
     expect(isKnown(read) && read.value.marketplaces).toEqual(["chaussettes chauffantes amazon"]);
   });
 
-  it("converts marketplace prices to EUR and computes the China share", () => {
+  it("computes the China share of the listings", () => {
     const prices = [10, 12, 14, 16, 18].map((v) => ({ value: v, currency: "GBP" }));
     const obs: Datum<ListingsObservation> = observed({ marketplaceId: "EBAY_GB", total: 200, prices, chinaTotal: 50, source: testSource("ebay-browse") }, "count", [testSource("ebay-browse")]);
-    const read = readMarketplace(obs, fx);
-    expect(isKnown(read) && read.value).toMatchObject({ listings: 200, chinaShare: 0.25, priceEur: { median: 16.55 } });
+    const read = readMarketplace(obs);
+    expect(isKnown(read) && read.value).toMatchObject({ listings: 200, chinaShare: 0.25 });
   });
 });
 
-describe("margin at market price", () => {
-  const listings = (median: number): Datum<MarketplaceListings> =>
-    observed({ marketplaceId: "EBAY_FR", listings: 300, sampled: 50, priceEur: { p25: median - 5, median, p75: median + 5 }, localCurrency: "EUR", chinaShare: 0.2 }, "count", [testSource("ebay-browse")]);
+describe("unit margins from the owner's inputs", () => {
+  const at = TEST_NOW.toISOString();
   const tax = (duty: number | null): Datum<ImportTaxes> =>
     observed({ regime: "eu", dutyRatePct: { min: 12, max: 12 }, lowValueDutyEur: 3, vatRatePct: 20, dutyPerUnitEur: duty, dutyBasis: "low_value_flat", customsValueEur: 25, notes: [] }, "money", [testSource("uk-trade-tariff")]);
+  const economics = (overrides: Partial<UnitEconomics> = {}): UnitEconomics => ({ currency: "EUR", supplierPrice: 8, shippingCost: 3, ...overrides });
+  const margins = (e: UnitEconomics, duty: number | null = 3, rate: number | null = 20) =>
+    unitMargins({ economics: e, taxes: tax(duty), vat: vat("FR", rate), collectedAt: at });
 
-  it("adds the duty to the unit cost and removes VAT from the market price", () => {
-    const m = countryMargin(userValue(9, "landed_cost", TEST_NOW.toISOString()), tax(3), listings(30));
-    expect(isKnown(m.unitCostEur) && m.unitCostEur.value).toBe(12);
-    expect(isKnown(m.marketPriceExVatEur) && m.marketPriceExVatEur.value).toBe(25);
-    expect(isKnown(m.marketMarginPct) && m.marketMarginPct.value).toBe(52);
+  it("landed cost adds supplier price, shipping and the duty per unit", () => {
+    const { landedUnitCostEur } = margins(economics());
+    expect(isKnown(landedUnitCostEur) && landedUnitCostEur).toMatchObject({ value: 14, kind: "derived" });
+    expect(isKnown(landedUnitCostEur) && landedUnitCostEur.sources.some((s) => s.origin === "user")).toBe(true);
   });
 
-  it("states when duties are unknown rather than pretending they are zero", () => {
-    const m = countryMargin(userValue(9, "landed_cost", TEST_NOW.toISOString()), tax(null), listings(30));
-    expect(isKnown(m.unitCostEur) && m.unitCostEur.note).toContain("Droits de douane non inclus");
+  it("landed cost without duties says so", () => {
+    const { landedUnitCostEur } = margins(economics(), null);
+    expect(isKnown(landedUnitCostEur) && landedUnitCostEur.value).toBe(11);
+    expect(isKnown(landedUnitCostEur) && landedUnitCostEur.note).toContain("droits non inclus");
   });
 
-  it("is DATA_INSUFFICIENT without a market price", () => {
-    const m = countryMargin(userValue(9, "landed_cost", TEST_NOW.toISOString()), tax(3), insufficient("pas de site", ["ebay_national_site"]));
-    expect(m.marketMarginPct.status).toBe("DATA_INSUFFICIENT");
+  it("margin at the planned price removes the country VAT", () => {
+    const { marginAtPlannedPrice } = margins(economics({ sellingPrice: 30 }));
+    expect(isKnown(marginAtPlannedPrice) && marginAtPlannedPrice.value).toBe(44);
+    expect(isKnown(marginAtPlannedPrice) && marginAtPlannedPrice.note).toContain("à ton prix");
+  });
+
+  it("margin at the planned price can be negative", () => {
+    const { marginAtPlannedPrice } = margins(economics({ sellingPrice: 12 }));
+    expect(isKnown(marginAtPlannedPrice) && marginAtPlannedPrice.value).toBe(-40);
+  });
+
+  it("minimum price for a 40 % target, excluding then including VAT", () => {
+    const { minPriceForTargetMargin } = margins(economics({ targetMarginPct: 40 }));
+    expect(isKnown(minPriceForTargetMargin) && minPriceForTargetMargin.value).toEqual({ exVatEur: 23.33, inclVatEur: 28 });
+  });
+
+  it("without a price the margins are DATA_INSUFFICIENT", () => {
+    const m = margins({ currency: "EUR" });
+    expect(m.landedUnitCostEur.status).toBe("DATA_INSUFFICIENT");
+    expect(m.marginAtPlannedPrice.status).toBe("DATA_INSUFFICIENT");
+    expect(m.minPriceForTargetMargin.status).toBe("DATA_INSUFFICIENT");
+  });
+});
+
+describe("no derived marketplace statistics", () => {
+  it("eBay keeps the count, at most five observed prices and the China total", () => {
+    const prices = [10, 12, 14, 16, 18, 20, 22].map((v) => ({ value: v, currency: "GBP" }));
+    const obs: Datum<ListingsObservation> = observed({ marketplaceId: "EBAY_GB", total: 200, prices, chinaTotal: 50, source: testSource("ebay-browse") }, "count", [testSource("ebay-browse")]);
+    const read = readMarketplace(obs);
+    expect(isKnown(read) && read.value.observedPrices).toEqual(prices.slice(0, 5));
+    expect(isKnown(read) && read.value).toMatchObject({ listings: 200, chinaTotal: 50 });
+    expect(isKnown(read) && read.value.priceEur).toBeUndefined();
+  });
+
+  it("YouTube keeps the result count and the videos, without median views", () => {
+    const videos = [{ id: "a", publishedAt: "2026-09-01T00:00:00Z", views: 1200 }];
+    const obs: Datum<ContentObservation> = observed({ totalResults: 40, videos, source: testSource("youtube-data") }, "count", [testSource("youtube-data")]);
+    const read = readContent(obs, TEST_NOW);
+    expect(isKnown(read) && read.value).toMatchObject({ videosLast12Months: 40, videos, medianViews: null });
   });
 });

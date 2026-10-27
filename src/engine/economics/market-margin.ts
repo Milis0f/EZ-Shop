@@ -1,15 +1,15 @@
 import type { UnitEconomics } from "@/domain/analysis";
-import { derived, insufficient, isKnown, type Datum, type Known } from "@/domain/datum";
+import { derived, insufficient, isKnown, type Datum, type Known, type Unit } from "@/domain/datum";
 import type { SourceRef } from "@/domain/provenance";
-import type { ImportTaxes, MarketplaceListings, SourcingOffer } from "@/domain/signals";
-import type { FxRates, SourcingObservation } from "@/providers/contracts";
+import type { ImportTaxes, MinimumPrice, SourcingOffer } from "@/domain/signals";
+import type { FxRates, SourcingObservation, VatRate } from "@/providers/contracts";
 import { quantile } from "../stats/descriptive";
 import { round } from "../stats/normalize";
 
 /** A value typed in the form: a choice of the user, not a measurement. */
-export function userValue(value: number, field: string, collectedAt: string): Known<number> {
+export function userValue(value: number, field: string, collectedAt: string, unit: Unit = "money"): Known<number> {
   const source: SourceRef = { sourceId: "user-input", origin: "user", collectedAt, connectorVersion: "form", queryRef: field };
-  return { status: "known", kind: "assumption", value, unit: "money", sources: [source], note: "Saisi dans le formulaire." };
+  return { status: "known", kind: "assumption", value, unit, sources: [source], note: "Saisi dans le formulaire." };
 }
 
 /** AliExpress offers converted to EUR (the query already asks for EUR; other currencies use ECB rates). */
@@ -40,68 +40,78 @@ export function readSourcing(obs: Datum<SourcingObservation>, fx: Datum<FxRates>
   );
 }
 
-/** Cost of one unit before duties: the cost typed by the user, else the median AliExpress price. */
-export function baseUnitCost(economics: UnitEconomics, sourcing: Datum<SourcingOffer>, collectedAt: string): { datum: Datum<number>; label: string } {
-  if (economics.landedCost !== undefined) return { datum: userValue(economics.landedCost, "landed_cost", collectedAt), label: "coût de revient saisi" };
-  if (isKnown(sourcing)) {
-    return {
-      datum: derived(sourcing.value.priceEur.median, "money", {
-        method: "aliexpress_median_price",
-        inputs: [sourcing],
-        note: "Prix médian des produits AliExpress les plus vendus, livraison non incluse : saisis ton coût de revient pour plus de précision.",
-      }),
-      label: "prix AliExpress médian",
-    };
+export interface UnitMarginInputs {
+  readonly economics: UnitEconomics;
+  readonly taxes: Datum<ImportTaxes>;
+  readonly vat: Datum<VatRate>;
+  readonly collectedAt: string;
+}
+
+export interface UnitMargins {
+  readonly landedUnitCostEur: Datum<number>;
+  readonly marginAtPlannedPrice: Datum<number>;
+  readonly minPriceForTargetMargin: Datum<MinimumPrice>;
+}
+
+/** Landed unit cost = supplier price + shipping cost + duty per unit, from the owner's inputs only. */
+function landedUnitCost(economics: UnitEconomics, taxes: Datum<ImportTaxes>, collectedAt: string): Datum<number> {
+  const { supplierPrice, shippingCost } = economics;
+  if (supplierPrice === undefined || shippingCost === undefined) {
+    return insufficient("Coût de revient inconnu : saisis le prix fournisseur et les frais de livraison.", [...(supplierPrice === undefined ? ["supplier_price"] : []), ...(shippingCost === undefined ? ["shipping_cost"] : [])]);
   }
-  return { datum: insufficient("Coût unitaire inconnu : saisis le coût de revient ou connecte AliExpress.", ["landed_cost", "aliexpress-affiliate"]), label: "" };
-}
-
-export interface CountryMargin {
-  readonly unitCostEur: Datum<number>;
-  readonly marketPriceExVatEur: Datum<number>;
-  readonly marketMarginPct: Datum<number>;
-}
-
-/**
- * Unit cost in a country = base unit cost + duty per unit. Market price excl. VAT = median eBay price / (1 + VAT).
- * Margin = (market price excl. VAT − unit cost) / market price excl. VAT, before advertising and shipping.
- */
-export function countryMargin(base: Datum<number>, taxes: Datum<ImportTaxes>, marketplace: Datum<MarketplaceListings>): CountryMargin {
+  const inputs: Array<Known<unknown>> = [userValue(supplierPrice, "supplier_price", collectedAt), userValue(shippingCost, "shipping_cost", collectedAt)];
   const duty = isKnown(taxes) ? taxes.value.dutyPerUnitEur : null;
-  const unitCostEur: Datum<number> = !isKnown(base)
-    ? base
-    : duty === null
-      ? { ...base, note: `${base.note ?? ""} Droits de douane non inclus (non calculables pour ce pays).`.trim() }
-      : derived(round(base.value + duty, 2), "money", {
-          method: "unit_cost_plus_duty_per_unit",
-          inputs: isKnown(taxes) ? [base, taxes] : [base],
-          note: duty > 0 ? `Dont ${round(duty, 2)} € de droits de douane par unité.` : "Aucun droit de douane dû sur une unité.",
-        });
+  if (duty !== null && isKnown(taxes)) inputs.push(taxes);
+  const note =
+    duty === null
+      ? "Prix fournisseur et livraison saisis par toi, droits non inclus (non calculables pour ce pays)."
+      : duty > 0
+        ? `Prix fournisseur et livraison saisis par toi, plus ${round(duty, 2)} € de droits de douane par unité.`
+        : "Prix fournisseur et livraison saisis par toi ; aucun droit de douane dû sur une unité.";
+  return derived(round(supplierPrice + shippingCost + (duty ?? 0), 2), "money", { method: "landed_unit_cost_v1", inputs, note });
+}
 
-  let marketPriceExVatEur: Datum<number>;
-  if (!isKnown(marketplace)) marketPriceExVatEur = marketplace;
-  else if (!marketplace.value.priceEur) marketPriceExVatEur = insufficient("Prix de marché : trop peu d'annonces avec un prix.", ["ebay-browse"]);
+/** VAT rate of the country as a factor: 1 without national VAT, null when unknown. */
+function vatFactor(vat: Datum<VatRate>): number | null {
+  if (!isKnown(vat)) return null;
+  return vat.value.standardRatePct === null ? 1 : 1 + vat.value.standardRatePct / 100;
+}
+
+/** Margins from real inputs only: no marketplace price is ever used. */
+export function unitMargins({ economics, taxes, vat, collectedAt }: UnitMarginInputs): UnitMargins {
+  const landedUnitCostEur = landedUnitCost(economics, taxes, collectedAt);
+  const factor = vatFactor(vat);
+  const vatInputs: Array<Known<unknown>> = isKnown(vat) ? [vat] : [];
+
+  let marginAtPlannedPrice: Datum<number>;
+  if (economics.sellingPrice === undefined) marginAtPlannedPrice = insufficient("Prix de vente envisagé non renseigné.", ["selling_price"]);
+  else if (!isKnown(landedUnitCostEur)) marginAtPlannedPrice = landedUnitCostEur;
+  else if (factor === null) marginAtPlannedPrice = insufficient("Taux de TVA du pays inconnu : prix hors TVA non calculable.", ["vat-rates"]);
   else {
-    const vat = isKnown(taxes) ? taxes.value.vatRatePct : null;
-    const median = marketplace.value.priceEur.median;
-    marketPriceExVatEur = derived(round(vat === null ? median : median / (1 + vat / 100), 2), "money", {
-      method: "marketplace_median_price_excl_vat",
-      inputs: isKnown(taxes) ? [marketplace, taxes] : [marketplace],
-      note: vat === null ? "Prix affichés hors taxe de vente (pas de TVA nationale)." : `Prix médian eBay hors TVA (${vat} %).`,
+    const exVat = economics.sellingPrice / factor;
+    marginAtPlannedPrice = derived(round(((exVat - landedUnitCostEur.value) / exVat) * 100, 1), "percent", {
+      method: "margin_at_planned_price_v1",
+      inputs: [userValue(economics.sellingPrice, "selling_price", collectedAt), landedUnitCostEur, ...vatInputs],
+      note: `Marge à ton prix : ${round(exVat, 2)} € hors TVA, avant publicité.`,
     });
   }
 
-  const marketMarginPct: Datum<number> =
-    isKnown(unitCostEur) && isKnown(marketPriceExVatEur) && marketPriceExVatEur.value > 0
-      ? derived(round(((marketPriceExVatEur.value - unitCostEur.value) / marketPriceExVatEur.value) * 100, 1), "percent", {
-          method: "market_margin_before_ads",
-          inputs: [unitCostEur, marketPriceExVatEur],
-          note: "Marge au prix du marché, avant publicité et frais de livraison.",
-        })
-      : insufficient("Marge au prix du marché non calculable.", [
-          ...(isKnown(unitCostEur) ? [] : unitCostEur.missing),
-          ...(isKnown(marketPriceExVatEur) ? [] : marketPriceExVatEur.missing),
-        ]);
+  let minPriceForTargetMargin: Datum<MinimumPrice>;
+  const target = economics.targetMarginPct;
+  if (target === undefined) minPriceForTargetMargin = insufficient("Marge visée non renseignée.", ["target_margin"]);
+  else if (!isKnown(landedUnitCostEur)) minPriceForTargetMargin = landedUnitCostEur;
+  else {
+    const exVatEur = landedUnitCostEur.value / (1 - target / 100);
+    minPriceForTargetMargin = derived<MinimumPrice>(
+      { exVatEur: round(exVatEur, 2), inclVatEur: factor === null ? null : round(exVatEur * factor, 2) },
+      "money",
+      {
+        method: "min_price_for_target_margin_v1",
+        inputs: [userValue(target, "target_margin", collectedAt, "percent"), landedUnitCostEur, ...vatInputs],
+        note: `Prix minimum pour ta marge de ${target} %, hors TVA puis TVA du pays incluse.`,
+      },
+    );
+  }
 
-  return { unitCostEur, marketPriceExVatEur, marketMarginPct };
+  return { landedUnitCostEur, marginAtPlannedPrice, minPriceForTargetMargin };
 }

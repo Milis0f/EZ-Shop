@@ -19,7 +19,7 @@ import type {
 } from "@/providers/contracts";
 import type { FxRates } from "@/providers/contracts";
 import { createRng } from "@/lib/random";
-import { baseUnitCost, countryMargin, userValue } from "./economics/market-margin";
+import { unitMargins, userValue, type UnitMargins } from "./economics/market-margin";
 import { readContent, readMarketplace, readSuggestions } from "./signals/indirect";
 import { computeImportTaxes } from "./taxes/import-taxes";
 import { analyzeCompetition } from "./competition/analyze";
@@ -73,30 +73,30 @@ export interface AnalyzeCountryOptions {
 
 const NO_GLOBAL = { reason: "Données globales de l'analyse indisponibles.", missing: [] as string[] };
 
-/** v2 block: indirect signals, import taxes and margin at market price for one country. */
-function analyzeSignalsV2(signals: CountrySignals, options: AnalyzeCountryOptions): CountrySignalsV2 {
+/** v2 block: indirect signals, import taxes and margins from the owner's inputs for one country. */
+function analyzeSignalsV2(signals: CountrySignals, options: AnalyzeCountryOptions): CountrySignalsV2 & UnitMargins {
   const { v2 } = signals;
   const fx: Datum<FxRates> = options.global?.fx ?? { status: "DATA_INSUFFICIENT", ...NO_GLOBAL };
-  const sourcing: Datum<SourcingOffer> = options.global?.sourcing ?? { status: "DATA_INSUFFICIENT", ...NO_GLOBAL };
   const collectedAt = options.now.toISOString();
 
   const searchSuggestions = readSuggestions(v2.suggestions, signals.language);
   const content = readContent(v2.content, options.now);
-  const marketplace = readMarketplace(v2.listings, fx);
+  const marketplace = readMarketplace(v2.listings);
   const topicInterest = mapDatum<TopicInterestObservationLike, TopicInterest>(v2.topicInterest, ({ language, article, wikidataId, points }) => ({ language, article, wikidataId, points }));
 
-  const base = baseUnitCost(options.economics, sourcing, collectedAt);
-  const { sellingPrice } = options.economics;
+  const { sellingPrice, supplierPrice } = options.economics;
+  // Customs value of one unit: the planned price excl. VAT when known, else the supplier price, both typed by the owner.
+  const vatRate = isKnown(v2.vat) ? v2.vat.value.standardRatePct : undefined;
   const customsValue =
-    sellingPrice !== undefined
-      ? { eur: sellingPrice, label: "prix de vente HT saisi", input: userValue(sellingPrice, "selling_price", collectedAt) }
-      : isKnown(base.datum)
-        ? { eur: base.datum.value, label: base.label, input: base.datum }
+    sellingPrice !== undefined && vatRate !== undefined
+      ? { eur: vatRate === null ? sellingPrice : sellingPrice / (1 + vatRate / 100), label: "prix de vente HT saisi", input: userValue(sellingPrice, "selling_price", collectedAt) }
+      : supplierPrice !== undefined
+        ? { eur: supplierPrice, label: "prix fournisseur saisi", input: userValue(supplierPrice, "supplier_price", collectedAt) }
         : null;
   const taxes = computeImportTaxes({ country: signals.country, origin: options.global?.origin, duties: v2.duties, vat: v2.vat, fx, customsValue });
-  const margin = countryMargin(base.datum, taxes, marketplace);
+  const margins = unitMargins({ economics: options.economics, taxes, vat: v2.vat, collectedAt });
 
-  return { searchSuggestions, content, marketplace, topicInterest, taxes, ...margin };
+  return { searchSuggestions, content, marketplace, topicInterest, taxes, ...margins };
 }
 
 type TopicInterestObservationLike = { readonly language: string; readonly article: string; readonly wikidataId: string; readonly points: TopicInterest["points"] };
@@ -130,7 +130,7 @@ export function analyzeCountry(signals: CountrySignals, options: AnalyzeCountryO
       advertising,
       market,
       economics: options.economics,
-      signals: { searchSuggestions: v2.searchSuggestions, content: v2.content, unitCostEur: v2.unitCostEur, marketMarginPct: v2.marketMarginPct },
+      signals: { searchSuggestions: v2.searchSuggestions, content: v2.content, landedUnitCostEur: v2.landedUnitCostEur },
     },
     options.scoring,
   );
@@ -158,7 +158,6 @@ export function analyzeCountry(signals: CountrySignals, options: AnalyzeCountryO
     v2.content,
     v2.marketplace,
     v2.taxes,
-    v2.marketMarginPct,
   ).concat(signals.languageMismatch ? ["translated_terms"] : []);
 
   return {

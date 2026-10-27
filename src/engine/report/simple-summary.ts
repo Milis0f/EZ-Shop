@@ -68,7 +68,7 @@ export function verdictFor(c: CountryAnalysis): SimpleVerdict {
     else if (g.intent.length > 0) reasons.push(`${g.intent.length} recherche${g.intent.length > 1 ? "s" : ""} d'achat (prix, avis…) parmi ${g.suggestions.length}.`);
     else if (g.marketplaces.length > 0) reasons.push(`Déjà cherché sur ${g.marketplaces.length > 1 ? "des marketplaces" : "une marketplace"} (${g.marketplaces[0]}).`);
   }
-  if (s && isKnown(s.marketMarginPct)) reasons.push(`Marge au prix du marché : ${Math.round(s.marketMarginPct.value)} %.`);
+  if (s?.marginAtPlannedPrice && isKnown(s.marginAtPlannedPrice)) reasons.push(`Marge à ton prix : ${Math.round(s.marginAtPlannedPrice.value)} %.`);
   if (base.level === "unknown") reasons.push("Score calculé quand eBay ou Google Ads est branché (mode avancé).");
   return { ...base, reasons: reasons.slice(0, 4) };
 }

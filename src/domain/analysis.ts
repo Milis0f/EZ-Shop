@@ -32,7 +32,15 @@ export interface CollectionIssue {
 
 export interface UnitEconomics {
   readonly currency: CurrencyCode;
+  /** Planned selling price, VAT included as the customer pays it. */
   readonly sellingPrice?: number;
+  /** Supplier unit price. */
+  readonly supplierPrice?: number;
+  /** Shipping cost to the customer, per unit. */
+  readonly shippingCost?: number;
+  /** Target margin on the selling price excluding VAT, in %. */
+  readonly targetMarginPct?: number;
+  /** Pre-V1 alias of one unit cost; the input schema turns it into supplierPrice with no shipping. */
   readonly landedCost?: number;
 }
 

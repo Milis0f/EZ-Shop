@@ -161,9 +161,11 @@ const unitEconomics: Criterion = {
   timeSensitive: false,
   evaluate: ({ economics, advertising, signals }) => {
     const { sellingPrice } = economics;
-    // Country unit cost (sourcing + import duty) when known, else the cost typed in the form.
-    const countryCost = signals && isKnown(signals.unitCostEur) ? signals.unitCostEur.value : undefined;
-    const landedCost = countryCost ?? economics.landedCost;
+    // Landed cost in the country (supplier price + shipping + duty) when known, else the typed costs.
+    const countryCost = signals && isKnown(signals.landedUnitCostEur) ? signals.landedUnitCostEur.value : undefined;
+    const typedCost =
+      economics.supplierPrice !== undefined && economics.shippingCost !== undefined ? economics.supplierPrice + economics.shippingCost : economics.landedCost;
+    const landedCost = countryCost ?? typedCost;
     if (sellingPrice === undefined || landedCost === undefined) {
       return { status: "DATA_INSUFFICIENT", explanation: "Prix de vente HT et coût de revient requis.", missing: ["selling_price", "landed_cost"] };
     }
@@ -200,34 +202,25 @@ const searchIntent: Criterion = {
   },
 };
 
+/** Reason given by the criteria whose marketplace statistics are switched off. */
+export const LICENCE_PENDING = "Statistique dérivée désactivée en attendant la vérification de la licence.";
+
+const licencePending = (source: string): CriterionEvaluation => ({ status: "DATA_INSUFFICIENT", explanation: LICENCE_PENDING, missing: [source] });
+
+/** YouTube median views: disabled pending the licence check (weight kept, scoring 2026.10-v3). */
 const videoInterest: Criterion = {
   id: "video_interest",
   label: "Intérêt vidéo (YouTube)",
   timeSensitive: true,
-  evaluate: ({ signals }) => {
-    const c = signals?.content;
-    if (!c || !isKnown(c)) return c ? missing("Données YouTube indisponibles.", c) : { status: "DATA_INSUFFICIENT", explanation: "Données YouTube indisponibles.", missing: ["youtube-data"] };
-    const median = c.value.medianViews;
-    if (median === null) return { status: "DATA_INSUFFICIENT", explanation: "Aucune vidéo récente sur le produit dans ce pays.", missing: [] };
-    return scored(log10Scale(Math.max(1, median), B.videoMedianViewsLog10.min, B.videoMedianViewsLog10.max), "Vues médianes des vidéos pertinentes de l'année (log) : 1 000 → 0, 1 000 000 → 1.", [c], {
-      rawValue: median,
-      rawLabel: `${fmt.format(median)} vues médianes`,
-    });
-  },
+  evaluate: () => licencePending("youtube-data"),
 };
 
+/** Margin at the median eBay price: disabled pending the licence check (weight kept, scoring 2026.10-v3). */
 const marketMargin: Criterion = {
   id: "market_margin",
   label: "Marge au prix du marché",
   timeSensitive: false,
-  evaluate: ({ signals }) => {
-    const m = signals?.marketMarginPct;
-    if (!m || !isKnown(m)) return m ? missing("Marge au prix du marché non calculable.", m) : { status: "DATA_INSUFFICIENT", explanation: "Marge au prix du marché non calculable.", missing: ["ebay-browse"] };
-    return scored(linearScale(m.value, B.marketMarginPct.min, B.marketMarginPct.max), "(Prix eBay médian HT − coût unitaire droits inclus) / prix : 10 % → 0, 60 % → 1, avant publicité.", [m], {
-      rawValue: m.value,
-      rawLabel: `${fmt.format(m.value)} % de marge brute`,
-    });
-  },
+  evaluate: () => licencePending("ebay-browse"),
 };
 
 /** Ordered registry — the order is the display order. */

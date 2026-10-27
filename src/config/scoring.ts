@@ -6,7 +6,7 @@
  * absolute — a country's score does not depend on which other countries are compared.
  */
 
-export const SCORING_MODEL_VERSION = "2026.10-v2";
+export const SCORING_MODEL_VERSION = "2026.10-v3";
 
 export const CRITERION_IDS = [
   "demand_volume",
@@ -68,12 +68,8 @@ export const NORMALIZATION_BOUNDS = {
   /** Autocomplete: distinct suggestions (0 → 0, 10 → 1) and purchase-intent suggestions (0 → 0, 3 → 1). */
   suggestionCount: { min: 0, max: 10 },
   intentSuggestionCount: { min: 0, max: 3 },
-  /** log10 of median YouTube views of the most relevant videos: 1 000 → 0, 1 000 000 → 1. */
-  videoMedianViewsLog10: { min: 3, max: 6 },
   /** log10 of matching eBay listings on the national site: 10 → 0, 50 000 → 1 (competition). */
   marketplaceListingsLog10: { min: 1, max: Math.log10(50_000) },
-  /** Margin at market price before advertising, %: 10 % → 0, 60 % → 1. */
-  marketMarginPct: { min: 10, max: 60 },
 } as const;
 
 /** Market-context sub-weights (renormalized over available indicators). */

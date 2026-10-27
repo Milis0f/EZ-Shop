@@ -1,8 +1,7 @@
 import { derived, insufficient, isKnown, type Datum } from "@/domain/datum";
 import type { LanguageCode } from "@/domain/country";
 import type { ContentActivity, MarketplaceListings, SearchSuggestions } from "@/domain/signals";
-import type { ContentObservation, FxRates, ListingsObservation, SuggestionsObservation } from "@/providers/contracts";
-import { quantile } from "../stats/descriptive";
+import type { ContentObservation, ListingsObservation, SuggestionsObservation } from "@/providers/contracts";
 import { round } from "../stats/normalize";
 
 /**
@@ -50,54 +49,51 @@ export function readSuggestions(obs: Datum<SuggestionsObservation>, language: La
 
 export function readContent(obs: Datum<ContentObservation>, now: Date): Datum<ContentActivity> {
   if (!isKnown(obs)) return obs;
-  const views = obs.value.videos.flatMap((v) => (v.views === null ? [] : [v.views]));
-  const dated = obs.value.videos.filter((v) => v.publishedAt);
+  const { totalResults, videos } = obs.value;
+  const dated = videos.filter((v) => v.publishedAt);
   const recent = dated.filter((v) => now.getTime() - Date.parse(v.publishedAt) <= 90 * 86_400_000).length;
   return derived(
     {
-      videosLast12Months: obs.value.totalResults,
-      sampledVideos: obs.value.videos.length,
-      medianViews: views.length > 0 ? Math.round(quantile(views, 0.5)) : null,
+      videosLast12Months: totalResults,
+      sampledVideos: videos.length,
+      videos,
+      // Derived view statistics are disabled pending the licence check.
+      medianViews: null,
       recentShare: dated.length > 0 ? round(recent / dated.length, 3) : null,
     },
     "count",
     {
-      method: "youtube_search_sample_v1",
+      method: "youtube_search_sample_v2",
       inputs: [obs],
-      note: "Nombre de vidéos estimé par YouTube (approximatif) ; vues médianes des vidéos les plus pertinentes.",
+      note: "Nombre de vidéos estimé par YouTube (approximatif) et vidéos les plus pertinentes, telles qu'observées.",
     },
   );
 }
 
-/** Listing prices converted to EUR with ECB rates; the China share comes from a separately filtered count. */
-export function readMarketplace(obs: Datum<ListingsObservation>, fx: Datum<FxRates>): Datum<MarketplaceListings> {
+const MAX_OBSERVED_PRICES = 5;
+
+/**
+ * Listing count, at most five asking prices as displayed (observed, not sales) and the China share from a
+ * separately filtered count. No price statistic is derived from the listings.
+ */
+export function readMarketplace(obs: Datum<ListingsObservation>): Datum<MarketplaceListings> {
   if (!isKnown(obs)) return obs;
   const { total, prices, chinaTotal, marketplaceId } = obs.value;
-  const rates = isKnown(fx) ? fx.value.rates : null;
-  const eur = prices.flatMap((p) => {
-    const rate = rates?.[p.currency.toUpperCase()];
-    return rate ? [p.value / rate] : [];
-  });
-  const priceEur =
-    eur.length >= 5 ? { p25: round(quantile(eur, 0.25), 2), median: round(quantile(eur, 0.5), 2), p75: round(quantile(eur, 0.75), 2) } : null;
-  const inputs = isKnown(fx) ? [obs, fx] : [obs];
   return derived(
     {
       marketplaceId,
       listings: total,
       sampled: prices.length,
-      priceEur,
+      observedPrices: prices.slice(0, MAX_OBSERVED_PRICES).map(({ value, currency }) => ({ value, currency })),
+      chinaTotal,
       localCurrency: prices[0]?.currency ?? null,
       chinaShare: chinaTotal !== null && total > 0 ? round(Math.min(1, chinaTotal / total), 3) : null,
     },
     "count",
     {
-      method: "ebay_browse_sample_v1",
-      inputs,
-      note:
-        priceEur === null
-          ? "Moins de 5 prix exploitables : prix de marché non calculé."
-          : `Prix de ${eur.length} annonces, convertis en euros (taux BCE), TVA incluse comme affichés aux acheteurs.`,
+      method: "ebay_browse_sample_v2",
+      inputs: [obs],
+      note: "Prix affichés observés, pas des ventes.",
     },
   );
 }

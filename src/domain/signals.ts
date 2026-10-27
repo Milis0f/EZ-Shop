@@ -23,7 +23,12 @@ export interface ContentActivity {
   /** YouTube's own estimate of matching videos published over the last 12 months (approximate by design). */
   readonly videosLast12Months: number;
   readonly sampledVideos: number;
-  /** Median views of the most relevant sampled videos. */
+  /** Videos returned by YouTube, as observed (absent from analyses stored before scoring 2026.10-v3). */
+  readonly videos?: ReadonlyArray<{ readonly id: string; readonly publishedAt: string; readonly views: number | null }>;
+  /**
+   * Legacy: median views of the sampled videos, stored before scoring 2026.10-v3. The derived statistic is
+   * disabled pending the licence check, so new analyses always store null.
+   */
   readonly medianViews: number | null;
   /** Share of sampled videos published in the last 90 days, 0–1. */
   readonly recentShare: number | null;
@@ -36,8 +41,12 @@ export interface MarketplaceListings {
   /** Listings matching the terms on the national site. */
   readonly listings: number;
   readonly sampled: number;
-  /** Listing prices of the sample, converted to EUR, VAT included as displayed to buyers. */
-  readonly priceEur: { readonly p25: number; readonly median: number; readonly p75: number } | null;
+  /** At most five asking prices as displayed to buyers: observed prices, not sales (scoring 2026.10-v3 on). */
+  readonly observedPrices?: ReadonlyArray<{ readonly value: number; readonly currency: string }>;
+  /** Matching listings located in China, as counted by eBay (scoring 2026.10-v3 on). */
+  readonly chinaTotal?: number | null;
+  /** Legacy: price quartiles in EUR, stored before scoring 2026.10-v3. No longer computed. */
+  readonly priceEur?: { readonly p25: number; readonly median: number; readonly p75: number } | null;
   readonly localCurrency: string | null;
   /** Share of matching listings located in China, 0–1. */
   readonly chinaShare: number | null;
@@ -114,12 +123,28 @@ export interface CountrySignalsV2 {
   readonly marketplace: Datum<MarketplaceListings>;
   readonly topicInterest: Datum<TopicInterest>;
   readonly taxes: Datum<ImportTaxes>;
-  /** Selling price excluding VAT implied by the median marketplace price, in EUR. */
-  readonly marketPriceExVatEur: Datum<number>;
-  /** Unit cost used for this country: sourcing cost + duty per unit, in EUR. */
-  readonly unitCostEur: Datum<number>;
-  /** (market price excl. VAT − unit cost) / market price excl. VAT, before advertising. */
-  readonly marketMarginPct: Datum<number>;
+  /**
+   * Landed unit cost: supplier price + shipping cost + duty per unit, in EUR, from the owner's inputs.
+   * The three fields below are absent from analyses stored before scoring 2026.10-v3.
+   */
+  readonly landedUnitCostEur?: Datum<number>;
+  /** (selling price excl. VAT − landed cost) / selling price excl. VAT, in %, « à ton prix ». */
+  readonly marginAtPlannedPrice?: Datum<number>;
+  /** Selling price that reaches the owner's target margin: landed / (1 − target). */
+  readonly minPriceForTargetMargin?: Datum<MinimumPrice>;
+  /** Legacy (before 2026.10-v3): selling price excl. VAT implied by the median eBay price, in EUR. */
+  readonly marketPriceExVatEur?: Datum<number>;
+  /** Legacy (before 2026.10-v3): sourcing cost + duty per unit, in EUR. */
+  readonly unitCostEur?: Datum<number>;
+  /** Legacy (before 2026.10-v3): margin at the median eBay price, before advertising. */
+  readonly marketMarginPct?: Datum<number>;
+}
+
+export interface MinimumPrice {
+  /** Minimum selling price excluding VAT, in EUR. */
+  readonly exVatEur: number;
+  /** Same price including the country's VAT; equals exVatEur without national VAT, null when the rate is unknown. */
+  readonly inclVatEur: number | null;
 }
 
 export type { Interval };

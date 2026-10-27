@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { DatumValue } from "@/components/data/datum-value";
-import { isKnown, type Datum } from "@/domain/datum";
+import { insufficient, isKnown, type Datum } from "@/domain/datum";
 import type { CountrySignalsV2, DutyBasis, ImportTaxes, SearchSuggestions } from "@/domain/signals";
 import { formatMoney, formatPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ const DUTY_BASIS_LABELS: Record<DutyBasis, string> = {
 
 const pct = (v: number) => formatPct(v);
 
+/** Analyses stored before scoring 2026.10-v3 have no landed cost from the owner's inputs. */
+const NOT_IN_OLD_ANALYSIS = insufficient("Non calculé dans cette analyse ancienne.");
+
 function Notes({ notes }: { notes: readonly string[] }) {
   if (notes.length === 0) return null;
   return (
@@ -34,7 +37,8 @@ function Notes({ notes }: { notes: readonly string[] }) {
 }
 
 export function TaxesPanel({ signals }: { signals: CountrySignalsV2 }) {
-  const { taxes, unitCostEur } = signals;
+  const { taxes } = signals;
+  const landed = signals.landedUnitCostEur ?? NOT_IN_OLD_ANALYSIS;
   const value = isKnown(taxes) ? taxes.value : null;
   return (
     <div>
@@ -53,8 +57,8 @@ export function TaxesPanel({ signals }: { signals: CountrySignalsV2 }) {
         <Stat label="TVA du pays" hint="Payée par l'acheteur, hors de ta marge si tes prix sont HT">
           <DatumValue datum={taxes} format={(t: ImportTaxes) => (t.vatRatePct === null ? "pas de TVA nationale" : pct(t.vatRatePct))} />
         </Stat>
-        <Stat label="Coût unitaire rendu" hint="Achat + droits, avant livraison et publicité">
-          <DatumValue datum={unitCostEur} format={(v) => <AnimatedNumber value={v} format="money" />} />
+        <Stat label="Coût unitaire rendu" hint="Prix fournisseur, livraison et droits, avant publicité">
+          <DatumValue datum={landed} format={(v) => <AnimatedNumber value={v} format="money" />} />
         </Stat>
       </dl>
       {value && <Notes notes={value.notes} />}
@@ -63,23 +67,17 @@ export function TaxesPanel({ signals }: { signals: CountrySignalsV2 }) {
 }
 
 export function MarketplacePanel({ signals }: { signals: CountrySignalsV2 }) {
-  const { marketplace, marketPriceExVatEur, marketMarginPct } = signals;
+  const { marketplace } = signals;
   return (
-    <dl className={cn(KPI_GRID, "sm:grid-cols-3 lg:grid-cols-5")}>
+    <dl className={cn(KPI_GRID, "sm:grid-cols-3")}>
       <Stat label="Annonces eBay" hint={isKnown(marketplace) ? marketplace.value.marketplaceId.replace("EBAY_", "eBay ") : undefined}>
         <DatumValue datum={marketplace} format={(m) => <AnimatedNumber value={m.listings} format="int" />} />
       </Stat>
-      <Stat label="Prix affichés (TTC)" hint="Quartiles des annonces, en euros">
+      <Stat label="Prix affichés observés" hint="Pas des ventes, au plus cinq annonces">
         <DatumValue
           datum={marketplace}
-          format={(m) => (m.priceEur ? `${formatMoney(m.priceEur.p25)} à ${formatMoney(m.priceEur.p75)}` : "trop peu de prix")}
+          format={(m) => (m.observedPrices && m.observedPrices.length > 0 ? m.observedPrices.map((p) => formatMoney(p.value, p.currency)).join(", ") : "—")}
         />
-      </Stat>
-      <Stat label="Prix médian HT">
-        <DatumValue datum={marketPriceExVatEur} format={(v) => <AnimatedNumber value={v} format="money" />} />
-      </Stat>
-      <Stat label="Marge au prix du marché" hint="Avant publicité et livraison">
-        <DatumValue datum={marketMarginPct} format={(v) => <AnimatedNumber value={v} format="percent" />} />
       </Stat>
       <Stat label="Vendeurs basés en Chine" hint="Part des annonces : concurrence dropshipping">
         <DatumValue datum={marketplace} format={(m) => (m.chinaShare === null ? "inconnu" : formatPct(m.chinaShare * 100))} />
@@ -126,9 +124,6 @@ export function InterestPanel({ signals }: { signals: CountrySignalsV2 }) {
       <dl className="grid content-start gap-6 lg:border-l lg:border-line lg:pl-10">
         <Stat label="Vidéos YouTube sur 12 mois" hint="Estimation de YouTube, approximative">
           <DatumValue datum={content} format={(c) => <AnimatedNumber value={c.videosLast12Months} format="compact" />} />
-        </Stat>
-        <Stat label="Vues médianes des plus pertinentes">
-          <DatumValue datum={content} format={(c) => (c.medianViews === null ? "—" : <AnimatedNumber value={c.medianViews} format="compact" />)} />
         </Stat>
         <Stat label="Publiées dans les 90 derniers jours">
           <DatumValue datum={content} format={(c) => (c.recentShare === null ? "—" : formatPct(c.recentShare * 100))} />

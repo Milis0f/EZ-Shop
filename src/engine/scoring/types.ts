@@ -17,9 +17,8 @@ export interface ScoringContext {
   readonly signals?: {
     readonly searchSuggestions: Datum<SearchSuggestions>;
     readonly content: Datum<ContentActivity>;
-    /** Unit cost in the country (sourcing + duty), EUR. Replaces the typed landed cost when known. */
-    readonly unitCostEur: Datum<number>;
-    readonly marketMarginPct: Datum<number>;
+    /** Landed unit cost in the country (supplier price + shipping + duty), EUR. */
+    readonly landedUnitCostEur: Datum<number>;
   };
 }
 
