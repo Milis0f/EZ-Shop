@@ -132,8 +132,8 @@ Ce qu'il faut savoir avant de l'utiliser :
 
 ## Licence
 
-Licence : à définir par l'auteur. Tant qu'aucun fichier de licence n'est publié, le code n'est pas proposé sous une
-licence ouverte.
+Le code est publié sous licence [GNU AGPL-3.0](LICENSE). Tu peux l'utiliser, le modifier et le redistribuer, à
+condition que toute version modifiée, y compris proposée en ligne, reste publiée sous la même licence.
 
 Le modèle Qwen3.5-9B n'est pas inclus dans ce dépôt : il se télécharge à part et reste soumis à sa propre licence
 (Apache-2.0).
