@@ -23,27 +23,30 @@ interface Row {
   readonly reason: string;
 }
 
-/** The rows of `verdict_v1` (src/engine/report/verdict.ts), in the order the rule checks them. */
+/**
+ * The rows of `verdict_v1` (src/engine/report/verdict.ts) in the order the rule checks them: blocking
+ * factors first, then `decide()` in src/engine/scoring/confidence.ts.
+ */
 function rows(t: Thresholds): Row[] {
   return [
     { condition: "Un facteur bloquant est connu", verdict: "non", reason: "Le facteur bloquant" },
-    {
-      condition: `Prioriser : score d'au moins ${t.prioritizeScore}, confiance d'au moins ${t.prioritizeConfidence} %`,
-      verdict: "oui",
-      reason: "Les signaux les plus forts",
-    },
-    {
-      condition: `Éviter : score sous ${t.testScore}, confiance d'au moins ${t.minConfidence} %`,
-      verdict: "non",
-      reason: "Les critères les plus faibles",
-    },
-    { condition: "Tester prudemment", verdict: "surveiller", reason: "Signaux mitigés, avec le point fort et le point faible" },
+    { condition: "Données insuffisantes : aucun score", verdict: "surveiller", reason: "Les sources à connecter" },
     {
       condition: `Exploratoire seulement : confiance sous ${t.minConfidence} %`,
       verdict: "surveiller",
       reason: "Confiance trop faible, avec le facteur le plus faible",
     },
-    { condition: "Données insuffisantes : aucun score", verdict: "surveiller", reason: "Les sources à connecter" },
+    {
+      condition: `Prioriser : score d'au moins ${t.prioritizeScore}, confiance d'au moins ${t.prioritizeConfidence} %`,
+      verdict: "oui",
+      reason: "Les signaux les plus forts",
+    },
+    { condition: `Éviter : score sous ${t.testScore}`, verdict: "non", reason: "Les critères les plus faibles" },
+    {
+      condition: `Tester prudemment : score d'au moins ${t.testScore}, confiance d'au moins ${t.minConfidence} %, sans atteindre Prioriser`,
+      verdict: "surveiller",
+      reason: "Signaux mitigés, avec le point fort et le point faible",
+    },
   ];
 }
 

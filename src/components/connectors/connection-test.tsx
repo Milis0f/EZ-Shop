@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<ConnectionCheckStep["status"], { icon: typeof CircleCheck; tone: string; label: string }> = {
   ok: { icon: CircleCheck, tone: "text-kind-observed", label: "Réussi" },
-  error: { icon: CircleX, tone: "text-verdict-surveiller", label: "Échec" },
+  error: { icon: CircleX, tone: "text-foreground", label: "Échec" },
   skipped: { icon: CircleDashed, tone: "text-muted-foreground", label: "Non testé" },
 };
 
@@ -50,7 +50,7 @@ export function ConnectionTest({ providerId }: { providerId: ProviderId }) {
       </div>
 
       <div aria-live="polite">
-        {!pending && result && !result.ok && <p className="animate-slide-down mt-4 text-sm text-verdict-surveiller">{result.message}</p>}
+        {!pending && result && !result.ok && <p className="animate-slide-down mt-4 text-sm text-foreground">{result.message}</p>}
         {!pending && result?.ok && (
           <ol className="mt-4 space-y-3">
             {result.steps.map((step, i) => {

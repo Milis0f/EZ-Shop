@@ -114,7 +114,7 @@ export function ConnectorDialog({ providerId, name, docsUrl, accessLabel, verifi
           )}
 
           {NOTICES[verification] && (
-            <p className="border-b border-line px-6 py-3 text-xs leading-relaxed text-verdict-surveiller">{NOTICES[verification]}</p>
+            <p className="border-b border-line px-6 py-3 text-xs leading-relaxed text-foreground">{NOTICES[verification]}</p>
           )}
 
           <ConnectorForm

@@ -24,7 +24,7 @@ interface ConnectorFormProps {
 }
 
 const inputClass =
-  "h-11 w-full rounded-pill border border-line bg-background px-4 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-verdict-surveiller/60";
+  "h-11 w-full rounded-pill border border-line bg-background px-4 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-dashed aria-invalid:border-foreground/50";
 
 /** Every variable of one connector. Submitted by hand so a failed save never wipes what was typed. */
 /** Guide steps with every field placed once: leftovers go to a final "values" step. */
@@ -123,7 +123,7 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
               key={state.savedAt ?? state.message}
               className={cn(
                 "animate-slide-down mb-4 flex items-start gap-2 text-sm",
-                state.status === "saved" ? "text-kind-observed" : "text-verdict-surveiller",
+                state.status === "saved" ? "text-kind-observed" : "text-foreground",
               )}
             >
               {state.status === "saved" && <CircleCheck className="animate-check mt-0.5 size-4 shrink-0" aria-hidden />}
@@ -152,12 +152,12 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
 
 function FieldStatus({ state, removing }: { state: FieldState; removing: boolean }) {
   const [label, tone] = removing
-    ? ["Sera retirée", "text-verdict-surveiller"]
+    ? ["Sera retirée", "text-foreground"]
     : state.set
       ? ["Définie", "text-kind-observed"]
       : state.optional
         ? ["Facultative", "text-muted-foreground"]
-        : ["À renseigner", "text-verdict-surveiller"];
+        : ["À renseigner", "text-foreground"];
   return (
     <span className={cn("flex items-center gap-1.5 text-[11px] whitespace-nowrap", tone)}>
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
@@ -221,7 +221,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
 
       <div id={hintId} className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="max-w-[60ch] leading-relaxed">
-          {error ? <span className="text-verdict-surveiller">{error}</span> : spec.help}
+          {error ? <span className="text-foreground">{error}</span> : spec.help}
           {spec.helpUrl && !error && (
             <>
               {" "}

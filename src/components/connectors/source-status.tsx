@@ -24,7 +24,7 @@ const DOT_TONE: Readonly<Record<SourceStatus, string>> = {
   repair: "bg-verdict-surveiller",
   not_configured: "bg-muted-foreground",
   not_implemented: "border border-muted-foreground/70 bg-transparent",
-  mock: "hatch-mock border border-verdict-surveiller/60",
+  mock: "hatch border border-muted-foreground/70",
 };
 
 export function sourceStatus(state: ProviderState, fields: readonly FieldState[]): SourceStatus {
