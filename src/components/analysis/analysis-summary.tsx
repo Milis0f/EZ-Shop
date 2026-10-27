@@ -3,14 +3,15 @@ import { AnimatedNumber } from "@/components/motion/animated-number";
 import type { CountryAnalysis } from "@/domain/analysis";
 import { COUNTRIES } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
-import { DecisionBadge } from "./decision-badge";
+import { verdictFor } from "@/engine/report/verdict";
+import { VerdictChip } from "./verdict-chip";
 import { sortByScore } from "./country-ranking";
 
 function Tile({ label, children, note, stagger }: { label: string; children: ReactNode; note?: ReactNode; stagger: number }) {
   return (
-    <div className="animate-enter min-w-0 px-6 py-5" style={{ "--stagger": stagger } as React.CSSProperties}>
+    <div className="animate-enter min-w-0 px-5 py-5 sm:px-[26px] sm:py-6" style={{ "--stagger": stagger } as React.CSSProperties}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-2xl font-semibold tracking-tight">{children}</dd>
+      <dd className="tabular mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">{children}</dd>
       {note && <dd className="mt-1.5 text-xs text-muted-foreground">{note}</dd>}
     </div>
   );
@@ -27,14 +28,14 @@ export function AnalysisSummary({ countries }: { countries: readonly CountryAnal
   const gaps = new Set(countries.flatMap((c) => c.dataGaps));
 
   return (
-    <dl className="panel grid grid-cols-2 lg:grid-cols-4 [&>div]:border-line max-lg:[&>div:nth-child(-n+2)]:border-b max-lg:[&>div:nth-child(odd)]:border-r lg:divide-x lg:divide-line">
+    <dl className="panel grid grid-cols-2 overflow-hidden lg:grid-cols-4 [&>div]:border-line max-lg:[&>div:nth-child(-n+2)]:border-b max-lg:[&>div:nth-child(odd)]:border-r lg:divide-x lg:divide-line">
       <Tile label="Pays comparés" stagger={1} note={`${scored.length} avec un score`}>
         <AnimatedNumber value={countries.length} format="int" />
       </Tile>
       <Tile
         label="Meilleure opportunité"
         stagger={2}
-        note={best ? <DecisionBadge decision={best.scoring.decision} /> : "Aucun pays n'a de score"}
+        note={best ? <VerdictChip verdict={verdictFor(best)} /> : "Aucun pays n'a de score"}
       >
         {best && isKnown(best.scoring.score) ? (
           <span className="flex items-baseline gap-2">

@@ -23,14 +23,15 @@ export function Stat({ label, children, hint, className }: { label: string; chil
   return (
     <div className={cn("min-w-0", className)}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-base">{children}</dd>
+      <dd className="tabular mt-2 text-base">{children}</dd>
       {hint && <dd className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</dd>}
     </div>
   );
 }
 
 /** KPI strip: one bordered panel split into equal cells, so figures line up across the row. */
-export const KPI_GRID = "panel grid grid-cols-2 gap-px overflow-hidden bg-line [&>div]:bg-surface [&>div]:px-5 [&>div]:py-5";
+export const KPI_GRID =
+  "panel grid min-w-0 grid-cols-2 gap-px overflow-hidden bg-line [&>div]:bg-surface [&>div]:px-4 [&>div]:py-5 sm:[&>div]:px-[22px]";
 
 export function KeyFigures({ c }: { c: CountryAnalysis }) {
   const { demand } = c;
@@ -113,7 +114,7 @@ export function SalesPanel({ c, economics }: { c: CountryAnalysis; economics: Un
 export function AdCostsTable({ c }: { c: CountryAnalysis }) {
   const money = (i: Parameters<typeof IntervalValue>[0]["interval"]) => <IntervalValue interval={i} format={(v) => formatMoney(v)} className="items-end" />;
   return (
-    <div className="panel overflow-x-auto">
+    <div className="panel min-w-0 overflow-hidden p-1.5">
       <Table className="min-w-[34rem] [&_td]:py-4 [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th]:h-12 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
         <TableHeader>
           <TableRow className="border-line hover:bg-transparent">
@@ -157,7 +158,7 @@ export function CompetitionPanel({ c }: { c: CountryAnalysis }) {
     </Stat>
   );
   return (
-    <div className="panel grid gap-10 p-6 lg:grid-cols-2 lg:gap-12">
+    <div className="panel grid min-w-0 gap-8 p-5 sm:p-[26px] min-[900px]:grid-cols-2 min-[900px]:gap-12">
       <dl className="grid gap-7">
         <Stat label="Indice de concurrence Google Ads">
           <DatumValue datum={competition.googleCompetitionIndex} format={(v) => `${formatDecimal(v)}/100`} />

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { CartesianGrid, LabelList, ReferenceArea, ReferenceLine, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Cell, LabelList, ReferenceArea, ReferenceLine, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 import { motionDuration } from "@/components/motion/motion-tokens";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
@@ -13,6 +13,10 @@ export interface MapPoint {
   readonly score: number;
   readonly confidence: number;
   readonly mock: boolean;
+  /** Verdict word of the country (OUI, À SURVEILLER, NON). */
+  readonly verdict: string;
+  /** Verdict hue, the only colour of the interface. */
+  readonly color: string;
 }
 
 interface OpportunityMapProps {
@@ -95,9 +99,14 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
             const p = payload?.[0]?.payload as MapPoint | undefined;
             if (!p) return null;
             return (
-              <div className="rounded-md border border-line bg-popover px-3 py-2 text-xs">
-                <p className="font-medium">{p.name}</p>
-                <p>Score {Math.round(p.score)}/100, confiance {p.confidence} %</p>
+              <div className="rounded-menu border border-line bg-popover px-3.5 py-2.5 text-xs">
+                <p className="font-medium">
+                  {p.name}{" "}
+                  <span className="font-semibold" style={{ color: p.color }}>
+                    {p.verdict}
+                  </span>
+                </p>
+                <p className="tabular mt-0.5 text-muted-foreground">Score {Math.round(p.score)}/100, confiance {p.confidence} %</p>
                 {p.mock && <p className="text-kind-mock">Valeurs fictives (mock)</p>}
               </div>
             );
@@ -109,11 +118,15 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           className="cursor-pointer"
           isAnimationActive={!reducedMotion}
           animationDuration={drawMs}
+          shape="circle"
           onClick={(entry) => {
             const code = (entry as unknown as { payload?: MapPoint }).payload?.code;
             if (code) router.push(`/analyses/${analysisId}/${code.toLowerCase()}`);
           }}
         >
+          {data.map((p) => (
+            <Cell key={p.code} fill={p.color} />
+          ))}
           <LabelList
             dataKey="label"
             content={({ x, y, index }) => {

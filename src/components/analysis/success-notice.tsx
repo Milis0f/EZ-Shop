@@ -20,14 +20,14 @@ export function SuccessNotice({ message }: { message: string }) {
 
   if (!visible) return null;
   return (
-    <div role="status" className="animate-slide-down mb-8 flex items-center gap-3 rounded-xl border border-kind-observed/30 bg-kind-observed/8 px-4 py-3 text-sm">
+    <div role="status" className="animate-slide-down mb-8 flex items-center gap-3 rounded-pill border border-line bg-surface py-2 pr-2 pl-5 text-sm">
       <CircleCheck className="size-4 shrink-0 text-kind-observed" aria-hidden />
       <p className="flex-1">{message}</p>
       <button
         type="button"
         onClick={() => setVisible(false)}
         aria-label="Masquer"
-        className="interactive rounded-md p-1 text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+        className="interactive grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:bg-surface-2 hover:text-foreground"
       >
         <X className="size-4" aria-hidden />
       </button>

@@ -1,4 +1,4 @@
-import { ArrowUpRight, CircleCheck } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import Link from "next/link";
 import type { CountryAnalysis } from "@/domain/analysis";
 import { missingLabel } from "@/lib/format";
@@ -21,11 +21,11 @@ export function DataGaps({ countries }: { countries: readonly CountryAnalysis[] 
   return (
     <div className="text-sm">
       <p className="text-muted-foreground">Pour fiabiliser l&apos;analyse, il manque :</p>
-      <ul className="mt-4 space-y-1">
+      <ul className="mt-4 flex flex-col gap-1.5">
         {gaps.map(([gap, n]) => (
-          <li key={gap} className="flex items-baseline justify-between gap-3 rounded-md px-2 py-1.5 -mx-2">
+          <li key={gap} className="flex items-center justify-between gap-3 rounded-tile bg-surface-2/50 py-2.5 pr-2.5 pl-4">
             <span>{missingLabel(gap)}</span>
-            <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted-foreground">
+            <span className="shrink-0 rounded-pill border border-line px-2.5 py-0.5 text-xs text-muted-foreground">
               {n === countries.length ? "tous les pays" : `${n} pays`}
             </span>
           </li>
@@ -33,10 +33,9 @@ export function DataGaps({ countries }: { countries: readonly CountryAnalysis[] 
       </ul>
       <Link
         href="/connectors"
-        className="interactive mt-5 inline-flex items-center gap-1 rounded-md text-xs font-medium underline-offset-4 hover:underline"
+        className="mt-5 inline-flex items-center rounded-pill bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-[background-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-primary/85 active:scale-[0.97]"
       >
         Brancher les sources
-        <ArrowUpRight className="size-3.5" aria-hidden />
       </Link>
     </div>
   );

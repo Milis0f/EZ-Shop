@@ -7,7 +7,7 @@ export function AnalysisSkeleton() {
       <Skeleton className="h-9 w-80" />
       <Skeleton className="mt-4 h-4 w-[30rem] max-w-full" />
       <Skeleton className="mt-2 h-4 w-72" />
-      <div className="panel mt-12 grid grid-cols-2 gap-px overflow-hidden lg:grid-cols-4">
+      <div className="panel mt-10 grid grid-cols-2 gap-px overflow-hidden lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="space-y-3 px-6 py-5">
             <Skeleton className="h-3 w-24" />
@@ -15,7 +15,7 @@ export function AnalysisSkeleton() {
           </div>
         ))}
       </div>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
+      <div className="mt-14 grid grid-cols-1 gap-4 min-[900px]:grid-cols-[minmax(0,1fr)_20rem]">
         <Skeleton className="h-[26rem] rounded-panel" />
         <Skeleton className="h-64 rounded-panel" />
       </div>

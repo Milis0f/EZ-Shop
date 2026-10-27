@@ -22,7 +22,7 @@ const formatHs = (code: string) =>
 export function SourcingPanel({ origin, classification, sourcing }: SourcingPanelProps) {
   if (!classification && !sourcing) return null;
   return (
-    <div className="panel grid gap-10 p-6 lg:grid-cols-[22rem_1fr] lg:gap-12">
+    <div className="panel grid min-w-0 gap-8 p-5 sm:p-[26px] min-[900px]:grid-cols-[22rem_minmax(0,1fr)] min-[900px]:gap-12">
       <dl className="grid content-start gap-6">
         <Stat label="Pays d'origine">{origin ? originName(origin) : <span className="text-muted-foreground">Non renseigné</span>}</Stat>
         {classification && (
@@ -48,7 +48,7 @@ export function SourcingPanel({ origin, classification, sourcing }: SourcingPane
         )}
       </dl>
 
-      <div className="lg:border-l lg:border-line lg:pl-12">
+      <div className="min-w-0 min-[900px]:border-l min-[900px]:border-line min-[900px]:pl-12">
         <h3 className="text-sm font-medium">Prix d&apos;achat sur AliExpress</h3>
         {!sourcing || !isKnown(sourcing) ? (
           <div className="mt-3 text-sm">
@@ -74,9 +74,9 @@ export function SourcingPanel({ origin, classification, sourcing }: SourcingPane
                 <DatumValue datum={sourcing} format={(s) => (s.recentOrders === null ? "—" : <AnimatedNumber value={s.recentOrders} format="int" />)} />
               </Stat>
             </dl>
-            <ul className="mt-6 divide-y divide-line rounded-lg border border-line">
+            <ul className="mt-6 flex flex-col gap-1.5">
               {sourcing.value.topProducts.map((p) => (
-                <li key={p.url || p.title} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                <li key={p.url || p.title} className="flex items-center justify-between gap-4 rounded-tile bg-surface-2/50 px-4 py-3 text-sm">
                   <a href={p.url} target="_blank" rel="noreferrer" className="min-w-0 truncate underline-offset-4 hover:underline">
                     {p.title}
                   </a>

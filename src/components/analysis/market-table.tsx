@@ -23,19 +23,19 @@ export function MarketTable({ analysisId, countries }: { analysisId: string; cou
   if (rows.length === 0) return null;
 
   return (
-    <div className="panel overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="panel min-w-0 overflow-hidden p-1.5">
+      <div className="overflow-x-auto rounded-[calc(var(--radius-panel)-6px)]">
         <Table className="min-w-[56rem] text-[13px] [&_td]:px-3 [&_td]:py-3.5 [&_th]:px-3 [&_[data-slot=tooltip-trigger]]:relative [&_[data-slot=tooltip-trigger]]:z-10">
           <TableHeader>
             <TableRow className="border-line hover:bg-transparent">
               <TableHead className={cn(STICKY, "pl-5")}>Pays</TableHead>
-              <TableHead className="text-right">Annonces eBay</TableHead>
+              <TableHead className="text-right">Annonces eBay observées</TableHead>
               <TableHead className="text-right">Droit / unité</TableHead>
               <TableHead className="text-right">Coût rendu</TableHead>
               <TableHead className="text-right">Marge à ton prix</TableHead>
               <TableHead className="text-right">Vendeurs Chine</TableHead>
               <TableHead className="text-right">Suggestions</TableHead>
-              <TableHead className="pr-5 text-right">Vidéos 12 mois</TableHead>
+              <TableHead className="pr-5 text-right">Résultats YouTube</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

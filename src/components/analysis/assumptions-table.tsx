@@ -11,19 +11,20 @@ function describe(d: Distribution, unit: Assumption["unit"]): string {
 /** One row per assumption; opening it shows what it means and why this range was chosen. */
 export function AssumptionsTable({ assumptions }: { assumptions: readonly Assumption[] }) {
   return (
-    <div className="panel divide-y divide-line overflow-hidden">
+    <div className="panel flex flex-col gap-1.5 p-2">
       {assumptions.map((a) => (
         <Disclosure
           key={a.key}
-          summaryClassName="rounded-none px-5 py-4"
+          className="rounded-tile bg-surface-2/40"
+          summaryClassName="rounded-tile px-4 py-3.5 sm:px-[18px]"
           summary={
             <span className="grid items-center gap-x-6 gap-y-1 sm:grid-cols-[1fr_auto]">
-              <span className="flex items-center gap-3 font-medium">
+              <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-medium">
                 <KindMarker kind="assumption" />
                 {a.label}
-                {a.origin === "user" && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted-foreground">saisie</span>}
+                {a.origin === "user" && <span className="rounded-pill border border-line px-2.5 py-0.5 text-[11px] font-normal text-muted-foreground">saisi par toi</span>}
               </span>
-              <span className="pl-5 text-sm whitespace-nowrap text-kind-assumption sm:pl-0">
+              <span className="tabular pl-5 text-sm text-kind-assumption sm:pl-0 sm:whitespace-nowrap">
                 {describe(a.distribution, a.unit)}
                 {a.distribution.type === "triangular" && (
                   <span className="text-muted-foreground">, le plus probable {describe({ type: "fixed", value: a.distribution.mode }, a.unit)}</span>
@@ -32,7 +33,7 @@ export function AssumptionsTable({ assumptions }: { assumptions: readonly Assump
             </span>
           }
         >
-          <div className="max-w-3xl space-y-1.5 pr-5 pb-5 pl-[2.75rem] text-sm">
+          <div className="max-w-3xl space-y-1.5 pr-4 pb-4 pl-9 text-sm sm:pl-[2.6rem]">
             <p>{a.description}</p>
             <p className="text-muted-foreground">{a.rationale}</p>
           </div>

@@ -24,22 +24,22 @@ export function ProvenancePanel({ c }: { c: CountryAnalysis }) {
   const sources = collectSources(c);
   const issues = dedupeIssues(c.issues);
   return (
-    <div className="panel overflow-hidden">
+    <div className="panel min-w-0 p-2">
       <Disclosure
-        summaryClassName="rounded-none px-6 py-4"
+        summaryClassName="rounded-[calc(var(--radius-panel)-8px)] px-4 py-4 sm:px-[18px]"
         summary={
           <span className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
             <span className="font-medium">{plural(sources.length, "source")}</span>
-            <span className={issues.length > 0 ? "text-decision-test" : "text-muted-foreground"}>
+            <span className="text-muted-foreground">
               {issues.length === 0 ? "aucun incident de collecte" : `${plural(issues.length, "incident")} de collecte`}
             </span>
           </span>
         }
       >
-        <div className="grid gap-12 border-t border-line px-6 py-6 lg:grid-cols-[1fr_20rem]">
-          <div className="overflow-x-auto">
+        <div className="grid gap-2 px-0 pt-1 min-[900px]:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="min-w-0 overflow-x-auto rounded-tile bg-surface-2/40 px-2">
             {sources.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune donnée collectée pour ce pays.</p>
+              <p className="px-2 py-4 text-sm text-muted-foreground">Aucune donnée collectée pour ce pays.</p>
             ) : (
               <SourcesTable sources={sources} />
             )}
@@ -77,7 +77,7 @@ function SourcesTable({ sources }: { sources: ReturnType<typeof collectSources> 
                 )}
               </span>
             </TableCell>
-            <TableCell className="whitespace-nowrap">{s.period ? `${s.period.start} → ${s.period.end}` : "non précisée"}</TableCell>
+            <TableCell className="whitespace-nowrap">{s.period ? `du ${s.period.start} au ${s.period.end}` : "non précisée"}</TableCell>
             <TableCell className="whitespace-nowrap">{formatDate(s.collectedAt)}</TableCell>
             <TableCell className="max-w-[16rem] truncate text-xs text-muted-foreground">{s.queryRef ?? ""}</TableCell>
           </TableRow>
@@ -89,16 +89,16 @@ function SourcesTable({ sources }: { sources: ReturnType<typeof collectSources> 
 
 function IssuesList({ issues }: { issues: readonly CollectionIssue[] }) {
   return (
-    <div>
+    <div className="rounded-tile bg-surface-2/40 px-4 py-4 sm:px-[18px]">
       <h3 className="text-sm font-medium">Incidents de collecte</h3>
       {issues.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">Aucun.</p>
       ) : (
-        <ul className="mt-5 space-y-4 text-sm">
+        <ul className="mt-4 space-y-4 text-sm">
           {issues.map((i) => (
             <li key={`${i.providerId}|${i.code}`}>
               <span className="font-medium">{SOURCE_LABELS[i.providerId]}</span>
-              <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted-foreground">{ISSUE_LABELS[i.code] ?? i.code}</span>
+              <span className="ml-2 rounded-pill border border-line px-2.5 py-0.5 text-[11px] text-muted-foreground">{ISSUE_LABELS[i.code] ?? i.code}</span>
               <span className="mt-1 block text-xs text-muted-foreground">{i.message}</span>
             </li>
           ))}

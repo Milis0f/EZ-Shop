@@ -5,12 +5,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { CountryAnalysis, UnitEconomics } from "@/domain/analysis";
 import { CountryTag } from "@/components/data/country-tag";
 import { COUNTRIES } from "@/domain/country";
+import { verdictFor } from "@/engine/report/verdict";
 import { isKnown } from "@/domain/datum";
 import { MONTH_LABELS_FR } from "@/domain/time";
 import { COMPETITION_LABELS, formatCompact, formatMoney, formatPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DecisionBadge } from "./decision-badge";
 import { ConfidenceMeter, ScoreMeter } from "./meters";
+import { VerdictChip } from "./verdict-chip";
 
 export function sortByScore(countries: readonly CountryAnalysis[]): CountryAnalysis[] {
   const value = (c: CountryAnalysis) => (isKnown(c.scoring.score) ? c.scoring.score.value.total : -1);
@@ -39,13 +40,13 @@ export function CountryRanking({ analysisId, countries, economics }: CountryRank
   const anyCapped = ranked.some(capped);
 
   return (
-    <div className="panel overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="panel min-w-0 overflow-hidden p-1.5">
+      <div className="overflow-x-auto rounded-[calc(var(--radius-panel)-6px)]">
         <Table className="min-w-[60rem] text-[13px] [&_td]:px-3 [&_td]:py-3.5 [&_th]:px-3 [&_[data-slot=tooltip-trigger]]:relative [&_[data-slot=tooltip-trigger]]:z-10">
           <TableHeader>
             <TableRow className="border-line hover:bg-transparent">
               <TableHead className={cn(STICKY, "pl-5")}>Pays</TableHead>
-              <TableHead>Décision</TableHead>
+              <TableHead>Verdict</TableHead>
               <TableHead>Score</TableHead>
               <TableHead>Confiance</TableHead>
               <TableHead className="text-right">Recherches/mois</TableHead>
@@ -62,7 +63,7 @@ export function CountryRanking({ analysisId, countries, economics }: CountryRank
               const google = c.advertising.find((a) => a.platform === "google");
               const href = `/analyses/${analysisId}/${c.country.toLowerCase()}`;
               return (
-                <TableRow key={c.country} className="group relative border-line transition-colors duration-[var(--dur-fast)] hover:bg-surface-2">
+                <TableRow key={c.country} className="group relative border-line transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-surface-2">
                   <TableCell className={cn(STICKY, "pl-5 group-hover:bg-surface-2")}>
                     <Link href={href} className="flex items-center gap-2 font-medium underline-offset-4 group-hover:underline">
                       <CountryTag code={c.country} />
@@ -71,7 +72,7 @@ export function CountryRanking({ analysisId, countries, economics }: CountryRank
                     {c.languageMismatch && <span className="mt-0.5 block pl-8 text-[11px] text-muted-foreground">terme non traduit</span>}
                   </TableCell>
                   <TableCell>
-                    <DecisionBadge decision={c.scoring.decision} />
+                    <VerdictChip verdict={verdictFor(c)} />
                   </TableCell>
                   <TableCell>
                     {isKnown(c.scoring.score) ? (
@@ -129,7 +130,7 @@ export function CountryRanking({ analysisId, countries, economics }: CountryRank
         </Table>
       </div>
       {anyCapped && (
-        <p className="border-t border-line px-5 py-3 text-xs text-muted-foreground">
+        <p className="border-t border-line px-4 pt-3 pb-2.5 text-xs text-muted-foreground">
           * Score plafonné à 35 : le coût d&apos;acquisition estimé dépasse la marge unitaire saisie.
         </p>
       )}
