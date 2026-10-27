@@ -117,7 +117,7 @@ describe("unit margins from the owner's inputs", () => {
 
   it("minimum price for a 40 % target, excluding then including VAT", () => {
     const { minPriceForTargetMargin } = margins(economics({ targetMarginPct: 40 }));
-    expect(isKnown(minPriceForTargetMargin) && minPriceForTargetMargin.value).toEqual({ exVatEur: 23.33, inclVatEur: 28 });
+    expect(isKnown(minPriceForTargetMargin) && minPriceForTargetMargin.value).toEqual({ targetMarginPct: 40, exVatEur: 23.33, inclVatEur: 28 });
   });
 
   it("without a price the margins are DATA_INSUFFICIENT", () => {

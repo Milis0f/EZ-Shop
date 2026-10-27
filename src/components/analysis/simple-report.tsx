@@ -9,16 +9,15 @@ import type { AnalysisResult, CountryAnalysis } from "@/domain/analysis";
 import { COUNTRIES, LANGUAGE_LABELS_FR } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
 import { MONTH_LABELS_FR } from "@/domain/time";
-import { interestPerMonth, rankForSimple, verdictFor, type VerdictLevel } from "@/engine/report/simple-summary";
+import { interestPerMonth, rankForSimple } from "@/engine/report/simple-summary";
+import { verdictFor, type VerdictValue } from "@/engine/report/verdict";
 import { formatCompact, formatDate, formatPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const LEVEL_TONE: Record<VerdictLevel, string> = {
-  good: "text-decision-prioritize",
-  test: "text-decision-test",
-  weak: "text-decision-avoid",
-  uncertain: "text-decision-explore",
-  unknown: "text-muted-foreground",
+const VERDICT_TONE: Record<VerdictValue, string> = {
+  oui: "text-decision-prioritize",
+  surveiller: "text-decision-test",
+  non: "text-decision-avoid",
 };
 
 function Tile({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -84,7 +83,7 @@ function CountriesTable({ analysisId, countries }: { analysisId: string; countri
                     {COUNTRIES[c.country].nameFr}
                   </Link>
                 </td>
-                <td className={cn("px-3 py-3 font-medium", LEVEL_TONE[v.level])}>{v.title}</td>
+                <td className={cn("px-3 py-3 font-medium", VERDICT_TONE[v.value])}>{v.label}</td>
                 <td className="px-3 py-3 text-right">{isKnown(trend) ? formatPct(trend.value.annualGrowthPct, true) : <span className="text-muted-foreground">—</span>}</td>
                 <td className="px-3 py-3">
                   {isKnown(seasonality) ? (seasonality.value.isSeasonal ? MONTH_LABELS_FR[(seasonality.value.peakMonths[0] ?? 1) - 1] : "régulier") : <span className="text-muted-foreground">—</span>}
@@ -146,17 +145,18 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
 
       <section aria-label="Verdict" className="panel animate-enter mt-12 p-6 text-center sm:p-8" style={{ "--stagger": 1 } as React.CSSProperties}>
         <p className="text-xs text-muted-foreground">{world ? `Verdict pour ${COUNTRIES[main.country].nameFr}` : "Verdict"}</p>
-        <p className={cn("mt-2 text-3xl font-semibold tracking-tight sm:text-4xl", LEVEL_TONE[verdict.level])}>{verdict.title}</p>
-        {verdict.reasons.length > 0 && (
-          <ul className="mx-auto mt-5 max-w-xl space-y-1.5 text-sm leading-relaxed text-muted-foreground">
-            {verdict.reasons.map((r) => (
+        <p className={cn("mt-2 text-3xl font-semibold tracking-tight sm:text-4xl", VERDICT_TONE[verdict.value])}>{verdict.label}</p>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed">{verdict.reason}</p>
+        {verdict.supporting.length > 0 && (
+          <ul className="mx-auto mt-4 max-w-xl space-y-1.5 text-sm leading-relaxed text-muted-foreground">
+            {verdict.supporting.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>
         )}
         {world && ranked[0] && ranked[0].country !== main.country && (
           <p className="mt-5 text-sm">
-            Pays le plus prometteur : <span className="font-medium">{COUNTRIES[ranked[0].country].nameFr}</span> ({verdictFor(ranked[0]).title.toLowerCase()}).
+            Pays le plus prometteur : <span className="font-medium">{COUNTRIES[ranked[0].country].nameFr}</span> ({verdictFor(ranked[0]).label}).
           </p>
         )}
       </section>

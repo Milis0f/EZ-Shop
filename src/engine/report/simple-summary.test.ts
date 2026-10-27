@@ -6,7 +6,8 @@ import { MyMemoryProvider, parseMyMemory } from "@/providers/translation/mymemor
 import { addMachineTranslations } from "@/server/pipeline/translate";
 import { expandProduct } from "@/engine/terms/expand";
 import { syntheticSeries, TEST_NOW, testSource } from "@/test/fixtures";
-import { interestPerMonth, rankForSimple, verdictFor } from "./simple-summary";
+import { interestPerMonth, rankForSimple } from "./simple-summary";
+import { verdictFor } from "./verdict";
 
 const none = (p: string) => insufficient(`${p} indisponible`, [p]);
 
@@ -49,10 +50,11 @@ describe("simple summary", () => {
 
   it("explains a verdict without a score from the data that exists, and says what would unlock a score", () => {
     const v = verdictFor(country("FR", 0.2, ["chaussettes chauffantes avis"]));
-    expect(v.level).toBe("unknown");
-    expect(v.reasons.join(" ")).toMatch(/Intérêt en hausse .*d'après Wikipédia/);
-    expect(v.reasons.join(" ")).toContain("1 recherche d'achat");
-    expect(v.reasons.at(-1)).toContain("eBay ou Google Ads");
+    expect(v).toMatchObject({ value: "surveiller", label: "À SURVEILLER", blocking: [] });
+    expect(v.supporting.join(" ")).toMatch(/Intérêt en hausse .*d'après Wikipédia/);
+    expect(v.supporting.join(" ")).toContain("1 recherche d'achat");
+    expect(v.supporting.find((r) => r.startsWith("Pic en"))).toMatch(/[^.]\.$/);
+    expect(v.reason).toMatch(/^Données insuffisantes : sources à connecter, .*Google Ads/);
   });
 
   it("ranks rising interest first when no country has a score", () => {

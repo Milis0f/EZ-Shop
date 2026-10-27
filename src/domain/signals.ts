@@ -141,6 +141,8 @@ export interface CountrySignalsV2 {
 }
 
 export interface MinimumPrice {
+  /** Target margin typed by the owner, in %. */
+  readonly targetMarginPct: number;
   /** Minimum selling price excluding VAT, in EUR. */
   readonly exVatEur: number;
   /** Same price including the country's VAT; equals exVatEur without national VAT, null when the rate is unknown. */

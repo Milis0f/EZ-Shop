@@ -103,7 +103,7 @@ export function unitMargins({ economics, taxes, vat, collectedAt }: UnitMarginIn
   else {
     const exVatEur = landedUnitCostEur.value / (1 - target / 100);
     minPriceForTargetMargin = derived<MinimumPrice>(
-      { exVatEur: round(exVatEur, 2), inclVatEur: factor === null ? null : round(exVatEur * factor, 2) },
+      { targetMarginPct: target, exVatEur: round(exVatEur, 2), inclVatEur: factor === null ? null : round(exVatEur * factor, 2) },
       "money",
       {
         method: "min_price_for_target_margin_v1",

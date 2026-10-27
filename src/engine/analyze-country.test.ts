@@ -136,7 +136,7 @@ describe("analyzeCountry — margins and disabled statistics", () => {
     const s = result.signals;
     expect(s?.landedUnitCostEur && isKnown(s.landedUnitCostEur) && s.landedUnitCostEur.value).toBe(11);
     expect(s?.marginAtPlannedPrice && isKnown(s.marginAtPlannedPrice) && s.marginAtPlannedPrice.value).toBe(56);
-    expect(s?.minPriceForTargetMargin && isKnown(s.minPriceForTargetMargin) && s.minPriceForTargetMargin.value).toEqual({ exVatEur: 18.33, inclVatEur: 22 });
+    expect(s?.minPriceForTargetMargin && isKnown(s.minPriceForTargetMargin) && s.minPriceForTargetMargin.value).toEqual({ targetMarginPct: 40, exVatEur: 18.33, inclVatEur: 22 });
     expect(s?.marketMarginPct).toBeUndefined();
     expect(s?.marketPriceExVatEur).toBeUndefined();
   });
