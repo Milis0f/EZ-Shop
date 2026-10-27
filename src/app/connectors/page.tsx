@@ -66,7 +66,7 @@ function StatePill({ state }: { state: ProviderState }) {
 
 async function ConnectorList() {
   await connection();
-  const [{ connectors, mockAllowed }, editor] = await Promise.all([getConnectorOverview(), getEnvEditorAccess()]);
+  const [{ connectors }, editor] = await Promise.all([getConnectorOverview(), getEnvEditorAccess()]);
   const ready = connectors.filter((c) => c.status.state === "ready").length;
   const counts = STATE_ORDER.map((s) => [s, connectors.filter((c) => c.status.state === s).length] as const).filter(([, n]) => n > 0);
 
@@ -94,10 +94,6 @@ async function ConnectorList() {
             </span>
           ))}
         </div>
-        <p className="mt-5 text-xs text-muted-foreground">
-          Données fictives de développement :{" "}
-          {mockAllowed ? "autorisées dans cet environnement." : "désactivées (production ou ALLOW_MOCK_DATA=false)."}
-        </p>
       </section>
 
       {CONNECTOR_GROUPS.map((group) => {

@@ -9,16 +9,17 @@ import type { AnalysisInput } from "@/domain/schemas";
 import { parseJsonForStorage } from "@/lib/storage-safe";
 import { ok } from "@/providers/contracts";
 import { cached } from "@/providers/http";
-import { createProviderSet, REAL_PROVIDER_METAS, type ProviderSet } from "@/providers/registry";
+import { REAL_PROVIDER_METAS, type ProviderSet } from "@/providers/registry";
 import { createTestDatabase, truncateAll, type TestDatabase } from "@/test/pglite";
 import { TEST_NOW as NOW } from "@/test/fixtures";
+import { createMockProviderSet } from "@/test/mock-providers";
 import type { Database } from "../db/client";
 import * as t from "../db/schema";
 import { runAnalysis } from "../pipeline/run-analysis";
 import { DrizzleAnalysisRepository } from "./drizzle-analysis-repository";
 import { DrizzleCacheRepository } from "./drizzle-cache-repository";
 import { createMemoryRepositories, MemoryAnalysisRepository } from "./memory-repositories";
-import type { CompletedAnalysis, NewAnalysis, ObservationRecord, ProviderCacheRepository } from "./types";
+import type { CompletedAnalysis, NewAnalysis, ObservationRecord } from "./types";
 
 /**
  * Characterisation tests: real migrations on in-memory PGlite, no mock of the database layer.
@@ -81,17 +82,16 @@ afterEach(() => {
   expect(networkGuard).not.toHaveBeenCalled();
 });
 
-const mockProviders = (providerCache: ProviderCacheRepository, now: Date): ProviderSet =>
-  createProviderSet("mock", { env: devEnv, cache: providerCache, now: () => now });
+const mockProviders = (now: Date): ProviderSet => createMockProviderSet(() => now);
 
 function analyse(now: Date = NOW): Promise<AnalysisResult> {
-  return runAnalysis(input, { repositories: { analyses, cache }, env: devEnv, now: () => now, providers: mockProviders(cache, now) });
+  return runAnalysis(input, { repositories: { analyses, cache }, env: devEnv, now: () => now, providers: mockProviders(now) });
 }
 
 /** A valid CompletedAnalysis (and the NewAnalysis that produced it), built without touching the database under test. */
 async function buildValidPayload(): Promise<{ newAnalysis: NewAnalysis; completed: CompletedAnalysis }> {
   const memory = createMemoryRepositories();
-  const result = await runAnalysis(input, { repositories: memory, env: devEnv, now: () => NOW, providers: mockProviders(memory.cache, NOW) });
+  const result = await runAnalysis(input, { repositories: memory, env: devEnv, now: () => NOW, providers: mockProviders(NOW) });
   const completed = (memory.analyses as MemoryAnalysisRepository).persisted(result.id)!;
   const newAnalysis: NewAnalysis = {
     product: result.product,

@@ -5,7 +5,7 @@ import type { TrendStats } from "@/domain/market";
 import { testSource } from "@/test/fixtures";
 import { buildFactSheet } from "./fact-sheet";
 import { findUnsupportedNumbers } from "./number-guard";
-import { mockStoredAnalysis } from "./test-analysis";
+import { mockStoredAnalysis } from "@/test/stored-analysis";
 
 /** A complete analysis from the offline mock providers (development fixtures, not market data). */
 const mockAnalysis = (): Promise<AnalysisResult> => mockStoredAnalysis(["FR", "DE", "US"], { currency: "EUR", sellingPrice: 29, landedCost: 9 });

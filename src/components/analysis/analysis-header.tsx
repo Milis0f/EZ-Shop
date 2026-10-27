@@ -1,4 +1,3 @@
-import { MockBanner } from "@/components/data/mock-banner";
 import type { AnalysisResult } from "@/domain/analysis";
 import { LANGUAGE_LABELS_FR, type LanguageCode } from "@/domain/country";
 import { formatDate } from "@/lib/format";
@@ -9,7 +8,6 @@ export function AnalysisHeader({ analysis }: { analysis: AnalysisResult }) {
 
   return (
     <header className="animate-enter mb-12">
-      {analysis.dataMode === "mock" && <MockBanner />}
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{analysis.product.displayName}</h1>
       <dl className="mt-6 grid gap-x-10 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
         <dt className="text-muted-foreground">Termes analysés</dt>

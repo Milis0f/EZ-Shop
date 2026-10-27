@@ -81,13 +81,14 @@ Set `DATABASE_URL` (Supabase: use the pooled connection string), then:
 npm run db:migrate
 ```
 
-## Data modes
+## Real data only
 
-- **live** — real connectors only. Missing sources ⇒ `DATA_INSUFFICIENT`.
-- **mock** — synthetic, deterministic fixtures from `src/providers/mock/`, for visual development.
-  Every mock value is tagged `origin: "mock"`, shown with a hatched magenta marker and a page banner.
-  Mock mode is refused in production (`NODE_ENV=production` or `ALLOW_MOCK_DATA=false`), and an ESLint
-  rule forbids importing mock code anywhere except the provider registry.
+- Every analysis uses the real connectors. Missing sources ⇒ `DATA_INSUFFICIENT`.
+- The input refuses `dataMode: "mock"`. Synthetic, deterministic fixtures live in
+  `src/test/mock-providers/` and are injected by tests through the `providers` seam of `runAnalysis`.
+  An ESLint rule forbids importing `src/test/` from product code.
+- Analyses stored before the V1 with `dataMode: "mock"` are still readable (never rewritten) and show
+  the banner « Analyse fictive ancienne, créée avant la V1 : ses chiffres ne sont pas réels. ».
 
 ## Project structure
 
@@ -98,7 +99,7 @@ src/
 ├── config/         env (Zod), scoring model (weights, bounds, thresholds), default assumptions
 ├── domain/         types and Zod schemas — Datum, provenance, countries, analysis
 ├── engine/         pure functions: demand model, competition, ad costs, sales simulation, scoring, confidence
-├── providers/      one adapter per source behind capability contracts, registry, mock fixtures
+├── providers/      one adapter per source behind capability contracts, registry
 ├── server/         DB (Drizzle), repositories, analysis pipeline, services, rate limiting
 └── lib/            formatting, seeded RNG, utilities
 drizzle/            SQL migrations

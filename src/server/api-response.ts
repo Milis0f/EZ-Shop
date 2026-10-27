@@ -1,6 +1,5 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { MockDataNotAllowedError } from "@/providers/registry";
 import { AnalysisValidationError } from "./pipeline/run-analysis";
 
 /** Consistent API envelope: { success, data, error }. Internal details never leak to clients. */
@@ -19,7 +18,6 @@ export const apiError = (status: number, code: string, message: string, details?
 
 export function apiErrorFrom(error: unknown) {
   if (error instanceof AnalysisValidationError) return apiError(400, "invalid_input", "Entrée invalide.", error.issues);
-  if (error instanceof MockDataNotAllowedError) return apiError(403, "mock_disabled", error.message);
   console.error("[api] unexpected error", error);
   return apiError(500, "internal_error", "Erreur interne.");
 }

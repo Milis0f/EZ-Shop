@@ -9,7 +9,7 @@ import type { CountryCode } from "@/domain/country";
 import { TEST_NOW } from "@/test/fixtures";
 import { buildFactSheet } from "./fact-sheet";
 import { clearInsightCache, GenerationRateLimitedError, getAnalysisInsight, PROMPT_VERSION, type InsightDeps } from "./insight";
-import { mockStoredAnalysis } from "./test-analysis";
+import { mockStoredAnalysis } from "@/test/stored-analysis";
 import { AiAnswerIncompleteError, type AiJsonRequest, type EngineLoadResult, type LocalAiEngine } from "./types";
 
 const MODEL = { name: "Fake model", license: "Apache-2.0" };

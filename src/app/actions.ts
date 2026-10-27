@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { LANGUAGE_CODES, type LanguageCode } from "@/domain/country";
 import type { AnalysisInputRaw } from "@/domain/schemas";
 import { AnalysisValidationError } from "@/server/pipeline/run-analysis";
-import { MockDataNotAllowedError } from "@/providers/registry";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { createAnalysis } from "@/server/services";
 
@@ -70,7 +69,6 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
     id = (await createAnalysis(raw)).id;
   } catch (error: unknown) {
     if (error instanceof AnalysisValidationError) return searchFormStateFrom(error.issues);
-    if (error instanceof MockDataNotAllowedError) return { error: "Les données mock sont désactivées dans cet environnement." };
     console.error("[submitAnalysis]", error);
     return { error: "L'analyse a échoué. Consulte les logs serveur." };
   }

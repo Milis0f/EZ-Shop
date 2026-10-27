@@ -33,7 +33,7 @@ export async function RecentAnalyses() {
                 <span className="block truncate font-medium">{a.productName}</span>
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {formatDate(a.createdAt)}, {a.countryCount} pays
-                  {a.dataMode === "mock" && <span className="ml-2">données fictives</span>}
+                  {a.dataMode === "mock" && <span className="ml-2">analyse fictive ancienne</span>}
                   {a.status === "failed" && <span className="ml-2 text-foreground">échec</span>}
                 </span>
               </span>

@@ -1,5 +1,5 @@
 import "server-only";
-import { getEnv, isMockAllowed } from "@/config/env";
+import { getEnv } from "@/config/env";
 import type { AnalysisResult, AnalysisSummary } from "@/domain/analysis";
 import type { ProviderMeta, ProviderStatus } from "@/providers/contracts";
 import { createProviderSet, listProviders, REAL_PROVIDER_METAS } from "@/providers/registry";
@@ -33,19 +33,14 @@ export interface ConnectorOverview {
 const STATUS_ONLY_CACHE: ProviderCacheRepository = { get: async () => null, set: async () => undefined };
 
 /** Live connector states. Building the set performs no network or database call. */
-export async function getConnectorOverview(): Promise<{ connectors: ConnectorOverview[]; mockAllowed: boolean }> {
+export async function getConnectorOverview(): Promise<{ connectors: ConnectorOverview[] }> {
   const env = getEnv();
-  const live = createProviderSet("live", { env, cache: STATUS_ONLY_CACHE });
+  const live = createProviderSet({ env, cache: STATUS_ONLY_CACHE });
   const byId = new Map(listProviders(live).map((p) => [p.meta.id, p.status()]));
   return {
     connectors: REAL_PROVIDER_METAS.map((meta) => ({
       meta,
       status: byId.get(meta.id) ?? { state: "not_implemented", detail: "Non enregistré." },
     })),
-    mockAllowed: isMockAllowed(env),
   };
-}
-
-export function mockDataAllowed(): boolean {
-  return isMockAllowed(getEnv());
 }

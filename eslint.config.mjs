@@ -6,17 +6,17 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    // Mock fixtures are reachable only through the provider registry (which refuses them in production).
+    // Synthetic fixtures and test helpers live under src/test/ and are reachable from tests only.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/providers/registry.ts", "src/providers/mock/**"],
+    ignores: ["src/**/*.test.ts", "src/test/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/providers/mock/*", "**/providers/mock/*", "./mock/*"],
-              message: "Mock data must only be wired through src/providers/registry.ts.",
+              group: ["@/test", "@/test/**", "**/test/**"],
+              message: "Product code must not import src/test/ (test fixtures and helpers only).",
             },
           ],
         },

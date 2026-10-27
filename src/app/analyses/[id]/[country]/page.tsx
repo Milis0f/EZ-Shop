@@ -6,7 +6,7 @@ import { Suspense, type ReactNode } from "react";
 import { DecisionBadge } from "@/components/analysis/decision-badge";
 import { ConfidenceMeter, ScoreMeter } from "@/components/analysis/meters";
 import { DatumValue } from "@/components/data/datum-value";
-import { MockBanner } from "@/components/data/mock-banner";
+import { LegacyMockNotice } from "@/components/data/legacy-mock-notice";
 import { DemandChart } from "@/components/country/demand-chart";
 import { AdCostsTable, CompetitionPanel, KeyFigures, MarketPanel, SalesPanel } from "@/components/country/panels";
 import { ProvenancePanel } from "@/components/country/provenance-panel";
@@ -87,7 +87,7 @@ async function CountryContent({ params }: PageProps) {
       </Link>
 
       <header className="animate-enter mt-8 mb-10">
-        {analysis.dataMode === "mock" && <MockBanner />}
+        <LegacyMockNotice dataMode={analysis.dataMode} />
         <div className="grid grid-cols-1 items-end gap-8 lg:grid-cols-[1fr_auto]">
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-3 text-3xl font-semibold tracking-tight sm:text-4xl">

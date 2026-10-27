@@ -1,15 +1,15 @@
 /**
- * ⚠ DEVELOPMENT FIXTURES — every value produced here carries `origin: "mock"`
- * and is rendered with a MOCK badge. Only the provider registry may import this file,
- * and only when mock data is allowed (never in production).
+ * ⚠ TEST FIXTURES — every value produced here carries `origin: "mock"`.
+ * Tests inject them through the `providers` seam of runAnalysis; product code
+ * never imports src/test/ (enforced by ESLint).
  */
 
 import type { CountryCode } from "@/domain/country";
 import type { ProviderId, SourceRef } from "@/domain/provenance";
 import { monthsBetween } from "@/domain/time";
 import { normal, uniform } from "@/lib/random";
-import { metaMarketingMeta, tiktokBusinessMeta } from "../ad-cost/adapters";
-import { aggregateAds, type RawAd } from "../ad-activity";
+import { metaMarketingMeta, tiktokBusinessMeta } from "@/providers/ad-cost/adapters";
+import { aggregateAds, type RawAd } from "@/providers/ad-activity";
 import {
   fail,
   isCovered,
@@ -33,14 +33,14 @@ import {
   type SearchInterestProvider,
   type SearchInterestQuery,
   type TermInterestSeries,
-} from "../contracts";
-import { eurostatMeta } from "../eurostat/adapter";
-import { googleAdsMeta } from "../google-ads/adapter";
-import { googleTrendsMeta } from "../google-trends/adapter";
-import { metaAdLibraryMeta } from "../meta-ad-library/adapter";
-import { oecdMeta } from "../oecd/adapter";
-import { tiktokCommercialMeta } from "../tiktok-commercial/adapter";
-import { worldBankMeta } from "../world-bank/adapter";
+} from "@/providers/contracts";
+import { eurostatMeta } from "@/providers/eurostat/adapter";
+import { googleAdsMeta } from "@/providers/google-ads/adapter";
+import { googleTrendsMeta } from "@/providers/google-trends/adapter";
+import { metaAdLibraryMeta } from "@/providers/meta-ad-library/adapter";
+import { oecdMeta } from "@/providers/oecd/adapter";
+import { tiktokCommercialMeta } from "@/providers/tiktok-commercial/adapter";
+import { worldBankMeta } from "@/providers/world-bank/adapter";
 import { adProfile, latentSeries, mockSeedRng, roundVolume } from "./generator";
 
 const MOCK_STATUS: ProviderStatus = { state: "mock", detail: "Données fictives de développement — aucune valeur réelle." };

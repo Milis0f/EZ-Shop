@@ -22,8 +22,6 @@ const envSchema = z.object({
   DATABASE_URL: optionalSecret,
   PGLITE_DATA_DIR: z.string().default(".data/pglite"),
 
-  /** Explicit switch for development fixtures. Defaults to true outside production. */
-  ALLOW_MOCK_DATA: z.enum(["true", "false"]).optional(),
   PROVIDER_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(12_000),
 
   // Local AI (node-llama-cpp, runs on this machine). Its text only rewords stored analyses, never adds data.
@@ -94,11 +92,6 @@ export function getEnv(): ServerEnv {
   }
   cached = { fingerprint, env: parsed.data };
   return parsed.data;
-}
-
-export function isMockAllowed(env: ServerEnv = getEnv()): boolean {
-  if (env.ALLOW_MOCK_DATA !== undefined) return env.ALLOW_MOCK_DATA === "true" && env.NODE_ENV !== "production";
-  return env.NODE_ENV !== "production";
 }
 
 /** Names of the variables from `keys` that are not set. */

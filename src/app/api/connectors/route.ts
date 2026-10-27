@@ -7,9 +7,8 @@ export async function GET() {
   // Environment-dependent: must reflect runtime configuration, never a build-time snapshot.
   await connection();
   try {
-    const { connectors, mockAllowed } = await getConnectorOverview();
+    const { connectors } = await getConnectorOverview();
     return apiOk({
-      mockAllowed,
       connectors: connectors.map(({ meta, status }) => ({
         id: meta.id,
         name: meta.name,

@@ -1,7 +1,7 @@
 /**
  * ⚠ DEVELOPMENT FIXTURES — SYNTHETIC VALUES FOR VISUAL DEVELOPMENT ONLY.
  * Nothing here is market data. Values are deterministic functions of (term, country)
- * so screens are stable between reloads. Never import outside src/providers/mock/.
+ * so screens are stable between reloads. Tests only: product code never imports src/test/.
  */
 
 import type { CountryCode } from "@/domain/country";

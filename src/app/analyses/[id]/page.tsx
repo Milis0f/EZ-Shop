@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AnalysisHeader } from "@/components/analysis/analysis-header";
+import { LegacyMockNotice } from "@/components/data/legacy-mock-notice";
 import { AnalysisSkeleton } from "@/components/analysis/analysis-skeleton";
 import { AiInsight } from "@/components/analysis/ai-insight";
 import { AnalysisSummary } from "@/components/analysis/analysis-summary";
@@ -69,6 +70,7 @@ async function AnalysisContent({ params, searchParams }: PageProps) {
 
   return (
     <>
+      <LegacyMockNotice dataMode={analysis.dataMode} />
       <div className="simple:block hidden">
         <SimpleReport analysis={analysis} />
       </div>

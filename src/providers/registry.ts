@@ -1,5 +1,5 @@
-import { isMockAllowed, type ServerEnv } from "@/config/env";
-import type { DataMode, ProviderStatusSnapshot } from "@/domain/analysis";
+import type { ServerEnv } from "@/config/env";
+import type { ProviderStatusSnapshot } from "@/domain/analysis";
 import type { ProviderCacheRepository } from "@/server/repositories/types";
 import {
   createMetaMarketingProvider,
@@ -34,30 +34,18 @@ import { GoogleAdsKeywordPlannerProvider, googleAdsMeta } from "./google-ads/ada
 import { GoogleAutocompleteProvider, googleAutocompleteMeta } from "./google-autocomplete/adapter";
 import { GoogleTrendsProvider, googleTrendsMeta } from "./google-trends/adapter";
 import { MetaAdLibraryProvider, metaAdLibraryMeta } from "./meta-ad-library/adapter";
-// The ONLY allowed import of mock fixtures (enforced by ESLint).
-import { createMockProviders } from "./mock/mock-providers";
 import { OecdProvider, oecdMeta } from "./oecd/adapter";
 import { EcbFxProvider, ecbFxMeta } from "./reference/ecb-fx";
 import { VatRatesProvider, vatRatesMeta } from "./reference/vat-rates";
 import { TikTokCommercialContentProvider, tiktokCommercialMeta } from "./tiktok-commercial/adapter";
 import { MyMemoryProvider, myMemoryMeta } from "./translation/mymemory";
-import {
-  unavailableContent,
-  unavailableFx,
-  unavailableMarketplace,
-  unavailableSourcing,
-  unavailableSuggest,
-  unavailableTariff,
-  unavailableTopic,
-  unavailableTranslator,
-  unavailableVat,
-} from "./unavailable";
 import { WikimediaProvider, wikimediaMeta } from "./wikimedia/adapter";
 import { WorldBankProvider, worldBankMeta } from "./world-bank/adapter";
 import { YouTubeProvider, youtubeMeta } from "./youtube/adapter";
 
 export interface ProviderSet {
-  readonly mode: DataMode;
+  /** Always live: synthetic fixtures exist only under src/test/ and are injected by tests. */
+  readonly mode: "live";
   readonly searchInterest: SearchInterestProvider;
   readonly keywordMetrics: KeywordMetricsProvider;
   readonly adLibraries: readonly AdLibraryProvider[];
@@ -81,36 +69,12 @@ export interface ProviderDeps {
   readonly now?: () => Date;
 }
 
-export class MockDataNotAllowedError extends Error {
-  constructor() {
-    super("Mock data is disabled in this environment (production or ALLOW_MOCK_DATA=false).");
-    this.name = "MockDataNotAllowedError";
-  }
-}
-
-export function createProviderSet(mode: DataMode, deps: ProviderDeps): ProviderSet {
+export function createProviderSet(deps: ProviderDeps): ProviderSet {
   const now = deps.now ?? (() => new Date());
-  if (mode === "mock") {
-    if (!isMockAllowed(deps.env)) throw new MockDataNotAllowedError();
-    return {
-      mode,
-      ...createMockProviders(now),
-      suggest: unavailableSuggest(googleAutocompleteMeta),
-      topicInterest: unavailableTopic(wikimediaMeta),
-      content: unavailableContent(youtubeMeta),
-      marketplace: unavailableMarketplace(ebayMeta),
-      sourcing: unavailableSourcing(aliexpressMeta),
-      tariffs: [unavailableTariff(ukTradeTariffMeta, ["gb", "eu"]), unavailableTariff(usitcMeta, ["us"])],
-      vat: unavailableVat(vatRatesMeta),
-      fx: unavailableFx(ecbFxMeta),
-      translator: unavailableTranslator(myMemoryMeta),
-    };
-  }
-
   const { env, cache } = deps;
   const timeout = env.PROVIDER_HTTP_TIMEOUT_MS;
   return {
-    mode,
+    mode: "live",
     searchInterest: new GoogleTrendsProvider(env),
     keywordMetrics: new GoogleAdsKeywordPlannerProvider(env, timeout),
     adLibraries: [new MetaAdLibraryProvider(env, timeout), new TikTokCommercialContentProvider(env, timeout)],
@@ -128,7 +92,7 @@ export function createProviderSet(mode: DataMode, deps: ProviderDeps): ProviderS
   };
 }
 
-/** Metadata of the real connectors, independent of the data mode (DB registry, connectors page). */
+/** Metadata of the real connectors (DB registry, connectors page). */
 export const REAL_PROVIDER_METAS: readonly ProviderMeta[] = [
   googleTrendsMeta,
   googleAdsMeta,

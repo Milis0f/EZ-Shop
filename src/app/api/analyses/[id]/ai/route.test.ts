@@ -12,7 +12,7 @@ vi.mock("@/server/ai/engine", () => ({ getLocalAiEngine }));
 
 import { AI_INSIGHT_METHOD } from "@/domain/ai-insight";
 import { AI_INSIGHT_RATE_LIMIT, AI_REQUEST_RATE_LIMIT, clearInsightCache } from "@/server/ai/insight";
-import { mockStoredAnalysis } from "@/server/ai/test-analysis";
+import { mockStoredAnalysis } from "@/test/stored-analysis";
 import type { LocalAiEngine } from "@/server/ai/types";
 import { POST } from "./route";
 

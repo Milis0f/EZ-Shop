@@ -8,7 +8,7 @@ import { ebayMeta } from "@/providers/ebay/adapter";
 import { googleAutocompleteMeta } from "@/providers/google-autocomplete/adapter";
 import { ecbFxMeta } from "@/providers/reference/ecb-fx";
 import { vatRatesMeta } from "@/providers/reference/vat-rates";
-import { createProviderSet, MockDataNotAllowedError, type ProviderSet } from "@/providers/registry";
+import { createProviderSet, type ProviderSet } from "@/providers/registry";
 import {
   unavailableContent,
   unavailableFx,
@@ -24,8 +24,8 @@ import { myMemoryMeta } from "@/providers/translation/mymemory";
 import { wikimediaMeta } from "@/providers/wikimedia/adapter";
 import { worldBankMeta } from "@/providers/world-bank/adapter";
 import { youtubeMeta } from "@/providers/youtube/adapter";
+import { createMockProviderSet } from "@/test/mock-providers";
 import { createMemoryRepositories } from "../repositories/memory-repositories";
-import type { Repositories } from "../repositories/types";
 import { AnalysisValidationError, runAnalysis } from "./run-analysis";
 
 const NOW = new Date("2026-10-14T12:00:00Z");
@@ -42,13 +42,12 @@ const input = {
 };
 
 /** The input refuses mock data: tests inject the offline fixtures through the providers seam. */
-const mockProviders = (repositories: Repositories): ProviderSet =>
-  createProviderSet("mock", { env: devEnv, cache: repositories.cache, now: () => NOW });
+const mockProviders = (): ProviderSet => createMockProviderSet(() => NOW);
 
 describe("runAnalysis (mock providers, in-memory repositories)", () => {
   it("analyses every requested country and persists the audit trail", async () => {
     const repositories = createMemoryRepositories();
-    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders(repositories) });
+    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders() });
 
     expect(result.status).toBe("completed");
     expect(result.countries.map((c) => c.country)).toEqual(["FR", "DE", "US"]);
@@ -74,7 +73,7 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
 
   it("still runs a pre-V1 landed cost, read as the supplier price with no separate shipping", async () => {
     const repositories = createMemoryRepositories();
-    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders(repositories) });
+    const result = await runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: mockProviders() });
 
     expect(result.economics).toEqual({ currency: "EUR", sellingPrice: 29, landedCost: 9, supplierPrice: 9, shippingCost: 0 });
   });
@@ -94,7 +93,7 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
   it("returns DATA_INSUFFICIENT everywhere a live connector is not configured", async () => {
     const repositories = createMemoryRepositories();
     // Live set without network: open sources would hit the internet, so keep only unconfigured ones.
-    const live = createProviderSet("live", { env: devEnv, cache: repositories.cache });
+    const live = createProviderSet({ env: devEnv, cache: repositories.cache });
     const offline = {
       ...live,
       macro: [],
@@ -138,11 +137,6 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
     expect(create).not.toHaveBeenCalled();
     expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
   });
-
-  it("refuses mock data in production", () => {
-    const prod = { ...devEnv, NODE_ENV: "production" } as ServerEnv;
-    expect(() => createProviderSet("mock", { env: prod, cache: createMemoryRepositories().cache })).toThrow(MockDataNotAllowedError);
-  });
 });
 
 describe("runAnalysis when the pipeline crashes after the analysis row exists", () => {
@@ -153,8 +147,8 @@ describe("runAnalysis when the pipeline crashes after the analysis row exists", 
   });
 
   /** Mock set whose only macro collector throws: the crash happens after `create`, inside the try block. */
-  function crashingProviders(repositories: Repositories): ProviderSet {
-    const base = mockProviders(repositories);
+  function crashingProviders(): ProviderSet {
+    const base = mockProviders();
     return {
       ...base,
       macro: [
@@ -178,7 +172,7 @@ describe("runAnalysis when the pipeline crashes after the analysis row exists", 
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
-      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders(repositories) }),
+      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders() }),
     ).rejects.toBe(crash);
 
     expect(recording).toHaveBeenCalledOnce();
@@ -197,7 +191,7 @@ describe("runAnalysis when the pipeline crashes after the analysis row exists", 
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
-      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders(repositories) }),
+      runAnalysis(input, { repositories, env: devEnv, now: () => NOW, providers: crashingProviders() }),
     ).rejects.toBe(crash);
 
     // The memory repository keeps no result for a failed analysis, so its status shows in the summaries.
