@@ -1,101 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { AiAura, aiRevealClassName, type AiAuraState } from "@/components/ai/ai-aura";
 import { AiBadge } from "@/components/ai/ai-badge";
+import { getInsightView, INITIAL_VIEW, retryInsight, subscribeInsight, type InsightView, type ReadyResponse } from "@/components/ai/ai-insight-store";
+import { groupCountryLines, lowerFirst, VISIBLE_COUNTRY_GROUPS, type CountryLineGroup } from "@/components/ai/ai-reading";
 import { CountryTag } from "@/components/data/country-tag";
 import { KindMarker } from "@/components/data/kind-marker";
+import { Expand } from "@/components/motion/expand";
 import { Button } from "@/components/ui/button";
-import { aiInsightResponseSchema, type AiInsightResponse } from "@/domain/ai-insight";
 import { COUNTRIES } from "@/domain/country";
 import { formatDecimal } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type ReadyResponse = Extract<AiInsightResponse, { status: "ready" }>;
-
-type Outcome =
-  | { readonly kind: "response"; readonly response: AiInsightResponse }
-  | { readonly kind: "error"; readonly message: string }
-  | { readonly kind: "aborted" };
-
-type View =
-  | { readonly kind: "thinking" }
-  | { readonly kind: "ready"; readonly result: ReadyResponse }
-  | { readonly kind: "unavailable" | "rejected"; readonly reason: string }
-  | { readonly kind: "error"; readonly message: string };
-
-function envelopeMessage(body: unknown): string | null {
-  if (typeof body !== "object" || body === null || !("error" in body)) return null;
-  const error = (body as { error: unknown }).error;
-  if (typeof error !== "object" || error === null || !("message" in error)) return null;
-  const message = (error as { message: unknown }).message;
-  return typeof message === "string" && message.length > 0 ? message : null;
-}
-
-/** One POST, validated at the boundary. Never rejects: every failure becomes an outcome. */
-async function requestInsight(analysisId: string, signal: AbortSignal): Promise<Outcome> {
-  try {
-    const res = await fetch(`/api/analyses/${encodeURIComponent(analysisId)}/ai`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-      signal,
-    });
-    const body: unknown = await res.json().catch(() => null);
-    if (!res.ok) return { kind: "error", message: envelopeMessage(body) ?? `le serveur a répondu ${res.status}.` };
-    const data = typeof body === "object" && body !== null && "data" in body ? (body as { data: unknown }).data : undefined;
-    const parsed = aiInsightResponseSchema.safeParse(data);
-    return parsed.success ? { kind: "response", response: parsed.data } : { kind: "error", message: "réponse inattendue du serveur." };
-  } catch {
-    if (signal.aborted) return { kind: "aborted" };
-    return { kind: "error", message: "le serveur ne répond pas." };
-  }
-}
-
-interface Inflight {
-  readonly promise: Promise<Outcome>;
-  readonly controller: AbortController;
-  users: number;
-}
-
-/**
- * The simple and advanced views of a page are both mounted (CSS hides one), so they share one request
- * per analysis instead of asking the model twice. The request is aborted once nobody listens any more.
- */
-const inflight = new Map<string, Inflight>();
-
-function subscribe(analysisId: string): { readonly promise: Promise<Outcome>; readonly release: () => void } {
-  let entry = inflight.get(analysisId);
-  if (!entry) {
-    const controller = new AbortController();
-    const created: Inflight = { controller, users: 0, promise: requestInsight(analysisId, controller.signal) };
-    void created.promise.then(() => {
-      if (inflight.get(analysisId) === created) inflight.delete(analysisId);
-    });
-    inflight.set(analysisId, created);
-    entry = created;
-  }
-  const current = entry;
-  current.users += 1;
-  return {
-    promise: current.promise,
-    release: () => {
-      current.users -= 1;
-      // Deferred, so a Strict Mode remount keeps the request alive.
-      window.setTimeout(() => {
-        if (current.users > 0 || inflight.get(analysisId) !== current) return;
-        inflight.delete(analysisId);
-        current.controller.abort();
-      }, 0);
-    },
-  };
-}
-
-function toView(outcome: Exclude<Outcome, { kind: "aborted" }>): View {
-  if (outcome.kind === "error") return outcome;
-  const r = outcome.response;
-  return r.status === "ready" ? { kind: "ready", result: r } : { kind: r.status, reason: r.reason };
-}
+/** A cached reading answers in a few tens of ms: the waiting hint only shows past this delay. */
+const THINKING_HINT_DELAY_MS = 300;
 
 /** Real seconds since the AI started reading. */
 function Elapsed() {
@@ -108,11 +27,73 @@ function Elapsed() {
   return <span className="tabular text-xs text-muted-foreground">{seconds} s</span>;
 }
 
-const stagger = (order: number) => ({ "--stagger": order }) as React.CSSProperties;
+function useDelayed(ms: number): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setShown(true), ms);
+    return () => window.clearTimeout(id);
+  }, [ms]);
+  return shown;
+}
+
+const stagger = (order: number) => ({ "--stagger": order }) as CSSProperties;
+
+const countryNames = (codes: readonly string[]): string => codes.map((code) => COUNTRIES[code as keyof typeof COUNTRIES].nameFr).join(", ");
+
+function CountryLine({ group }: { group: CountryLineGroup }) {
+  return (
+    <li className="flex flex-col gap-1.5 py-3 text-sm leading-relaxed sm:flex-row sm:gap-3">
+      <span className="flex shrink-0 flex-wrap gap-1 sm:mt-1 sm:max-w-36">
+        {group.countries.map((code) => (
+          <CountryTag key={code} code={code} />
+        ))}
+      </span>
+      <p className="min-w-0">
+        <span className="font-medium">{countryNames(group.countries)}</span> : {group.sentence}
+      </p>
+    </li>
+  );
+}
+
+function CountryLines({ lines }: { lines: ReadyResponse["insight"]["countries"] }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const groups = groupCountryLines(lines);
+  const shown = groups.slice(0, VISIBLE_COUNTRY_GROUPS);
+  const rest = groups.slice(VISIBLE_COUNTRY_GROUPS);
+  const restCount = rest.reduce((n, g) => n + g.countries.length, 0);
+
+  return (
+    <div style={stagger(2)} className={cn(aiRevealClassName, "mt-5")}>
+      <ul className="divide-y divide-line border-t border-line">
+        {shown.map((group) => (
+          <CountryLine key={group.countries.join("-")} group={group} />
+        ))}
+      </ul>
+      {rest.length > 0 && (
+        <>
+          <Expand open={open} id={panelId}>
+            <ul className="divide-y divide-line border-t border-line">
+              {rest.map((group) => (
+                <CountryLine key={group.countries.join("-")} group={group} />
+              ))}
+            </ul>
+          </Expand>
+          <div className="border-t border-line pt-3">
+            <Button type="button" variant="ghost" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((v) => !v)} className="-ml-3">
+              {open ? "Masquer les autres pays" : `Voir les ${restCount} autres pays`}
+            </Button>
+          </div>
+        </>
+      )}
+      {rest.length === 0 && <div className="border-t border-line" />}
+    </div>
+  );
+}
 
 function Reading({ result }: { result: ReadyResponse }) {
-  const { insight, model } = result;
-  const timing = result.cached ? "(déjà prêt)" : `(en ${formatDecimal(result.durationMs / 1000)} s)`;
+  const { insight, model, missingCountries } = result;
+  const timing = result.cached ? "Lecture gardée en mémoire." : `Lu en ${formatDecimal(result.durationMs / 1000)} s.`;
   return (
     <>
       <p style={stagger(0)} className={cn(aiRevealClassName, "mt-4 text-[15px] leading-relaxed text-foreground")}>
@@ -128,29 +109,21 @@ function Reading({ result }: { result: ReadyResponse }) {
           </span>
         </p>
         <p className="mt-1.5 text-sm leading-relaxed">
-          <span className="font-medium">{insight.productReading.category}</span> : {insight.productReading.description}
+          <span className="font-medium">{insight.productReading.category}</span> : {lowerFirst(insight.productReading.description)}
         </p>
       </div>
 
-      {insight.countries.length > 0 && (
-        <ul style={stagger(2)} className={cn(aiRevealClassName, "mt-5 divide-y divide-line border-y border-line")}>
-          {insight.countries.map((line) => (
-            <li key={line.country} className="flex gap-3 py-3 text-sm leading-relaxed">
-              <CountryTag code={line.country} className="mt-1" />
-              <p className="min-w-0">
-                <span className="font-medium">{COUNTRIES[line.country].nameFr}</span> : {line.sentence}
-              </p>
-            </li>
-          ))}
-        </ul>
+      {insight.countries.length > 0 && <CountryLines lines={insight.countries} />}
+      {missingCountries.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Pas de phrase de l&apos;IA pour : {countryNames(missingCountries)}.</p>
       )}
 
       {insight.nextSteps.length > 0 && (
         <div style={stagger(3)} className={cn(aiRevealClassName, "mt-5")}>
           <p className="text-xs text-muted-foreground">Pour aller plus loin</p>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
-            {insight.nextSteps.map((step) => (
-              <li key={step} className="flex gap-2.5">
+            {insight.nextSteps.map((step, index) => (
+              <li key={`${index}-${step}`} className="flex gap-2.5">
                 <span aria-hidden className="mt-[0.6em] size-1 shrink-0 rounded-full bg-muted-foreground" />
                 <span className="min-w-0">{step}</span>
               </li>
@@ -161,13 +134,32 @@ function Reading({ result }: { result: ReadyResponse }) {
 
       <p style={stagger(4)} className={cn(aiRevealClassName, "mt-5 text-xs leading-relaxed text-muted-foreground")}>
         Rédigé par <span title={`Licence ${model.license}`}>{model.name}</span> sur ton ordinateur, à partir des seules données de cette
-        analyse. Chaque chiffre a été vérifié. {timing}
+        analyse. Chaque nombre cité figure dans les données de l&apos;analyse ; l&apos;IA peut se tromper sur leur sens. {timing}
       </p>
     </>
   );
 }
 
-const AURA_STATE: Record<View["kind"], AiAuraState> = {
+function Thinking() {
+  const shown = useDelayed(THINKING_HINT_DELAY_MS);
+  if (!shown) return null;
+  return (
+    <>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">La première lecture peut prendre une minute : le modèle se charge sur ton ordinateur.</p>
+      <div aria-hidden className="mt-5 space-y-2.5">
+        <div className="skeleton-shimmer h-2.5 w-11/12 rounded-pill" />
+        <div className="skeleton-shimmer h-2.5 w-3/4 rounded-pill" />
+        <div className="skeleton-shimmer h-2.5 w-1/2 rounded-pill" />
+      </div>
+    </>
+  );
+}
+
+function DelayedElapsed() {
+  return useDelayed(THINKING_HINT_DELAY_MS) ? <Elapsed /> : null;
+}
+
+const AURA_STATE: Record<InsightView["kind"], AiAuraState> = {
   thinking: "thinking",
   ready: "ready",
   unavailable: "off",
@@ -175,16 +167,16 @@ const AURA_STATE: Record<View["kind"], AiAuraState> = {
   error: "off",
 };
 
-function statusText(view: View): string {
+function statusText(view: InsightView): string {
   switch (view.kind) {
     case "thinking":
       return "L'IA locale lit cette analyse";
     case "ready":
       return "Lecture de l'IA locale prête.";
     case "unavailable":
-      return `IA locale indisponible : ${view.reason}`;
+      return `IA locale indisponible. ${view.reason}`;
     case "rejected":
-      return `Texte de l'IA écarté : ${view.reason}`;
+      return `Texte de l'IA écarté. ${view.reason}`;
     case "error":
       return `Lecture par l'IA impossible : ${view.message}`;
   }
@@ -192,62 +184,41 @@ function statusText(view: View): string {
 
 /**
  * The local AI's reading of a stored analysis, inside the aura. It only rewords the analysis (the server
- * checks every number); the product reading is a hypothesis. When the AI cannot run, it says so.
+ * checks that every number it cites is among the analysis's values); the product reading is a hypothesis.
+ * When the AI cannot run, it says so. Both views of the page share one state (see ai-insight-store).
  */
 export function AiInsight({ analysisId, className }: { analysisId: string; className?: string }) {
-  const [view, setView] = useState<View>({ kind: "thinking" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let live = true;
-    const { promise, release } = subscribe(analysisId);
-    void promise.then((outcome) => {
-      if (live && outcome.kind !== "aborted") setView(toView(outcome));
-    });
-    return () => {
-      live = false;
-      release();
-    };
-  }, [analysisId, attempt]);
+  const subscribe = useCallback((listener: () => void) => subscribeInsight(analysisId, listener), [analysisId]);
+  const view = useSyncExternalStore(subscribe, () => getInsightView(analysisId), () => INITIAL_VIEW);
+  const auraRef = useRef<HTMLDivElement>(null);
 
   const retry = () => {
-    setView({ kind: "thinking" });
-    setAttempt((n) => n + 1);
+    // The button unmounts with the error: the block keeps the focus.
+    auraRef.current?.focus();
+    retryInsight(analysisId);
   };
 
   const thinking = view.kind === "thinking";
   const auraState = AURA_STATE[view.kind];
 
   return (
-    <AiAura state={auraState} aria-busy={thinking} className={className} surfaceClassName="p-5 sm:p-6">
+    <AiAura ref={auraRef} tabIndex={-1} state={auraState} aria-busy={thinking} className={cn("outline-none focus-visible:outline-2 focus-visible:outline-offset-2", className)} surfaceClassName="p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <AiBadge state={auraState} />
-        {thinking && <Elapsed key={attempt} />}
+        {thinking && <DelayedElapsed key={view.attempt} />}
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">Reformulation de l&apos;analyse par l&apos;IA locale, pas une donnée.</p>
 
       <div aria-live="polite" aria-atomic="true">
-        <p className={cn("mt-4 text-sm", view.kind === "ready" ? "sr-only" : view.kind === "thinking" ? "text-foreground" : "text-muted-foreground")}>
-          {statusText(view)}
-        </p>
+        <p className={cn("mt-4 text-sm", view.kind === "ready" ? "sr-only" : thinking ? "text-foreground" : "text-muted-foreground")}>{statusText(view)}</p>
       </div>
 
-      {thinking && (
-        <>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            La première lecture peut prendre une minute : le modèle se charge sur ton ordinateur.
-          </p>
-          <div aria-hidden className="mt-5 space-y-2.5">
-            <div className="skeleton-shimmer h-2.5 w-11/12 rounded-pill" />
-            <div className="skeleton-shimmer h-2.5 w-3/4 rounded-pill" />
-            <div className="skeleton-shimmer h-2.5 w-1/2 rounded-pill" />
-          </div>
-        </>
-      )}
+      {thinking && <Thinking key={view.attempt} />}
 
       {view.kind === "ready" && <Reading result={view.result} />}
 
       {view.kind === "error" && (
-        <Button type="button" variant="outline" size="sm" onClick={retry} className="mt-4">
+        <Button type="button" variant="outline" onClick={retry} className="mt-4">
           Réessayer
         </Button>
       )}

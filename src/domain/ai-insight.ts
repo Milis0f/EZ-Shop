@@ -47,6 +47,8 @@ export const aiInsightResponseSchema = z.discriminatedUnion("status", [
     generatedAt: z.string(),
     durationMs: z.number().int().nonnegative(),
     cached: z.boolean(),
+    /** Analysed countries the AI wrote no line for: shown as such, never filled in. */
+    missingCountries: z.array(z.enum(COUNTRY_CODES)).max(30).default([]),
   }),
   z.object({
     /** Disabled, model file missing, or the engine failed to load. Nothing is invented in its place. */

@@ -3,8 +3,8 @@ import path from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEnv, type ServerEnv } from "@/config/env";
-import { getLocalAiEngine, LOCAL_AI_MODEL_INFO } from "./engine";
-import type { AiJsonRequest, LocalAiEngine } from "./types";
+import { deadlineFor, getLocalAiEngine, LOCAL_AI_MODEL_INFO } from "./engine";
+import { AiAnswerIncompleteError, type AiJsonRequest, type LocalAiEngine } from "./types";
 
 interface PromptOptions {
   readonly signal: AbortSignal;
@@ -18,7 +18,7 @@ const fake = vi.hoisted(() => {
   const context = { getSequence: vi.fn(() => ({ dispose: sequenceDispose })) };
   const model = { createContext: vi.fn(async () => context), dispose: vi.fn(async () => undefined) };
   const createGrammarForJsonSchema = vi.fn(async () => ({ parse: (text: string): unknown => JSON.parse(text) }));
-  const llama = { loadModel: vi.fn(async () => model), createGrammarForJsonSchema };
+  const llama = { loadModel: vi.fn(async () => model), createGrammarForJsonSchema, dispose: vi.fn(async () => undefined) };
   const getLlama = vi.fn(async (): Promise<unknown> => llama);
   const sessionOptions: unknown[] = [];
   const wrapperOptions: unknown[] = [];
@@ -92,13 +92,17 @@ describe("getLocalAiEngine", () => {
     expect(fake.getLlama).not.toHaveBeenCalled();
   });
 
-  it("reports a missing model file with its path relative to the project", async () => {
-    const result = await getLocalAiEngine(envWith({ LOCAL_AI_MODEL_PATH: ".data/models/absent.gguf" }));
+  it("reports a missing model file by its file name only, the full path staying in the server log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = await getLocalAiEngine(envWith({ LOCAL_AI_MODEL_PATH: "D:/private/models/absent.gguf" }));
     expect(result).toEqual({
       ok: false,
-      reason: "Modèle introuvable : .data/models/absent.gguf. Place le fichier GGUF à cet endroit ou règle LOCAL_AI_MODEL_PATH.",
+      reason: "Modèle introuvable (absent.gguf). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.",
     });
+    expect(result.ok ? "" : result.reason).not.toContain("private");
+    expect(log).toHaveBeenCalledWith("[ai] model file not found", expect.stringContaining("private"));
     expect(fake.getLlama).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it("loads with prebuilt binaries, the Qwen 3.5 wrapper and one sequence", async () => {
@@ -153,6 +157,14 @@ describe("getLocalAiEngine", () => {
     const result = await getLocalAiEngine(envWith({}));
     expect(result).toEqual({ ok: false, reason: expect.stringContaining("(Error)") });
     expect(fake.model.dispose).toHaveBeenCalledTimes(1);
+    expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("frees the backend when the model cannot be loaded", async () => {
+    fake.llama.loadModel.mockRejectedValueOnce(new Error("bad file"));
+    const result = await getLocalAiEngine(envWith({}));
+    expect(result.ok).toBe(false);
+    expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -221,7 +233,7 @@ describe("LocalAiEngine.completeJson", () => {
     vi.advanceTimersByTime(1);
     const error = await outcome;
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toBe("L'IA locale n'a pas répondu en moins de 120 secondes. Génération arrêtée.");
+    expect((error as Error).message).toBe("L'IA locale n'a pas répondu dans le délai prévu. Génération arrêtée.");
     expect(seenSignal?.aborted).toBe(true);
   });
 
@@ -242,6 +254,38 @@ describe("LocalAiEngine.completeJson", () => {
     finishStuck!('{"ok":true}');
     await expect(next).resolves.toEqual({ ok: true });
     expect(fake.prompt).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives long answers a longer deadline than the 120 s floor", () => {
+    expect(deadlineFor(64)).toBe(120_000);
+    expect(deadlineFor(3_170)).toBeGreaterThan(150_000);
+  });
+
+  it("reports an answer cut off before its JSON closed as incomplete, not as an engine failure", async () => {
+    const engine = await loadedEngine();
+    fake.prompt.mockImplementationOnce(async () => '{"ok":tr');
+    await expect(engine.completeJson(request())).rejects.toBeInstanceOf(AiAnswerIncompleteError);
+    await expect(engine.completeJson(request())).resolves.toEqual({ ok: true });
+  });
+
+  it("releases the queue and drops the engine when a generation never stops after its deadline", async () => {
+    const engine = await loadedEngine();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    fake.prompt.mockImplementationOnce(() => new Promise<string>(() => undefined));
+
+    const stuck = engine.completeJson(request({ user: "stuck" })).catch((error: unknown) => error);
+    const next = engine.completeJson(request({ user: "next" }));
+    await flush();
+    vi.advanceTimersByTime(120_000);
+    expect(await stuck).toBeInstanceOf(Error);
+    vi.advanceTimersByTime(30_000);
+    await expect(next).resolves.toEqual({ ok: true });
+    expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
+
+    const after = await getLocalAiEngine(envWith({}));
+    expect(after).toEqual({ ok: false, reason: expect.stringContaining("ne s'est pas arrêté") });
+    log.mockRestore();
   });
 
   it("forwards the caller's abort signal and skips a request aborted while queued", async () => {

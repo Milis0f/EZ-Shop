@@ -29,3 +29,11 @@ export interface LocalAiEngine {
 export type EngineLoadResult =
   | { readonly ok: true; readonly engine: LocalAiEngine }
   | { readonly ok: false; readonly reason: string };
+
+/** The model stopped before closing its JSON (token limit reached): the answer is incomplete, not an engine failure. */
+export class AiAnswerIncompleteError extends Error {
+  override readonly name = "AiAnswerIncompleteError";
+  constructor() {
+    super("The model answer is not complete JSON.");
+  }
+}

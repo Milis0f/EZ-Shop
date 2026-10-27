@@ -78,6 +78,26 @@ describe("buildFactSheet", () => {
     expect(findUnsupportedNumbers("+12,2 % par an", numbers)).toEqual(["+12,2"]);
   });
 
+  it("allows only the numbers of values, never those of labels, scales or the date", () => {
+    const { text, numbers } = buildFactSheet(liveVariant(mock));
+
+    expect(text).toContain("(P10, P50, P90)");
+    expect(text).toContain(" sur 100");
+    expect(text).not.toMatch(/Analyse du /);
+    expect(text).not.toMatch(/[\u0002\u0003]/);
+    for (const invented of [
+      "La demande devrait progresser de 12 % sur les 24 prochains mois.",
+      "Le prix de vente conseillé est de 29 € pour une marge de 100 %.",
+      "Le marché devrait doubler d'ici 2026.",
+      "Le P90 atteint 90 %.",
+    ]) {
+      expect(findUnsupportedNumbers(invented, numbers), invented).not.toEqual([]);
+    }
+    expect(numbers.has("1234")).toBe(true);
+    expect(numbers.has("-12.2")).toBe(true);
+    expect(numbers.has("36")).toBe(true);
+  });
+
   it("flags mock values in a live analysis", () => {
     const { text } = buildFactSheet(liveVariant(mock));
 

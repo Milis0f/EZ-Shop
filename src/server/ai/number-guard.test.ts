@@ -88,3 +88,54 @@ describe("findUnsupportedNumbers", () => {
     expect(findUnsupportedNumbers("3 pays", new Set())).toEqual(["3"]);
   });
 });
+
+describe("findUnsupportedNumbers with Unicode numerals", () => {
+  const allowed = collectNumbers("99 %", "+5 %", "-24,2 %", "1 234");
+
+  it("reads full-width, mathematical, circled and superscript digits as ASCII", () => {
+    expect(findUnsupportedNumbers("９９ %", allowed)).toEqual([]);
+    expect(findUnsupportedNumbers("１２ %", allowed)).toEqual(["12"]);
+    expect(findUnsupportedNumbers("\u{1D7CF}\u{1D7D0} lecteurs", allowed)).toEqual(["12"]);
+    expect(findUnsupportedNumbers("⑫ mois", allowed)).toEqual(["12"]);
+    expect(findUnsupportedNumbers("x³", allowed)).toEqual(["3"]);
+  });
+
+  it("refuses numerals it cannot read (Arabic-Indic, Devanagari)", () => {
+    expect(findUnsupportedNumbers("٩٩ %", allowed)).toEqual(["٩٩"]);
+    expect(findUnsupportedNumbers("१२ %", allowed)).toEqual(["१२"]);
+  });
+
+  it("reads a vulgar fraction as its digits", () => {
+    expect(findUnsupportedNumbers("½", allowed)).toEqual(["1", "2"]);
+  });
+
+  it("treats Unicode dashes and full-width signs as signs", () => {
+    for (const minus of ["–", "‐", "‑", "‒", "﹣", "－"]) {
+      expect(findUnsupportedNumbers(`${minus}5 %`, allowed)).toEqual([`${minus.normalize("NFKC")}5`]);
+    }
+    expect(findUnsupportedNumbers("＋24,2 %", allowed)).toEqual(["+24,2"]);
+  });
+
+  it("reads a figure space as a thousands separator", () => {
+    expect(extractNumbers("1 234").map((t) => t.value)).toEqual(["1234"]);
+    expect(findUnsupportedNumbers("1 234 annonces", allowed)).toEqual([]);
+  });
+});
+
+describe("findUnsupportedNumbers and labels", () => {
+  const allowed = collectNumbers("9", "-24,2 %");
+
+  it("ignores the percentile names, the scale after a number, the fixed windows and the index range", () => {
+    expect(findUnsupportedNumbers("confiance de 9 sur 100, soit 9/100", allowed)).toEqual([]);
+    expect(findUnsupportedNumbers("les P10, P50 et P90", allowed)).toEqual([]);
+    expect(findUnsupportedNumbers("-24,2 % sur les 12 derniers mois", allowed)).toEqual([]);
+    expect(findUnsupportedNumbers("un indice de 0 à 100", allowed)).toEqual([]);
+  });
+
+  it("still checks the same digits when they are a claim", () => {
+    expect(findUnsupportedNumbers("une marge de 100 %", allowed)).toEqual(["100"]);
+    expect(findUnsupportedNumbers("12 % de croissance", allowed)).toEqual(["12"]);
+    expect(findUnsupportedNumbers("90 % des ventes", allowed)).toEqual(["90"]);
+    expect(findUnsupportedNumbers("9 sur 1000", allowed)).toEqual(["1000"]);
+  });
+});

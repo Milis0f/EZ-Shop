@@ -144,6 +144,17 @@ describe("POST /api/analyses/:id/ai", () => {
     expect((await again.json()).data).toMatchObject({ status: "ready", cached: true });
   });
 
+  it("never spends the generation bucket when the AI is off (nothing reaches the model)", async () => {
+    getAnalysis.mockImplementation(async (id) => ({ ...analysis, id }));
+    getLocalAiEngine.mockResolvedValue({ ok: false, reason: "IA locale désactivée (LOCAL_AI_ENABLED=false)." });
+
+    for (let i = 0; i <= AI_INSIGHT_RATE_LIMIT.limit + 5; i += 1) {
+      const response = await post(sameOriginJson, `0f8e6a52-3c1d-4f5e-9a7b-${String(i).padStart(12, "0")}`);
+      expect(response.status).toBe(200);
+      expect((await response.json()).data).toMatchObject({ status: "unavailable" });
+    }
+  });
+
   it("answers 500 without details when reading the analysis fails", async () => {
     getAnalysis.mockRejectedValue(new Error("database down: postgres://user:pw@host/db"));
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);

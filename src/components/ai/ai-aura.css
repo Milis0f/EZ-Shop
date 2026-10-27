@@ -225,4 +225,13 @@
   .ai-reveal {
     animation: none !important;
   }
+
+  /* Without motion, thinking still reads differently from ready: a dimmer, still halo. */
+  .ai-aura[data-state="thinking"]::before {
+    opacity: 0.45;
+  }
+
+  .ai-aura[data-state="thinking"]::after {
+    opacity: 0.08;
+  }
 }

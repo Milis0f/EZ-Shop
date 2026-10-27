@@ -26,8 +26,8 @@ import { collectNumbers } from "./number-guard";
  * analysis really contains (known values with their kind and source, DATA_INSUFFICIENT items with
  * their reason) and nothing else: no secret, no URL, no raw error, no internal id.
  *
- * `numbers` is every number of the sheet, normalised by the number guard: the AI may repeat these
- * and no other.
+ * `numbers` holds the numbers of the sheet's VALUES only (not of its labels, scales or headings),
+ * normalised by the number guard: the AI may repeat these and no other. The sheet carries no date.
  */
 
 export interface FactSheet {
@@ -103,9 +103,23 @@ function clean(text: string, maxLength: number): string {
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength - 1).trimEnd()}…` : cleaned;
 }
 
+/**
+ * Value marks: every fragment that states a value of the analysis is wrapped in these control
+ * characters while the sheet is built. Only marked fragments feed the allowed numbers; labels,
+ * scales (« sur 100 »), windows (« 12 derniers mois ») and percentile names never do. `clean`
+ * strips control characters, so text from the analysis can never forge a mark.
+ */
+const VALUE_OPEN = "\u0002";
+const VALUE_CLOSE = "\u0003";
+const VALUE_SPAN = /\u0002([^\u0002\u0003]*)\u0003/g;
+const val = (text: string): string => `${VALUE_OPEN}${text}${VALUE_CLOSE}`;
+
+const int = (v: number): string => val(formatInt(v));
+const pct = (v: number, signed?: boolean): string => val(formatPct(v, signed));
+const ratio = (v: number): string => val(formatRatioPct(v));
 /** Small values keep one decimal so they are not rounded to zero. */
-const amount = (v: number): string => (Math.abs(v) >= 10 ? formatInt(v) : formatDecimal(v));
-const money = (v: number, currency = "EUR"): string => formatMoney(v, currency);
+const amount = (v: number): string => val(Math.abs(v) >= 10 ? formatInt(v) : formatDecimal(v));
+const money = (v: number, currency = "EUR"): string => val(formatMoney(v, currency));
 /** Value first, percentile after: "P10 120" would read as one number with a thousands space. */
 const interval = (i: Interval, format: (v: number) => string): string =>
   `bas ${format(i.p10)}, médian ${format(i.p50)}, haut ${format(i.p90)} (P10, P50, P90)`;
@@ -146,7 +160,7 @@ class Section {
   gap(label: string, reason: string, missing: readonly string[]): void {
     this.gaps.push({
       label,
-      reason: clean(reason, MAX_REASON_LENGTH) || "raison non précisée",
+      reason: val(clean(reason, MAX_REASON_LENGTH) || "raison non précisée"),
       missing: missing.map((m) => clean(missingLabel(m), 60)),
     });
   }
@@ -173,24 +187,24 @@ function demandLines(c: CountryAnalysis, s: Section, brief: boolean): void {
   const { demand } = c;
   // A search-volume history is already said by the searches line; other bases need their warning.
   if (!brief && isKnown(demand.history) && demand.history.value.basis !== "absolute_volume") {
-    s.add("Historique de la demande", demand.history, (h) => `${BASIS_LABELS[h.basis]}, ${formatInt(h.series.length)} mois`);
+    s.add("Historique de la demande", demand.history, (h) => `${BASIS_LABELS[h.basis]}, ${int(h.series.length)} mois`);
   }
 
   const interest = interestPerMonth(c);
   if (interest?.direct) {
     s.add("Recherches Google par mois (moyenne)", demand.avgMonthlySearches, (v) => amount(v));
   } else if (interest && isKnown(demand.history)) {
-    s.lines.push(`- Intérêt par mois (moyenne des 12 derniers mois) : ${amount(interest.value)} ${clean(interest.label, 140)} ${s.tag(demand.history.sources, "derived")}`);
+    s.lines.push(`- Intérêt par mois (moyenne des 12 derniers mois) : ${amount(interest.value)} ${val(clean(interest.label, 140))} ${s.tag(demand.history.sources, "derived")}`);
   } else {
     s.add("Recherches Google par mois", demand.avgMonthlySearches, (v) => amount(v));
   }
 
-  s.add("Tendance", demand.trend, (t) => `${TREND_LABELS[t.direction].toLowerCase()}, ${formatPct(t.annualGrowthPct, true)} par an (calculée sur ${formatInt(t.monthsUsed)} mois)`);
+  s.add("Tendance", demand.trend, (t) => `${TREND_LABELS[t.direction].toLowerCase()}, ${pct(t.annualGrowthPct, true)} par an (calculée sur ${int(t.monthsUsed)} mois)`);
   s.add("Saisonnalité", demand.seasonality, (v) =>
     v.isSeasonal && v.peakMonths.length > 0 ? `saisonnière, mois de pic : ${monthList(v.peakMonths)}` : v.isSeasonal ? "saisonnière" : "régulière toute l'année",
   );
-  s.add("Prochain pic", demand.monthsToNextPeak, (m) => (m === 0 ? "ce mois-ci" : `dans ${formatInt(m)} mois`));
-  s.add("Demande prévue sur les 12 prochains mois", demand.futureGrowthPct, (v) => `${formatPct(v, true)} par rapport aux 12 derniers`);
+  s.add("Prochain pic", demand.monthsToNextPeak, (m) => (m === 0 ? "ce mois-ci" : `dans ${int(m)} mois`));
+  s.add("Demande prévue sur les 12 prochains mois", demand.futureGrowthPct, (v) => `${pct(v, true)} par rapport aux 12 derniers`);
 }
 
 /** One line per metric across ad platforms (median only), to keep the sheet short. */
@@ -209,7 +223,7 @@ function channelLine(s: Section, label: string, channels: readonly ChannelCost[]
 }
 
 function marketLines(c: CountryAnalysis, s: Section, currency: string, brief: boolean): void {
-  s.add("Concurrence actuelle", c.competition.current, (v) => `${COMPETITION_LABELS[v.level].toLowerCase()} (indice ${formatInt(v.index)} sur 100)`);
+  s.add("Concurrence actuelle", c.competition.current, (v) => `${COMPETITION_LABELS[v.level].toLowerCase()} (indice ${int(v.index)} sur 100)`);
   s.add("Concurrence à venir", c.competition.future, (v) => OUTLOOK_LABELS[v.outlook].toLowerCase());
   s.add("Commandes potentielles par mois", c.sales.monthlyOrders, (i) => interval(i, amount));
   if (brief) return;
@@ -221,27 +235,27 @@ function marketLines(c: CountryAnalysis, s: Section, currency: string, brief: bo
 function signalLines(c: CountryAnalysis, s: Section, brief: boolean): void {
   const v2 = c.signals;
   if (!v2) return;
-  s.add("Marge au prix du marché, avant publicité", v2.marketMarginPct, (v) => formatPct(v));
+  s.add("Marge au prix du marché, avant publicité", v2.marketMarginPct, (v) => pct(v));
   if (brief) return;
   s.add("Recherches associées (Google)", v2.searchSuggestions, (g) => {
-    const shops = g.marketplaces.length > 0 ? `, marketplaces citées : ${g.marketplaces.slice(0, 3).map((m) => clean(m, 40)).join(", ")}` : "";
-    return `${formatInt(g.suggestions.length)} suggestions, dont ${formatInt(g.intent.length)} avec une intention d'achat${shops}`;
+    const shops = g.marketplaces.length > 0 ? `, marketplaces citées : ${g.marketplaces.slice(0, 3).map((m) => val(clean(m, 40))).join(", ")}` : "";
+    return `${int(g.suggestions.length)} suggestions, dont ${int(g.intent.length)} avec une intention d'achat${shops}`;
   });
   s.add("Vidéos YouTube publiées sur 12 mois", v2.content, (v) => {
-    const views = v.medianViews === null ? "" : `, vues médianes : ${formatInt(v.medianViews)}`;
-    return `${formatInt(v.videosLast12Months)} (ordre de grandeur donné par YouTube)${views}`;
+    const views = v.medianViews === null ? "" : `, vues médianes : ${int(v.medianViews)}`;
+    return `${int(v.videosLast12Months)} (ordre de grandeur donné par YouTube)${views}`;
   });
   s.add("Annonces eBay", v2.marketplace, (m) => {
     const price = m.priceEur ? `, prix médian ${money(m.priceEur.median)} TTC` : "";
-    const china = m.chinaShare === null ? "" : `, ${formatRatioPct(m.chinaShare)} expédiées de Chine`;
-    return `${formatInt(m.listings)} annonces${price}${china}`;
+    const china = m.chinaShare === null ? "" : `, ${ratio(m.chinaShare)} expédiées de Chine`;
+    return `${int(m.listings)} annonces${price}${china}`;
   });
   s.add("Audience Wikipédia", v2.topicInterest, () => null);
   s.add("Taxes à l'import", v2.taxes, (t) => {
-    const vat = t.vatRatePct === null ? "pas de TVA nationale" : `TVA ${formatPct(t.vatRatePct)}`;
+    const vat = t.vatRatePct === null ? "pas de TVA nationale" : `TVA ${pct(t.vatRatePct)}`;
     if (t.dutyRatePct === null) return vat;
     const { min, max } = t.dutyRatePct;
-    return `${vat}, droit de douane ${min === max ? formatPct(min) : `de ${formatPct(min)} à ${formatPct(max)}`}`;
+    return `${vat}, droit de douane ${min === max ? pct(min) : `de ${pct(min)} à ${pct(max)}`}`;
   });
   s.add("Prix de marché HT (médiane eBay)", v2.marketPriceExVatEur, (v) => money(v));
   s.add("Coût unitaire (achat et droits)", v2.unitCostEur, (v) => money(v));
@@ -251,8 +265,8 @@ function countrySection(c: CountryAnalysis, currency: string, flagMock: boolean,
   const { scoring } = c;
   const s = new Section(flagMock);
   s.lines.push(`- Décision actuelle : ${DECISION_LABELS[scoring.decision].toLowerCase()}`);
-  s.add("Score d'opportunité", scoring.score, (v) => `${formatInt(v.total)} sur 100`);
-  s.lines.push(`- Confiance : ${formatInt(scoring.confidence.score)} sur 100, ${CONFIDENCE_LABELS[scoring.confidence.level].toLowerCase()} [calcul]`);
+  s.add("Score d'opportunité", scoring.score, (v) => `${int(v.total)} sur 100`);
+  s.lines.push(`- Confiance : ${int(scoring.confidence.score)} sur 100, ${CONFIDENCE_LABELS[scoring.confidence.level].toLowerCase()} [calcul]`);
   if (c.languageMismatch) s.lines.push("- Aucun terme de recherche dans une langue du pays.");
   demandLines(c, s, brief);
   marketLines(c, s, currency, brief);
@@ -261,7 +275,7 @@ function countrySection(c: CountryAnalysis, currency: string, flagMock: boolean,
 }
 
 function assumptionLine(a: Assumption): string {
-  const format = (v: number) => (a.unit === "ratio" ? formatRatioPct(v) : a.unit === "percent" ? formatPct(v) : amount(v));
+  const format = (v: number) => (a.unit === "ratio" ? ratio(v) : a.unit === "percent" ? pct(v) : amount(v));
   const d = a.distribution;
   const value = d.type === "fixed" ? format(d.value) : `entre ${format(d.min)} et ${format(d.max)}, valeur centrale ${format(d.mode)}`;
   return `- ${clean(a.label, 80)} : ${value} [hypothèse ; ${a.origin === "user" ? "saisie utilisateur" : "réglage par défaut"}]`;
@@ -270,27 +284,25 @@ function assumptionLine(a: Assumption): string {
 function headerLines(analysis: AnalysisResult, flagMock: boolean, brief: boolean): string[] {
   const { economics } = analysis;
   const countries = analysis.countries.map((c) => `${getCountry(c.country).nameFr} (${c.country})`);
-  const date = analysis.completedAt ?? analysis.createdAt;
   const typed = "[hypothèse ; saisie utilisateur]";
   const lines = [
     "# Fiche de faits de l'analyse",
-    `Produit : « ${clean(analysis.product.displayName, MAX_NAME_LENGTH)} »`,
-    `Analyse du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" }).format(new Date(date))}`,
+    `Produit : « ${val(clean(analysis.product.displayName, MAX_NAME_LENGTH))} »`,
     analysis.dataMode === "mock"
       ? "Mode de données : fictif (mock de développement). Aucune valeur de cette fiche ne décrit le marché réel."
       : "Mode de données : réel (sources externes).",
-    `Pays analysés (${formatInt(countries.length)}) : ${countries.join(", ")}`,
+    `Pays analysés (${int(countries.length)}) : ${countries.join(", ")}`,
     economics.sellingPrice === undefined ? "- Prix de vente : non renseigné" : `- Prix de vente : ${money(economics.sellingPrice, economics.currency)} ${typed}`,
     economics.landedCost === undefined ? "- Coût de revient : non renseigné" : `- Coût de revient : ${money(economics.landedCost, economics.currency)} ${typed}`,
   ];
   const global = new Section(flagMock);
-  global.add("Prix fournisseur AliExpress", analysis.sourcing, (o) => `médiane ${money(o.priceEur.median)} sur ${formatInt(o.sampled)} produits comparés`);
+  global.add("Prix fournisseur AliExpress", analysis.sourcing, (o) => `médiane ${money(o.priceEur.median)} sur ${int(o.sampled)} produits comparés`);
   global.add("Code douanier", analysis.classification, (h) =>
     // A searched code can be plainly wrong ("casquette" → "cap" → bottle caps): its description is left out so the
     // model cannot describe the product from it. A code typed by the user keeps its description.
     h.method === "search"
-      ? `${clean(h.code, 14)}, proposé automatiquement par la recherche du tarif, à vérifier (il peut ne pas correspondre au produit)`
-      : `${clean(h.code, 14)} (${clean(h.description, 120)})`,
+      ? `${val(clean(h.code, 14))}, proposé automatiquement par la recherche du tarif, à vérifier (il peut ne pas correspondre au produit)`
+      : `${val(clean(h.code, 14))} (${val(clean(h.description, 120))})`,
   );
   lines.push(...global.lines);
   if (global.gaps.length > 0) lines.push("Données insuffisantes (DATA_INSUFFICIENT) :", ...gapLines(global.gaps));
@@ -333,9 +345,12 @@ export function buildFactSheet(analysis: AnalysisResult, options: FactSheetOptio
   }
 
   // Plain spaces: Intl's narrow no-break spaces read worse for the model, and the guard treats them alike.
-  const text = sections
+  const marked = sections
     .map((lines) => lines.join("\n"))
     .join("\n\n")
     .replace(/[  ]/g, " ");
-  return { text, numbers: collectNumbers(text) };
+  // Only value fragments become citable numbers; the marks are removed from what the model reads.
+  const values = [...marked.matchAll(VALUE_SPAN)].map((m) => m[1]);
+  const text = marked.replace(/[\u0002\u0003]/g, "");
+  return { text, numbers: collectNumbers(...values) };
 }

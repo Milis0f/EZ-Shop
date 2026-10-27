@@ -2,7 +2,7 @@ import "server-only";
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import { getEnv, type ServerEnv } from "@/config/env";
-import type { AiJsonRequest, AiJsonSchema, AiModelInfo, EngineLoadResult, LocalAiEngine } from "./types";
+import { AiAnswerIncompleteError, type AiJsonRequest, type AiJsonSchema, type AiModelInfo, type EngineLoadResult, type LocalAiEngine } from "./types";
 
 /**
  * Local LLM engine (node-llama-cpp, prebuilt GPU binaries, GGUF model on disk).
@@ -26,11 +26,23 @@ export const LOCAL_AI_MODEL_INFO: AiModelInfo = { name: "Qwen3.5-9B (Q4_K_M)", l
 
 const CONTEXT_SIZE = 8192;
 const TEMPERATURE = 0.2;
+/** Floor of the generation deadline; long answers get more (see `deadlineFor`). */
 const GENERATION_TIMEOUT_MS = 120_000;
+/** Fixed part of a long deadline (first-call warm-up, prompt evaluation), then a budget per answer token. */
+const DEADLINE_BASE_MS = 45_000;
+const DEADLINE_PER_TOKEN_MS = 35;
+/** After the deadline, how long the native generation gets to stop before the engine is declared stuck. */
+const STOP_GRACE_MS = 30_000;
 const LOAD_FAILURE_COOLDOWN_MS = 60_000;
 
 const DISABLED_REASON = "IA locale désactivée (LOCAL_AI_ENABLED=false).";
-const TIMEOUT_MESSAGE = "L'IA locale n'a pas répondu en moins de 120 secondes. Génération arrêtée.";
+const TIMEOUT_MESSAGE = "L'IA locale n'a pas répondu dans le délai prévu. Génération arrêtée.";
+const STUCK_REASON = "Le moteur d'IA locale ne s'est pas arrêté après un délai dépassé. Nouvel essai possible dans une minute.";
+
+/** Deadline of one generation: at least 120 s, more for long answers (an 18-country reading asks for ~3 200 tokens). */
+export function deadlineFor(maxTokens: number): number {
+  return Math.max(GENERATION_TIMEOUT_MS, DEADLINE_BASE_MS + maxTokens * DEADLINE_PER_TOKEN_MS);
+}
 
 interface EngineState {
   engine?: LocalAiEngine;
@@ -46,13 +58,10 @@ function engineState(): EngineState {
   return globalForEngine[STATE_KEY];
 }
 
-/** Model path as shown to the owner: relative to the project root, forward slashes. */
-function displayPath(absolutePath: string): string {
-  return path.relative(/*turbopackIgnore: true*/ process.cwd(), absolutePath).split(path.sep).join("/");
-}
-
+/** Only the file name reaches the client; the full path stays in the server log. */
 function missingModelReason(absolutePath: string): string {
-  return `Modèle introuvable : ${displayPath(absolutePath)}. Place le fichier GGUF à cet endroit ou règle LOCAL_AI_MODEL_PATH.`;
+  console.error("[ai] model file not found", absolutePath);
+  return `Modèle introuvable (${path.basename(absolutePath)}). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.`;
 }
 
 /** Short French sentence + the error name only: no message, no stack, no path. */
@@ -67,6 +76,18 @@ async function isFile(absolutePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Resolves when `work` settles, or after `ms` at the latest; then `onLate` runs once. */
+function withCeiling(work: Promise<unknown>, ms: number, onLate: () => void): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      onLate();
+      resolve();
+    }, ms);
+  });
+  return Promise.race([work.finally(() => clearTimeout(timer)), late]);
 }
 
 /** Runs tasks one at a time; a task's `settled` keeps the queue closed until its generation really stopped. */
@@ -89,7 +110,11 @@ interface LoadedRuntime {
   readonly LlamaChatSession: ChatSessionClass;
 }
 
-function createEngine(runtime: LoadedRuntime): LocalAiEngine {
+/**
+ * `onStuck` runs when a generation still has not stopped `STOP_GRACE_MS` after its deadline: the
+ * queue is released anyway and the engine must be dropped (the caller reloads it later).
+ */
+function createEngine(runtime: LoadedRuntime, onStuck: () => void): LocalAiEngine {
   const enqueue = createSerialQueue();
   const grammars = new Map<string, Promise<JsonGrammar>>();
 
@@ -124,7 +149,12 @@ function createEngine(runtime: LoadedRuntime): LocalAiEngine {
           budgets: { thoughtTokens: 0 },
           signal,
         });
-        return grammar.parse(text);
+        try {
+          return grammar.parse(text);
+        } catch {
+          // Cut off at maxTokens: the JSON never closed. Not an engine failure.
+          throw new AiAnswerIncompleteError();
+        }
       } finally {
         session.dispose({ disposeSequence: false });
       }
@@ -136,6 +166,7 @@ function createEngine(runtime: LoadedRuntime): LocalAiEngine {
 
   async function start(request: AiJsonRequest): Promise<{ result: Promise<unknown>; settled: Promise<unknown> }> {
     request.signal?.throwIfAborted();
+    const deadline = deadlineFor(request.maxTokens);
     const timeout = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<never>((_, reject) => {
@@ -143,7 +174,7 @@ function createEngine(runtime: LoadedRuntime): LocalAiEngine {
         const error = new Error(TIMEOUT_MESSAGE);
         timeout.abort(error);
         reject(error);
-      }, GENERATION_TIMEOUT_MS);
+      }, deadline);
     });
     // Never reported on its own: it only matters through the race below.
     timedOut.catch(() => undefined);
@@ -152,7 +183,7 @@ function createEngine(runtime: LoadedRuntime): LocalAiEngine {
     return {
       // The caller gets its answer at the deadline even if the native generation is slow to stop.
       result: Promise.race([work, timedOut]),
-      settled: work.catch(() => undefined),
+      settled: withCeiling(work.catch(() => undefined), deadline + STOP_GRACE_MS, onStuck),
     };
   }
 
@@ -166,13 +197,19 @@ async function loadRuntime(modelPath: string): Promise<LoadedRuntime> {
   const { getLlama, LlamaChatSession, QwenChatWrapper } = await import("node-llama-cpp");
   // Prebuilt binaries only (Vulkan / CUDA / CPU): never compile llama.cpp from a web request.
   const llama = await getLlama({ build: "never" });
-  const model = await llama.loadModel({ modelPath });
   try {
-    const context = await model.createContext({ contextSize: CONTEXT_SIZE, sequences: 1 });
-    const chatWrapper = new QwenChatWrapper({ variation: "3.5", thoughts: "discourage" });
-    return { llama, context, chatWrapper, LlamaChatSession };
+    const model = await llama.loadModel({ modelPath });
+    try {
+      const context = await model.createContext({ contextSize: CONTEXT_SIZE, sequences: 1 });
+      const chatWrapper = new QwenChatWrapper({ variation: "3.5", thoughts: "discourage" });
+      return { llama, context, chatWrapper, LlamaChatSession };
+    } catch (error) {
+      await model.dispose().catch(() => undefined);
+      throw error;
+    }
   } catch (error) {
-    await model.dispose().catch(() => undefined);
+    // Each retry would otherwise leave one more backend instance behind.
+    await llama.dispose().catch(() => undefined);
     throw error;
   }
 }
@@ -180,7 +217,13 @@ async function loadRuntime(modelPath: string): Promise<LoadedRuntime> {
 async function load(state: EngineState, modelPath: string): Promise<EngineLoadResult> {
   if (!(await isFile(modelPath))) return { ok: false, reason: missingModelReason(modelPath) };
   try {
-    const engine = createEngine(await loadRuntime(modelPath));
+    const runtime = await loadRuntime(modelPath);
+    const engine = createEngine(runtime, () => {
+      console.error("[ai] generation did not stop after its deadline: engine dropped");
+      if (state.engine === engine) state.engine = undefined;
+      state.failure = { reason: STUCK_REASON, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
+      void runtime.llama.dispose().catch(() => undefined);
+    });
     state.engine = engine;
     state.failure = undefined;
     return { ok: true, engine };
