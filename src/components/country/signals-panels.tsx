@@ -57,7 +57,7 @@ export function TaxesPanel({ signals }: { signals: CountrySignalsV2 }) {
         <Stat label="TVA du pays" hint="Payée par l'acheteur, hors de ta marge si tes prix sont HT">
           <DatumValue datum={taxes} format={(t: ImportTaxes) => (t.vatRatePct === null ? "pas de TVA nationale" : pct(t.vatRatePct))} />
         </Stat>
-        <Stat label="Coût unitaire rendu" hint="Prix fournisseur, livraison et droits, avant publicité">
+        <Stat label="Coût unitaire rendu" hint={isKnown(landed) && landed.note ? landed.note : "Prix fournisseur, livraison et droits, avant publicité"}>
           <DatumValue datum={landed} format={(v) => <AnimatedNumber value={v} format="money" />} />
         </Stat>
       </dl>
