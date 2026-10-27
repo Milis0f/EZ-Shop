@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAssumptions } from "@/config/assumptions";
 import type { CountryAnalysis, UnitEconomics } from "@/domain/analysis";
-import { insufficient, observed } from "@/domain/datum";
+import { insufficient, isKnown, observed } from "@/domain/datum";
 import type { Decision } from "@/domain/scoring";
 import { analyzeCountry, type CountrySignals } from "@/engine/analyze-country";
 import { TEST_NOW, testSource } from "@/test/fixtures";
@@ -87,6 +87,16 @@ describe("verdict_v1 — blocking factors", () => {
     expect(v.value).toBe("non");
     expect(v.blocking.map((b) => b.id)).toContain("loss_at_planned_price");
     expect(v.reason).toBe(v.blocking[0]!.message);
+  });
+
+  it("the loss message names duties only when the landed cost holds them", () => {
+    const loss = country({ economics: { currency: "EUR", sellingPrice: 12, supplierPrice: 8, shippingCost: 3 } });
+    const signals = loss.signals!;
+    const noDuty = { ...loss, signals: { ...signals, taxes: insufficient("Droits non calculables", ["uk-trade-tariff"]) } };
+    expect(verdictFor(noDuty).blocking[0]!.message).toMatch(/livraison comprise, droits non inclus\.$/);
+    const taxes = observed({ ...(isKnown(signals.taxes) ? signals.taxes.value : ({} as never)), dutyPerUnitEur: 1 }, "money", [testSource("uk-trade-tariff")]);
+    const withDuty = { ...loss, signals: { ...signals, taxes } };
+    expect(verdictFor(withDuty).blocking[0]!.message).toMatch(/après droits et livraison\.$/);
   });
 
   it("a planned price below the target gives NON with the minimum price in the message", () => {

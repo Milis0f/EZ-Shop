@@ -133,6 +133,23 @@ Country level only; no new dependency without a reason the owner sees; no schema
 TypeScript; French UI copy, English code and docs; tests for every rule (verdict table, URL parser, margin cases,
 mock refusal); a real end-to-end check on a copy of the database with open sources only.
 
+### Local AI dependency (owner ruling, 2026-10-24)
+
+The owner asked on 2026-10-24 to see the local AI reading in analyses, with a "mini aura". That ruling
+approved one new dependency, recorded in the build log (`progress.md`, ruling 3):
+
+- `node-llama-cpp` 3.22.2, pinned. It runs the local model in-process, so no analysis data leaves the
+  machine. It loads prebuilt binaries only (`build: "never"`) and is kept out of the server bundle through
+  `serverExternalPackages` in `next.config.ts`.
+- npm `overrides`, each pinning a patched release of a transitive package with a published advisory:
+  - `simple-git` 4.0.2, pulled in by `node-llama-cpp`. 4.x is the first line that fixes its advisories. Its
+    call sites only run when llama.cpp is built from source, which `build: "never"` forbids.
+  - `body-parser` 2.4.0, `fast-uri` 3.1.9 and `undici` 7.30.1, pulled in by the `shadcn` CLI (through
+    `@modelcontextprotocol/sdk`, `ajv` and `@dotenvx/dotenvx`).
+
+The AI aura follows the design rules: no hue and no shadow. The halo is a monochrome craie sweep and the
+badge dot pulses with an outline, not a glow. This list goes into the PR description before merging.
+
 ## Left to the builder
 
 File layout inside the existing structure, component design (following the current UI), exact wording of reasons

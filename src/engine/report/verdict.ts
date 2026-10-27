@@ -42,7 +42,7 @@ export function blockingFactors(c: CountryAnalysis): BlockingFactor[] {
   const margin = c.signals?.marginAtPlannedPrice;
   const minimum = c.signals?.minPriceForTargetMargin;
   if (margin && isKnown(margin) && margin.value < 0) {
-    factors.push({ id: "loss_at_planned_price", message: `Perte à ton prix : marge de ${Math.round(margin.value)} % après droits et livraison.` });
+    factors.push({ id: "loss_at_planned_price", message: `Perte à ton prix : marge de ${Math.round(margin.value)} % ${costBasis(c)}.` });
   }
   if (margin && isKnown(margin) && minimum && isKnown(minimum) && margin.value < minimum.value.targetMarginPct) {
     const { exVatEur, inclVatEur, targetMarginPct } = minimum.value;
@@ -56,6 +56,13 @@ export function blockingFactors(c: CountryAnalysis): BlockingFactor[] {
     factors.push({ id: "no_demand_data", message: "Aucune donnée de demande nationale pour ce pays : toutes les sources ont échoué." });
   }
   return factors;
+}
+
+/** What the landed cost holds, as `landedUnitCost` builds it: duties only when they could be computed. */
+function costBasis(c: CountryAnalysis): string {
+  const taxes = c.signals?.taxes;
+  const dutyIncluded = taxes !== undefined && isKnown(taxes) && taxes.value.dutyPerUnitEur !== null;
+  return dutyIncluded ? "après droits et livraison" : "livraison comprise, droits non inclus";
 }
 
 function hasDemandData(c: CountryAnalysis): boolean {

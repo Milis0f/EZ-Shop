@@ -8,7 +8,14 @@ export function EpistemicLegend({ className, compact = false }: { className?: st
   return (
     <dl className={cn("grid text-xs", compact ? "gap-2.5" : "gap-4", className)}>
       {ORDER.map((kind) => (
-        <div key={kind} className="grid grid-cols-[0.75rem_1fr] items-start gap-x-2">
+        <div
+          key={kind}
+          className={cn(
+            "grid-cols-[0.75rem_1fr] items-start gap-x-2",
+            // Mock values exist only in analyses stored before V1: the entry shows only beside their banner.
+            kind === "mock" ? "hidden [html:has([data-legacy-mock])_&]:grid" : "grid",
+          )}
+        >
           <dt className="pt-1">
             <KindMarker kind={kind} />
           </dt>

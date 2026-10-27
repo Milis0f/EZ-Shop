@@ -7,16 +7,15 @@ import { cn } from "@/lib/utils";
  * already typed: a source with some values set but still not ready is « à réparer ».
  * These are states, not verdicts: craie and brume, plus one ambre for what needs fixing.
  */
-export type SourceStatus = "ready" | "repair" | "not_configured" | "not_implemented" | "mock";
+export type SourceStatus = "ready" | "repair" | "not_configured" | "not_implemented";
 
-export const SOURCE_STATUS_ORDER: readonly SourceStatus[] = ["ready", "repair", "not_configured", "not_implemented", "mock"];
+export const SOURCE_STATUS_ORDER: readonly SourceStatus[] = ["ready", "repair", "not_configured", "not_implemented"];
 
 export const SOURCE_STATUS_LABELS: Readonly<Record<SourceStatus, string>> = {
   ready: "Prête",
   repair: "À réparer",
   not_configured: "Non branchée",
   not_implemented: "À implémenter",
-  mock: "Fictive",
 };
 
 const DOT_TONE: Readonly<Record<SourceStatus, string>> = {
@@ -24,10 +23,11 @@ const DOT_TONE: Readonly<Record<SourceStatus, string>> = {
   repair: "bg-verdict-surveiller",
   not_configured: "bg-muted-foreground",
   not_implemented: "border border-muted-foreground/70 bg-transparent",
-  mock: "hatch border border-muted-foreground/70",
 };
 
 export function sourceStatus(state: ProviderState, fields: readonly FieldState[]): SourceStatus {
+  // The registry builds live providers only; a stored "mock" state means the real source is not branched.
+  if (state === "mock") return "not_configured";
   if (state === "not_configured" && fields.some((f) => f.set)) return "repair";
   return state;
 }

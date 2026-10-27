@@ -1,7 +1,8 @@
 /*
  * The "mini aura": the single visual signature of anything the local AI wrote.
- * A graphite tile ringed by a 1px iridescent halo (a masked conic gradient) and a faint blurred glow.
- * Layers, inside the tile's own stacking context: glow (::after, behind) < surface < halo ring (::before).
+ * A graphite tile ringed by a 1px monochrome halo: a masked conic gradient of craie at varying
+ * strength, a light sweeping round the edge. Colour belongs to the verdict and the design has no
+ * shadows, so the halo carries no hue and no glow. Layers: surface < halo ring (::before).
  * Plain global stylesheet with ai- prefixed classes: next.config.ts routes every *.css through the
  * Tailwind loader as plain CSS, so CSS modules are not hashed in this project.
  */
@@ -14,17 +15,16 @@
 }
 
 .ai-aura {
-  --ai-lilac: #c4b5ff;
-  --ai-ice: #8fdcff;
-  --ai-pearl: color-mix(in oklab, var(--craie) 38%, transparent);
+  --ai-bright: color-mix(in oklab, var(--craie) 92%, transparent);
+  --ai-soft: color-mix(in oklab, var(--craie) 34%, transparent);
+  --ai-faint: color-mix(in oklab, var(--brume) 22%, transparent);
   --ai-halo: conic-gradient(
     from var(--ai-angle),
-    var(--ai-lilac),
-    var(--ai-ice) 28%,
-    var(--ai-pearl) 50%,
-    var(--ai-lilac) 72%,
-    var(--ai-ice) 88%,
-    var(--ai-lilac)
+    var(--ai-bright),
+    var(--ai-soft) 22%,
+    var(--ai-faint) 50%,
+    var(--ai-soft) 78%,
+    var(--ai-bright)
   );
 
   position: relative;
@@ -61,20 +61,6 @@
   transition: opacity var(--dur-slow) var(--ease-out);
 }
 
-/* Outer glow: the same gradient, blurred and faint, behind the opaque surface. */
-.ai-aura::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--ai-halo);
-  filter: blur(16px);
-  opacity: 0.2;
-  pointer-events: none;
-  transition: opacity var(--dur-slow) var(--ease-out);
-}
-
 /* Thinking: the halo turns slowly and breathes. */
 .ai-aura[data-state="thinking"]::before {
   animation:
@@ -82,24 +68,13 @@
     ai-breathe-ring 3.2s ease-in-out infinite;
 }
 
-.ai-aura[data-state="thinking"]::after {
-  animation:
-    ai-spin 6s linear infinite,
-    ai-breathe-glow 3.2s ease-in-out infinite;
-}
-
 /* Ready: static halo, one soft settle when the content arrives. */
 .ai-aura[data-state="ready"]::before {
   animation: ai-settle-ring 1.2s var(--ease-out) both;
 }
 
-.ai-aura[data-state="ready"]::after {
-  animation: ai-settle-glow 1.2s var(--ease-out) both;
-}
-
 /* Off: no halo, the plain hairline of any tile. */
-.ai-aura[data-state="off"]::before,
-.ai-aura[data-state="off"]::after {
+.ai-aura[data-state="off"]::before {
   opacity: 0;
   animation: none;
 }
@@ -124,16 +99,6 @@
   }
 }
 
-@keyframes ai-breathe-glow {
-  0%,
-  100% {
-    opacity: 0.08;
-  }
-  50% {
-    opacity: 0.24;
-  }
-}
-
 @keyframes ai-settle-ring {
   from {
     opacity: 1;
@@ -143,22 +108,9 @@
   }
 }
 
-@keyframes ai-settle-glow {
-  from {
-    opacity: 0.4;
-    filter: blur(22px);
-  }
-  to {
-    opacity: 0.2;
-    filter: blur(16px);
-  }
-}
-
 /* ---------- Badge « IA locale » ---------- */
 
 .ai-badge {
-  --ai-lilac: #c4b5ff;
-
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -179,8 +131,10 @@
   height: 8px;
   flex-shrink: 0;
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 35%, #ffffff, var(--ai-lilac) 55%, #8fdcff);
-  box-shadow: 0 0 8px 1px color-mix(in oklab, var(--ai-lilac) 60%, transparent);
+  background: radial-gradient(circle at 35% 35%, var(--craie), var(--brume) 85%);
+  /* A hairline ring, not a glow: it widens and fades while the AI writes. */
+  outline: 1px solid color-mix(in oklab, var(--craie) 0%, transparent);
+  outline-offset: 1px;
 }
 
 .ai-badge[data-state="thinking"] .ai-badge-dot {
@@ -189,18 +143,20 @@
 
 .ai-badge[data-state="off"] .ai-badge-dot {
   background: var(--kind-missing);
-  box-shadow: none;
+  outline: none;
 }
 
 @keyframes ai-pulse {
   0%,
   100% {
-    transform: scale(1);
-    box-shadow: 0 0 6px 0 color-mix(in oklab, var(--ai-lilac) 45%, transparent);
+    opacity: 1;
+    outline-color: color-mix(in oklab, var(--craie) 0%, transparent);
+    outline-offset: 1px;
   }
   50% {
-    transform: scale(1.18);
-    box-shadow: 0 0 12px 2px color-mix(in oklab, var(--ai-lilac) 75%, transparent);
+    opacity: 0.6;
+    outline-color: color-mix(in oklab, var(--craie) 55%, transparent);
+    outline-offset: 3px;
   }
 }
 
@@ -220,7 +176,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ai-aura::before,
-  .ai-aura::after,
   .ai-badge .ai-badge-dot,
   .ai-reveal {
     animation: none !important;
@@ -229,9 +184,5 @@
   /* Without motion, thinking still reads differently from ready: a dimmer, still halo. */
   .ai-aura[data-state="thinking"]::before {
     opacity: 0.45;
-  }
-
-  .ai-aura[data-state="thinking"]::after {
-    opacity: 0.08;
   }
 }

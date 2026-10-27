@@ -235,7 +235,8 @@ function marketLines(c: CountryAnalysis, s: Section, currency: string, brief: bo
 function signalLines(c: CountryAnalysis, s: Section, brief: boolean): void {
   const v2 = c.signals;
   if (!v2) return;
-  s.add("Marge au prix du marché, avant publicité", v2.marketMarginPct, (v) => pct(v));
+  // Legacy marketPriceExVatEur and marketMarginPct (median eBay price) are left out: decision 5 turned
+  // derived marketplace statistics off, so the AI must not restate them from analyses stored before.
   if (brief) return;
   s.add("Recherches associées (Google)", v2.searchSuggestions, (g) => {
     const shops = g.marketplaces.length > 0 ? `, marketplaces citées : ${g.marketplaces.slice(0, 3).map((m) => val(clean(m, 40))).join(", ")}` : "";
@@ -257,7 +258,6 @@ function signalLines(c: CountryAnalysis, s: Section, brief: boolean): void {
     const { min, max } = t.dutyRatePct;
     return `${vat}, droit de douane ${min === max ? pct(min) : `de ${pct(min)} à ${pct(max)}`}`;
   });
-  s.add("Prix de marché HT (médiane eBay)", v2.marketPriceExVatEur, (v) => money(v));
   s.add("Coût unitaire (achat et droits)", v2.unitCostEur, (v) => money(v));
 }
 

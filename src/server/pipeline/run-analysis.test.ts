@@ -19,7 +19,7 @@ import {
   unavailableTopic,
   unavailableTranslator,
   unavailableVat,
-} from "@/providers/unavailable";
+} from "@/test/unavailable-providers";
 import { myMemoryMeta } from "@/providers/translation/mymemory";
 import { wikimediaMeta } from "@/providers/wikimedia/adapter";
 import { worldBankMeta } from "@/providers/world-bank/adapter";

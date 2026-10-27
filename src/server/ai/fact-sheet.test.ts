@@ -36,6 +36,21 @@ beforeAll(async () => {
 });
 
 describe("buildFactSheet", () => {
+  it("leaves out the legacy median eBay price and the margin at that price", () => {
+    const [fr, ...rest] = mock.countries;
+    expect(fr.signals).toBeDefined();
+    const legacy = (v: number) => observed(v, "money", [testSource("ebay-browse")]);
+    const withLegacy: AnalysisResult = {
+      ...mock,
+      countries: [{ ...fr, signals: fr.signals && { ...fr.signals, marketPriceExVatEur: legacy(41.7), marketMarginPct: legacy(63.3) } }, ...rest],
+    };
+    for (const brief of [false, true]) {
+      const { text, numbers } = buildFactSheet(withLegacy, { brief });
+      expect(text).not.toMatch(/médiane eBay|Marge au prix du marché/);
+      expect(numbers.has("41.7") || numbers.has("63.3")).toBe(false);
+    }
+  });
+
   it("names the product, the analysed countries, the user's prices and the mock mode", () => {
     const { text } = buildFactSheet(mock);
 

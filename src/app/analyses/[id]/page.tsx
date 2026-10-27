@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -27,6 +28,14 @@ import { getAnalysis } from "@/server/services";
 interface PageProps {
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<{ created?: string }>;
+}
+
+/** Tab title: the product name, read at request time like the page itself. */
+export async function generateMetadata({ params }: Pick<PageProps, "params">): Promise<Metadata> {
+  const { id } = await params;
+  await connection();
+  const analysis = await getAnalysis(id);
+  return { title: analysis ? analysis.product.displayName : "Analyse introuvable" };
 }
 
 export default function AnalysisPage({ params, searchParams }: PageProps) {

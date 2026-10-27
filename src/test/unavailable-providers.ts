@@ -11,10 +11,10 @@ import {
   type TopicInterestProvider,
   type TranslationProvider,
   type VatProvider,
-} from "./contracts";
+} from "@/providers/contracts";
 
 /**
- * Stand-ins for the data sources v2 in mock mode: no synthetic data is generated for them,
+ * Test stand-ins for the data sources v2: no synthetic data is generated for them,
  * so every call fails explicitly and the values stay DATA_INSUFFICIENT.
  */
 

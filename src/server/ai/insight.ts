@@ -14,7 +14,7 @@ import { AiAnswerIncompleteError, type AiJsonSchema, type EngineLoadResult } fro
  */
 
 /** Bump when the prompt, the schema or the fact sheet changes: cached readings are then regenerated. */
-export const PROMPT_VERSION = "insight-v7";
+export const PROMPT_VERSION = "insight-v8";
 
 /**
  * Rate limits of `POST /api/analyses/:id/ai` (route files may only export handlers). Every request counts
@@ -58,6 +58,7 @@ const SYSTEM_PROMPT = [
   "Règles strictes :",
   "- Reformule UNIQUEMENT les faits de la fiche. N'ajoute jamais un chiffre, un prix, un volume, un pourcentage, une date ou une source absents de la fiche.",
   "- Recopie les chiffres exactement comme ils sont écrits dans la fiche. N'arrondis pas, ne calcule rien, ne convertis rien.",
+  "- Écris toute quantité en chiffres, jamais en toutes lettres (pas de « trois », « deux fois plus », « la moitié »).",
   "- Quand un fait manque ou est marqué DATA_INSUFFICIENT, écris « données insuffisantes » au lieu d'inventer.",
   "- Distingue ce qui est observé, une hypothèse, un calcul ou une estimation, comme indiqué entre crochets dans la fiche.",
   "- Si le mode de données est fictif (mock), dis-le clairement : ces valeurs ne décrivent pas le marché réel.",
@@ -205,7 +206,11 @@ async function generate(analysis: AnalysisResult, deps: InsightDeps): Promise<Ai
 
   const insight = keepAnalysedCountries(parsed.data, codes);
   const unsupported = textsOf(insight).flatMap((text) => findUnsupportedNumbers(text, sheet.numbers));
-  if (unsupported.length > 0) return rejected(`L'IA a cité un nombre absent des données de l'analyse (${unsupported[0]}).`);
+  if (unsupported.length > 0) {
+    // The figure itself stays in the server log: shown in the UI, the invented number would still reach the screen.
+    console.warn(`[ai] insight rejected, unsupported numbers: ${unsupported.slice(0, 5).join(", ")}`);
+    return rejected("L'IA a cité un nombre absent des données de l'analyse : relecture écartée.");
+  }
 
   return {
     status: "ready",

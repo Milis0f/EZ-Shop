@@ -17,7 +17,7 @@ import {
   unavailableTopic,
   unavailableTranslator,
   unavailableVat,
-} from "@/providers/unavailable";
+} from "@/test/unavailable-providers";
 import { wikimediaMeta } from "@/providers/wikimedia/adapter";
 import { youtubeMeta } from "@/providers/youtube/adapter";
 import { createMockProviders } from "./mock-providers";

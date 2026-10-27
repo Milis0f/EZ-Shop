@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -24,6 +25,16 @@ import { getAnalysis } from "@/server/services";
 
 interface PageProps {
   readonly params: Promise<{ id: string; country: string }>;
+}
+
+/** Tab title: the product name and the country, read at request time like the page itself. */
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id, country: raw } = await params;
+  const code = raw.toUpperCase();
+  if (!isCountryCode(code)) return { title: "Pays introuvable" };
+  await connection();
+  const analysis = await getAnalysis(id);
+  return { title: analysis ? `${analysis.product.displayName}, ${COUNTRIES[code].nameFr}` : "Analyse introuvable" };
 }
 
 export default function CountryPage({ params }: PageProps) {

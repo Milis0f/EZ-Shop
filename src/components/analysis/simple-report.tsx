@@ -27,6 +27,9 @@ const longDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
 /** Unit prices keep their cents. */
 const unitPrice = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** A Wikipedia audience is a proxy: it is never labelled as people interested or searches. */
+const WIKI_READERS_LABEL = "Lecteurs Wikipédia par mois";
+
 const none = <span className="text-base font-normal text-muted-foreground">non disponible</span>;
 
 function Figure({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -45,7 +48,7 @@ function KeyFigures({ c }: { c: CountryAnalysis }) {
   const s = c.signals;
   return (
     <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-line bg-line lg:grid-cols-4">
-      <Figure label="Personnes intéressées" hint={interest ? interest.label : "Volume de recherche indisponible sans Google Ads"}>
+      <Figure label={interest && !interest.direct ? WIKI_READERS_LABEL : "Personnes intéressées"} hint={interest ? interest.label : "Volume de recherche indisponible sans Google Ads"}>
         {interest ? <AnimatedNumber value={interest.value} format="compact" /> : none}
       </Figure>
       <Figure
@@ -131,6 +134,8 @@ function MarginPanel({ c, economics, world }: { c: CountryAnalysis; economics: U
 }
 
 function CountryRows({ analysisId, countries }: { analysisId: string; countries: readonly CountryAnalysis[] }) {
+  const interests = countries.map(interestPerMonth).filter((i) => i !== null);
+  const onlyWikipedia = interests.length > 0 && interests.every((i) => !i.direct);
   return (
     <div>
       <div aria-hidden className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_8rem] gap-4 px-5 pb-2 text-xs text-muted-foreground min-[900px]:grid">
@@ -138,7 +143,7 @@ function CountryRows({ analysisId, countries }: { analysisId: string; countries:
         <span>Verdict</span>
         <span className="text-right">Tendance</span>
         <span>Pic</span>
-        <span className="text-right">Intéressés / mois</span>
+        <span className="text-right">{onlyWikipedia ? "Lecteurs Wikipédia / mois" : "Intéressés / mois"}</span>
       </div>
       <ul className="flex flex-col gap-2">
         {countries.map((c) => {
@@ -169,7 +174,7 @@ function CountryRows({ analysisId, countries }: { analysisId: string; countries:
                     {peak}
                   </span>
                   <span className="min-[900px]:text-right" title={interest?.label}>
-                    <span className="min-[900px]:sr-only">Intéressés par mois </span>
+                    <span className="min-[900px]:sr-only">{interest && !interest.direct ? `${WIKI_READERS_LABEL} ` : "Intéressés par mois "}</span>
                     {interest ? formatCompact(interest.value) : "—"}
                     {interest && !interest.direct && <span className="ml-1 text-[11px] text-muted-foreground">(Wikipédia)</span>}
                   </span>

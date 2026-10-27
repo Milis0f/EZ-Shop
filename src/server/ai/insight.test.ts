@@ -12,6 +12,8 @@ import { clearInsightCache, GenerationRateLimitedError, getAnalysisInsight, PROM
 import { mockStoredAnalysis } from "@/test/stored-analysis";
 import { AiAnswerIncompleteError, type AiJsonRequest, type EngineLoadResult, type LocalAiEngine } from "./types";
 
+const REJECTED_REASON = "L'IA a cité un nombre absent des données de l'analyse : relecture écartée.";
+
 const MODEL = { name: "Fake model", license: "Apache-2.0" };
 
 const mockAnalysis = (countries: readonly CountryCode[]): Promise<AnalysisResult> =>
@@ -80,16 +82,24 @@ describe("getAnalysisInsight", () => {
   it("rejects the whole reading when the AI cites a number absent from the analysis", async () => {
     const { deps } = fakeEngine(() => ({ ...goodAnswer(), summary: "Environ 4 321,77 ventes par mois sont attendues." }));
 
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const result = await getAnalysisInsight(analysis, deps);
 
     expect(buildFactSheet(analysis).numbers.has("4321.77")).toBe(false);
-    expect(result).toEqual({ status: "rejected", reason: "L'IA a cité un nombre absent des données de l'analyse (4 321,77)." });
+    expect(result).toEqual({ status: "rejected", reason: REJECTED_REASON });
+    // The invented figure never reaches the user-facing reason; only the server log names it.
+    expect(JSON.stringify(result)).not.toContain("4 321,77");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("4 321,77"));
+    warn.mockRestore();
   });
 
   it("checks every text field, the next steps and the product reading included", async () => {
     const { deps } = fakeEngine(() => ({ ...goodAnswer(), productReading: { category: "Textile", description: "Vendu environ 19,93 €." } }));
 
-    expect(await getAnalysisInsight(analysis, deps)).toMatchObject({ status: "rejected", reason: expect.stringContaining("(19,93)") });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await getAnalysisInsight(analysis, deps)).toEqual({ status: "rejected", reason: REJECTED_REASON });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("19,93"));
+    warn.mockRestore();
   });
 
   it("drops the lines about countries that were not analysed", async () => {
@@ -129,8 +139,11 @@ describe("getAnalysisInsight", () => {
     ["an en dash as a minus", "Tendance –999 % par an.", "–999"],
   ])("rejects a number written with %s", async (_label, summary, cited) => {
     const { deps } = fakeEngine(() => ({ ...goodAnswer(), summary }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    expect(await getAnalysisInsight(analysis, deps)).toEqual({ status: "rejected", reason: `L'IA a cité un nombre absent des données de l'analyse (${cited}).` });
+    expect(await getAnalysisInsight(analysis, deps)).toEqual({ status: "rejected", reason: REJECTED_REASON });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(cited));
+    warn.mockRestore();
   });
 
   it("rejects numbers that only appear in the sheet's labels, scales or headings", async () => {

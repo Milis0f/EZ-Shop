@@ -19,6 +19,10 @@
  *   P10 / P50 / P90, the scale "sur 100" or "/100" right after a number, the windows
  *   "12 derniers mois" / "12 prochains mois" the analysis is computed on, and the index range
  *   "de 0 à 100".
+ *
+ * Known limit: only numerals are read. Quantities written as words ("trois pays", "deux fois plus",
+ * "la moitié", "un million") pass unchecked. Refusing them outright would reject honest phrasing
+ * such as "les deux pays analysés", so the prompt asks for digits and this limit is accepted.
  */
 
 /** Spaces used as thousands separators: space, no-break space, narrow no-break space, thin space, figure space. */
