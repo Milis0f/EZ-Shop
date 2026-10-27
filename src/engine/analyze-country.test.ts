@@ -101,7 +101,10 @@ describe("analyzeCountry — honesty rules", () => {
 
   it("caps the score when the CPA exceeds the unit margin", () => {
     const expensive = kpDatum(series, { lowTopOfPageBid: 4, highTopOfPageBid: 9 });
-    const result = analyzeCountry(signals({ keywordMetrics: expensive }), options(12, 10));
+    const vat = observed({ country: "FR" as const, standardRatePct: 20, source: testSource("vat-rates") }, "percent", [testSource("vat-rates")]);
+    const base = signals();
+    // 12 € incl. VAT → 10 € excl. VAT: no margin left over the 10 € cost.
+    const result = analyzeCountry(signals({ keywordMetrics: expensive, v2: { ...base.v2, vat } }), options(12, 10));
     expect(isKnown(result.scoring.score)).toBe(true);
     if (isKnown(result.scoring.score)) expect(result.scoring.score.value.total).toBeLessThanOrEqual(35);
   });
@@ -139,6 +142,28 @@ describe("analyzeCountry — margins and disabled statistics", () => {
     expect(s?.minPriceForTargetMargin && isKnown(s.minPriceForTargetMargin) && s.minPriceForTargetMargin.value).toEqual({ targetMarginPct: 40, exVatEur: 18.33, inclVatEur: 22 });
     expect(s?.marketMarginPct).toBeUndefined();
     expect(s?.marketPriceExVatEur).toBeUndefined();
+  });
+
+  it("scores the unit economics on the price excluding VAT", () => {
+    const vat = observed({ country: "FR" as const, standardRatePct: 20, source: testSource("vat-rates") }, "percent", [testSource("vat-rates")]);
+    const base = signals({ keywordMetrics: kpDatum(series) });
+    const result = analyzeCountry(signals({ keywordMetrics: kpDatum(series), v2: { ...base.v2, vat } }), {
+      ...options(),
+      economics: { currency: "EUR" as const, sellingPrice: 30, supplierPrice: 8, shippingCost: 3 },
+    });
+    const cpa = result.advertising.find((c) => c.platform === "google")!.cpa;
+    const unit = result.scoring.criteria.find((c) => c.id === "unit_economics")!;
+    expect(isKnown(cpa)).toBe(true);
+    // 30 € incl. VAT → 25 € excl. VAT; 25 − 11 € landed = 14 € of margin, not 19 €.
+    if (isKnown(cpa)) expect(unit.rawValue).toBe(Math.round((cpa.value.p50 / 14) * 100) / 100);
+    expect(unit.explanation).toContain("hors TVA");
+  });
+
+  it("leaves the unit economics insufficient when the country VAT is unknown", () => {
+    const result = analyzeCountry(signals({ keywordMetrics: kpDatum(series) }), options(30, 10));
+    const unit = result.scoring.criteria.find((c) => c.id === "unit_economics")!;
+    expect(unit.status).toBe(DATA_INSUFFICIENT);
+    expect(unit.explanation).toMatch(/TVA/);
   });
 
   it("market margin and video interest are insufficient pending the licence check", () => {

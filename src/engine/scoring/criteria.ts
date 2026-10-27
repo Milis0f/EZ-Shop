@@ -160,14 +160,19 @@ const unitEconomics: Criterion = {
   label: "Économie unitaire",
   timeSensitive: false,
   evaluate: ({ economics, advertising, signals }) => {
-    const { sellingPrice } = economics;
+    // The typed price includes VAT: the margin is taken on the price excluding the country VAT.
+    const exVat = signals?.sellingPriceExVatEur;
+    if (economics.sellingPrice !== undefined && (!exVat || !isKnown(exVat))) {
+      return exVat ? missing("Taux de TVA du pays inconnu : prix hors TVA non calculable.", exVat) : { status: "DATA_INSUFFICIENT", explanation: "Taux de TVA du pays inconnu : prix hors TVA non calculable.", missing: ["vat-rates"] };
+    }
+    const sellingPrice = exVat && isKnown(exVat) ? exVat.value : undefined;
     // Landed cost in the country (supplier price + shipping + duty) when known, else the typed costs.
     const countryCost = signals && isKnown(signals.landedUnitCostEur) ? signals.landedUnitCostEur.value : undefined;
     const typedCost =
       economics.supplierPrice !== undefined && economics.shippingCost !== undefined ? economics.supplierPrice + economics.shippingCost : economics.landedCost;
     const landedCost = countryCost ?? typedCost;
     if (sellingPrice === undefined || landedCost === undefined) {
-      return { status: "DATA_INSUFFICIENT", explanation: "Prix de vente HT et coût de revient requis.", missing: ["selling_price", "landed_cost"] };
+      return { status: "DATA_INSUFFICIENT", explanation: "Prix de vente et coût de revient requis.", missing: ["selling_price", "landed_cost"] };
     }
     // Search intent first (Google), otherwise the first social channel with a known CPA.
     const google = advertising.find((c) => c.platform === "google")?.cpa;
@@ -176,7 +181,7 @@ const unitEconomics: Criterion = {
     const margin = sellingPrice - landedCost;
     const ratio = margin > 0 ? cpa.value.p50 / margin : Number.POSITIVE_INFINITY;
     const cap = ratio > 1 ? { cap: SCORING_POLICY.negativeEconomicsCap, reason: "CPA estimé supérieur à la marge unitaire." } : undefined;
-    return scored(Number.isFinite(ratio) ? towards(ratio, B.cpaToMargin.best, B.cpaToMargin.worst) : 0, "CPA P50 / marge : ≤ 0,3 → 1, ≥ 1,2 → 0.", [cpa], {
+    return scored(Number.isFinite(ratio) ? towards(ratio, B.cpaToMargin.best, B.cpaToMargin.worst) : 0, "CPA P50 / marge sur le prix hors TVA : ≤ 0,3 → 1, ≥ 1,2 → 0.", [cpa, ...(exVat && isKnown(exVat) ? [exVat] : [])], {
       rawValue: Number.isFinite(ratio) ? round(ratio, 2) : undefined,
       rawLabel: margin > 0 ? `CPA = ${fmt.format(ratio * 100)} % de la marge` : "Marge unitaire ≤ 0",
       cap,

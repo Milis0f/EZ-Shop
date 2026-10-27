@@ -19,7 +19,7 @@ import type {
 } from "@/providers/contracts";
 import type { FxRates } from "@/providers/contracts";
 import { createRng } from "@/lib/random";
-import { unitMargins, userValue, type UnitMargins } from "./economics/market-margin";
+import { sellingPriceExVat, unitMargins, userValue, type UnitMargins } from "./economics/market-margin";
 import { readContent, readMarketplace, readSuggestions } from "./signals/indirect";
 import { computeImportTaxes } from "./taxes/import-taxes";
 import { analyzeCompetition } from "./competition/analyze";
@@ -89,9 +89,17 @@ function analyzeSignalsV2(signals: CountrySignals, options: AnalyzeCountryOption
   const vatRate = isKnown(v2.vat) ? v2.vat.value.standardRatePct : undefined;
   const customsValue =
     sellingPrice !== undefined && vatRate !== undefined
-      ? { eur: vatRate === null ? sellingPrice : sellingPrice / (1 + vatRate / 100), label: "prix de vente HT saisi", input: userValue(sellingPrice, "selling_price", collectedAt) }
+      ? {
+          eur: vatRate === null ? sellingPrice : sellingPrice / (1 + vatRate / 100),
+          label: vatRate === null ? "prix de vente saisi, pays sans TVA nationale" : `prix de vente hors TVA, déduit du prix TTC saisi (TVA ${vatRate} %)`,
+          input: userValue(sellingPrice, "selling_price", collectedAt),
+        }
       : supplierPrice !== undefined
-        ? { eur: supplierPrice, label: "prix fournisseur saisi", input: userValue(supplierPrice, "supplier_price", collectedAt) }
+        ? {
+            eur: supplierPrice,
+            label: sellingPrice !== undefined ? "prix fournisseur saisi, TVA du pays inconnue pour ramener ton prix hors TVA" : "prix fournisseur saisi",
+            input: userValue(supplierPrice, "supplier_price", collectedAt),
+          }
         : null;
   const taxes = computeImportTaxes({ country: signals.country, origin: options.global?.origin, duties: v2.duties, vat: v2.vat, fx, customsValue });
   const margins = unitMargins({ economics: options.economics, taxes, vat: v2.vat, collectedAt });
@@ -130,7 +138,12 @@ export function analyzeCountry(signals: CountrySignals, options: AnalyzeCountryO
       advertising,
       market,
       economics: options.economics,
-      signals: { searchSuggestions: v2.searchSuggestions, content: v2.content, landedUnitCostEur: v2.landedUnitCostEur },
+      signals: {
+        searchSuggestions: v2.searchSuggestions,
+        content: v2.content,
+        landedUnitCostEur: v2.landedUnitCostEur,
+        sellingPriceExVatEur: sellingPriceExVat(options.economics, signals.v2.vat, options.now.toISOString()),
+      },
     },
     options.scoring,
   );

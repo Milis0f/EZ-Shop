@@ -19,6 +19,8 @@ export interface ScoringContext {
     readonly content: Datum<ContentActivity>;
     /** Landed unit cost in the country (supplier price + shipping + duty), EUR. */
     readonly landedUnitCostEur: Datum<number>;
+    /** Planned selling price excluding the country VAT, EUR. */
+    readonly sellingPriceExVatEur: Datum<number>;
   };
 }
 

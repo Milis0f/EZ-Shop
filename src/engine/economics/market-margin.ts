@@ -77,6 +77,19 @@ function vatFactor(vat: Datum<VatRate>): number | null {
   return vat.value.standardRatePct === null ? 1 : 1 + vat.value.standardRatePct / 100;
 }
 
+/** Planned selling price excluding VAT: the typed price includes VAT, as the customer pays it. */
+export function sellingPriceExVat(economics: UnitEconomics, vat: Datum<VatRate>, collectedAt: string): Datum<number> {
+  if (economics.sellingPrice === undefined) return insufficient("Prix de vente envisagé non renseigné.", ["selling_price"]);
+  const factor = vatFactor(vat);
+  if (factor === null || !isKnown(vat)) return insufficient("Taux de TVA du pays inconnu : prix hors TVA non calculable.", ["vat-rates"]);
+  const rate = vat.value.standardRatePct;
+  return derived(round(economics.sellingPrice / factor, 2), "money", {
+    method: "selling_price_ex_vat_v1",
+    inputs: [userValue(economics.sellingPrice, "selling_price", collectedAt), vat],
+    note: rate === null ? "Prix saisi, pays sans TVA nationale." : `Prix TTC saisi ramené hors TVA (${rate} %).`,
+  });
+}
+
 /** Margins from real inputs only: no marketplace price is ever used. */
 export function unitMargins({ economics, taxes, vat, collectedAt }: UnitMarginInputs): UnitMargins {
   const landedUnitCostEur = landedUnitCost(economics, taxes, collectedAt);
