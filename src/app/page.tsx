@@ -1,16 +1,9 @@
 import { Suspense } from "react";
-import { connection } from "next/server";
 import { ConnectorsSummary } from "@/components/search/connectors-summary";
 import { RecentAnalyses } from "@/components/search/recent-analyses";
 import { SearchForm } from "@/components/search/search-form";
 import { SimpleSearch } from "@/components/search/simple-search";
 import { Skeleton } from "@/components/ui/skeleton";
-import { mockDataAllowed } from "@/server/services";
-
-async function SearchFormWithMode() {
-  await connection();
-  return <SearchForm mockAllowed={mockDataAllowed()} />;
-}
 
 const stagger = (i: number) => ({ "--stagger": i }) as React.CSSProperties;
 
@@ -23,6 +16,15 @@ export default function HomePage() {
       <div className="advanced:block hidden">
         <AdvancedHome />
       </div>
+
+      <section className="mx-auto mt-16 max-w-6xl simple:max-w-3xl" aria-labelledby="recent-title">
+        <h2 id="recent-title" className="mb-5 px-1 text-base font-semibold tracking-tight">
+          Analyses récentes
+        </h2>
+        <Suspense fallback={<Skeleton className="h-40 w-full rounded-tile" />}>
+          <RecentAnalyses />
+        </Suspense>
+      </section>
     </>
   );
 }
@@ -38,27 +40,16 @@ function AdvancedHome() {
         </p>
       </header>
 
-      <div className="mt-12 grid items-start gap-8 lg:grid-cols-[1fr_19rem]">
-        <section aria-label="Nouvelle analyse" className="animate-enter" style={stagger(1)}>
-          <Suspense fallback={<Skeleton className="h-[38rem] w-full rounded-panel" />}>
-            <SearchFormWithMode />
-          </Suspense>
+      <div className="mt-12 grid items-start gap-5 min-[900px]:grid-cols-[1fr_19rem]">
+        <section aria-label="Nouvelle analyse" className="animate-enter min-w-0" style={stagger(1)}>
+          <SearchForm />
         </section>
-        <aside aria-label="État des sources" className="animate-enter lg:sticky lg:top-8" style={stagger(2)}>
+        <aside aria-label="État des sources" className="animate-enter min-[900px]:sticky min-[900px]:top-8" style={stagger(2)}>
           <Suspense fallback={<Skeleton className="h-80 w-full rounded-panel" />}>
             <ConnectorsSummary />
           </Suspense>
         </aside>
       </div>
-
-      <section className="mt-20" aria-labelledby="recent-title">
-        <h2 id="recent-title" className="mb-6 text-lg font-semibold tracking-tight">
-          Analyses récentes
-        </h2>
-        <Suspense fallback={<Skeleton className="h-56 w-full rounded-panel" />}>
-          <RecentAnalyses />
-        </Suspense>
-      </section>
     </div>
   );
 }
