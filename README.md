@@ -1,150 +1,139 @@
-# EZ-Shop — pre-launch product research
+# EZ-Shop
 
-Estimate the commercial potential of a product **before launch**, country by country, from external
-data only. No shop sales, ad history, Pixel or Analytics data is ever used.
+**Recherche produit avant lancement, pour l'e-commerce et le dropshipping.**
 
-Every number carries its epistemic status (**observed**, **derived**, **estimate**, **assumption**)
-and its sources. When an honest estimate is impossible the app shows `DATA_INSUFFICIENT` — never a
-placeholder value.
+Tu tapes le nom d'un produit (ou tu colles le lien de sa fiche Temu, AliExpress, Alibaba ou 1688) et EZ-Shop
+te dit, pays par pays, si le produit vaut la peine d'être envisagé : **OUI**, **NON** ou **À SURVEILLER**, avec
+ses raisons.
 
-## Quick start
+EZ-Shop n'utilise que des données externes réelles : sources publiques ouvertes et API que tu branches avec tes
+propres clés. Il ne lit jamais tes ventes, ta boutique, ton Pixel ou ton historique publicitaire. Quand une
+estimation honnête est impossible, l'application affiche `DATA_INSUFFICIENT` avec la raison, plutôt qu'un chiffre
+inventé.
 
-Requirements: Node ≥ 20.9 (Node 24 LTS recommended, see [Known limitations](#known-limitations)).
+![Rapport « casquette » : verdict À SURVEILLER, confiance 9 %, lecture par l'IA locale](docs/screenshots/report-casquette.png)
+
+## Ce que fait EZ-Shop
+
+- **Un verdict par pays** (OUI / NON / À SURVEILLER), une ligne de raison et les facteurs bloquants. Le disque du
+  verdict est entouré d'un anneau qui se remplit jusqu'à la confiance réelle.
+- **Analyse au niveau pays uniquement** : France ou « Monde entier » (18 pays : Europe, Royaume-Uni, États-Unis,
+  Canada, Australie). Jamais de région, de ville ni de code postal.
+- **Chaque valeur dit ce qu'elle est** : donnée observée, hypothèse, calcul dérivé ou estimation, avec ses sources et
+  sa période. Le score d'opportunité (sur 100) et la confiance sont toujours séparés.
+- **Liens fournisseurs reconnus hors ligne** : la plateforme et l'identifiant de l'article sont lus dans l'adresse.
+  Aucune page fournisseur n'est téléchargée.
+- **« Ta marge »** à partir de tes prix (prix fournisseur, livraison, prix de vente envisagé, marge visée), droits de
+  douane compris quand ils sont calculables.
+- **« Pour obtenir un vrai verdict »** : les sources à brancher, classées par le poids du score qu'elles couvriraient.
+- **Journal des sources** : ce que chaque source a donné, a raté ou n'a pas pu donner, pour chaque analyse.
+- **Mode simple** (le verdict et l'essentiel) et **mode avancé** (score détaillé, critères, hypothèses, provenance).
+- **Une IA locale** qui reformule l'analyse en français simple (voir plus bas).
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home-supplier-link.png" alt="Accueil avec un lien AliExpress reconnu et le tiroir Prix et livraison ouvert"></td>
+    <td><img src="docs/screenshots/report-18-countries.png" alt="Rapport sur 18 pays, classement pays par pays"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/country-page.png" alt="Page pays France, chaque indicateur avec sa nature ou DATA_INSUFFICIENT"></td>
+    <td><img src="docs/screenshots/sources.png" alt="Page Sources de données avec l'état de chaque connecteur"></td>
+  </tr>
+</table>
+
+## L'IA locale
+
+EZ-Shop intègre un modèle de langage ouvert, **Qwen3.5-9B** (licence Apache-2.0, quantification Q4_K_M), qui tourne
+**entièrement sur la carte graphique de ton ordinateur** grâce à
+[node-llama-cpp](https://github.com/withcatai/node-llama-cpp). L'intégration dans l'application (fiche de faits,
+garde-fou des nombres, cache, interface) a été écrite par l'auteur du projet.
+
+Ce qu'elle fait :
+
+- elle **reformule** l'analyse déjà enregistrée en quelques phrases claires, pays par pays ;
+- elle **propose des prochaines étapes** (quelle source brancher, quel prix saisir) ;
+- elle décrit en une phrase ce qu'est probablement le produit, présenté comme une hypothèse.
+
+Ce qu'elle ne fait pas :
+
+- elle **ne produit aucune donnée** et ne collecte rien : elle lit seulement ce que l'analyse contient ;
+- **chaque nombre qu'elle écrit est vérifié** contre l'analyse. Une réponse qui contient un nombre absent de
+  l'analyse est refusée et n'est pas affichée ;
+- **aucun cloud, aucune clé d'API** : ni le produit, ni l'analyse, ni la réponse ne quittent ta machine.
+
+Le texte écrit par l'IA est toujours placé dans une **mini aura** (un cadre au halo monochrome) avec le badge
+« IA locale », pour qu'il ne soit jamais confondu avec les données.
+
+![Lecture de l'IA locale dans son aura](docs/screenshots/ai-reading.jpg)
+
+Limites connues : le garde-fou ne lit que les chiffres (une quantité écrite en toutes lettres passe sans contrôle),
+il vérifie qu'un nombre existe dans l'analyse mais pas qu'il est attribué au bon pays, et l'IA peut se tromper sur le
+sens d'une donnée. La lecture sert à comprendre plus vite, pas à décider à ta place. L'IA est facultative : sans
+le modèle, ou avec `LOCAL_AI_ENABLED=false`, l'analyse fonctionne normalement.
+
+## Stack technique
+
+- Next.js 16 (App Router, Turbopack), React 19, TypeScript strict
+- Tailwind CSS 4, composants shadcn/ui (Radix), Recharts
+- Zod pour la validation, Drizzle ORM
+- Base de données embarquée PGlite (Postgres en WASM), ou Postgres / Supabase via `DATABASE_URL`
+- node-llama-cpp 3.22.2 pour l'IA locale (binaires précompilés Vulkan, CUDA, Metal ou CPU)
+- Vitest pour les tests, ESLint
+
+## Démarrage rapide
+
+Prérequis : Node.js 22.12 ou plus récent et npm. Le détail est dans [docs/INSTALL.md](docs/INSTALL.md).
 
 ```bash
+git clone https://github.com/Milis0f/EZ-Shop.git
+cd EZ-Shop
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. No database server, Docker or API key is needed:
+Ouvre http://localhost:3000. Aucun serveur de base de données, aucun Docker et aucune clé ne sont nécessaires pour
+une première analyse : la base PGlite est créée dans `.data/pglite` au premier lancement, et les sources ouvertes
+(Banque mondiale, Eurostat, OCDE, Wikipédia, Google Autocomplete, tarifs douaniers, TVA, taux de change BCE,
+traduction) répondent sans compte. Pour l'IA locale, télécharge le modèle (environ 5,7 Go) comme indiqué dans
+[docs/INSTALL.md](docs/INSTALL.md#4-télécharger-le-modèle-de-lia-locale).
 
-- the database is an embedded **PGlite** (Postgres in WASM) stored in `.data/pglite`, migrated on first use;
-- World Bank, Eurostat and OECD are queried live (open APIs, no key);
-- key-based sources stay "not configured" and their indicators show `DATA_INSUFFICIENT`;
-- tick **Données fictives de développement** in the form to fill every screen with synthetic data (development only).
+## Documentation
 
-> Scripts call binaries through `node node_modules/...` on purpose: npm's Windows `.cmd` shims break
-> when the project path contains `&` (as in `Claude & IA`).
+- [Installation](docs/INSTALL.md) : prérequis, variables d'environnement, base de données, modèle d'IA, tests,
+  dépannage.
+- [Tutoriel](docs/TUTORIAL.md) : ta première analyse pas à pas, lire le verdict, brancher des sources, FAQ.
+- [Architecture](docs/ARCHITECTURE.md) : dossiers, flux de données, provenance, score, pipeline de l'IA locale.
+- La page **Méthode** de l'application détaille les formules, les poids du score et la règle du verdict.
 
-## Scripts
+![Page Méthode](docs/screenshots/method.png)
 
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Next.js dev server (Turbopack) |
-| `npm run build` / `npm start` | Production build / server |
-| `npm run check` | Typecheck + lint + tests |
-| `npm test` / `npm run test:coverage` | Vitest unit and integration tests |
-| `npm run db:generate` | Generate a SQL migration from `src/server/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations (Postgres/Supabase when `DATABASE_URL` is set, PGlite otherwise) |
-| `npm run db:studio` | Drizzle Studio |
+## État du projet et limites
 
-## Configuration
+EZ-Shop est un outil local en version 0.1 (V1 « données réelles uniquement »). Il est pensé pour tourner sur ta
+machine, pas pour être exposé sur Internet : il n'y a pas d'authentification, et la protection des routes d'API se
+limite à une vérification d'origine et à une limite de débit.
 
-Copy `.env.example` to `.env.local`. Secrets never go in the code.
+Ce qu'il faut savoir avant de l'utiliser :
 
-In development, connector credentials can also be entered from **Sources de données → Configurer**: the form writes
-the connector's variables to `.env.local` and applies them without a restart. Values are validated, never logged and
-never sent back to the browser. The form is disabled in production and for requests not addressed to `localhost`;
-it then shows the lines to add by hand.
+- **Sans source à clé, la plupart des verdicts restent « À SURVEILLER »**, avec une confiance faible. C'est voulu :
+  les volumes de recherche, les coûts par clic et la concurrence publicitaire viennent de Google Ads Keyword
+  Planner, Google Trends, Meta Ad Library ou TikTok, qui demandent un compte ou une candidature.
+- Les connecteurs Google Ads, Meta Ad Library, TikTok Commercial Content, YouTube, eBay et AliExpress sont écrits
+  d'après la documentation officielle mais **n'ont pas encore été vérifiés avec de vraies clés**. Google Trends
+  (API alpha), Meta Marketing et TikTok Business ne sont pas encore codés.
+- Les statistiques dérivées d'eBay (prix médian) et de YouTube (vues médianes) sont désactivées tant que leurs
+  licences n'ont pas été vérifiées : seules les annonces et vidéos observées sont montrées.
+- Les audiences Wikipédia et les suggestions Google sont des **signaux indirects**, jamais des volumes de recherche.
+- Le chiffre d'affaires est calculé dans une seule devise (EUR).
+- Les analyses tournent dans la requête (une analyse « Monde entier » prend environ 15 secondes), sans file de
+  tâches en arrière-plan.
+- Les lectures de l'IA sont gardées en mémoire : un redémarrage du serveur les régénère.
 
-| Source | Access | State in this repo |
-|---|---|---|
-| World Bank Indicators | open | implemented, verified live |
-| Eurostat (online buyers) | open | implemented, verified live |
-| OECD (consumer confidence) | open | implemented, verified live (SDMX-ML) |
-| Google Ads Keyword Planner | OAuth; Basic access on the Google Cloud project (developer tokens sunset 2026-09-09) | implemented from the docs, **not yet verified** with real credentials; "Tester la connexion" checks a setup live |
-| Meta Ad Library | verified developer token | implemented from the docs, **not yet verified** |
-| TikTok Commercial Content | approved research app | implemented from the docs, **not yet verified** |
-| Google Trends API (alpha) | on application | contract only (`TODO(google-trends)`) |
-| Meta Marketing / TikTok Business estimates | ad account | contract only |
-| Google Autocomplete | open, **unofficial endpoint** | implemented, verified live; related searches and purchase intent per country, no volume |
-| Wikipedia pageviews + Wikidata | open | implemented, verified live; category interest per language edition (trend/seasonality fallback, never searches) |
-| GOV.UK Trade Tariff (`/uk` GB, `/xi` = EU tariff) | open (rate limited) | implemented, verified live; HS classification, duties by origin, EU €3 low-value duty |
-| USITC HTS | open | implemented, verified live; US duties by HS code, chapter 99 flagged not computed |
-| VAT rates (vatcomply + official references) | open | implemented, verified live (EU-27); GB/CH/CA/AU/US transcribed from tax authorities |
-| ECB reference FX (Frankfurter) | open | implemented, verified live |
-| YouTube Data API v3 | Google Cloud API key | implemented from the docs, **not yet verified** |
-| eBay Browse API | free developer account | implemented from eBay's OpenAPI spec, **not yet verified** |
-| AliExpress Affiliate API | free affiliate account + app approval | implemented from the docs (signature checked on official vectors), **not yet verified** |
+## Licence
 
-Every keyed source has a step-by-step guide and a live connection test in **Sources de données → Configurer**.
-Import duties (by origin country) enter the unit cost, the margin and the score. Plan and verified facts:
-[`docs/PLAN-sources-v2.md`](docs/PLAN-sources-v2.md).
+Licence : à définir par l'auteur. Tant qu'aucun fichier de licence n'est publié, le code n'est pas proposé sous une
+licence ouverte.
 
-The `/connectors` page shows the live state of each source.
-
-### Supabase / Postgres
-
-Set `DATABASE_URL` (Supabase: use the pooled connection string), then:
-
-```bash
-npm run db:migrate
-```
-
-## Real data only
-
-- Every analysis uses the real connectors. Missing sources ⇒ `DATA_INSUFFICIENT`.
-- The input refuses `dataMode: "mock"`. Synthetic, deterministic fixtures live in
-  `src/test/mock-providers/` and are injected by tests through the `providers` seam of `runAnalysis`.
-  An ESLint rule forbids importing `src/test/` from product code.
-- Analyses stored before the V1 with `dataMode: "mock"` are still readable (never rewritten) and show
-  the banner « Analyse fictive ancienne, créée avant la V1 : ses chiffres ne sont pas réels. ».
-
-## Project structure
-
-```
-src/
-├── app/            pages (search, analysis, country detail, connectors, method) + API routes + server action
-├── components/     ui/ (shadcn), layout/, data/ (Datum rendering), analysis/, country/, search/
-├── config/         env (Zod), scoring model (weights, bounds, thresholds), default assumptions
-├── domain/         types and Zod schemas — Datum, provenance, countries, analysis
-├── engine/         pure functions: demand model, competition, ad costs, sales simulation, scoring, confidence
-├── providers/      one adapter per source behind capability contracts, registry
-├── server/         DB (Drizzle), repositories, analysis pipeline, services, rate limiting
-└── lib/            formatting, seeded RNG, utilities
-drizzle/            SQL migrations
-docs/ARCHITECTURE.md
-```
-
-## API
-
-| Method | Route | Description |
-|---|---|---|
-| `POST` | `/api/analyses` | Run an analysis. Body: see `src/domain/schemas.ts` |
-| `GET` | `/api/analyses` | Recent analyses |
-| `GET` | `/api/analyses/:id` | Full analysis with provenance |
-| `GET` | `/api/connectors` | Connector states (no secrets) |
-
-Responses use `{ success, data, error }`.
-
-`POST /api/analyses` answers:
-
-- `415 unsupported_media_type` unless `Content-Type` is `application/json`;
-- `403 forbidden_origin` when an `Origin` header is present and is not exactly an `http` or `https`
-  scheme followed by the host and port the request was sent to (only host and port are compared with the
-  `Host` header, the scheme is not matched against the request's; `null`, a path, a query, user info or a
-  list of values are refused). `X-Forwarded-Host` is never trusted;
-- `429 rate_limited` after 10 analyses per minute. `X-Forwarded-For` is ignored, so it cannot be used
-  to dodge the limit.
-
-The checks run in that order (request guard, rate limit, then body), so refused requests do not use up
-the rate limit.
-
-**Limits of the local protection.** This is not authentication: requests without an `Origin` header
-(curl, local scripts, any program on the machine) are accepted, because the origin check only stops a
-page on another site from driving the API through a visitor's browser. DNS rebinding (a foreign domain
-resolving to 127.0.0.1) passes an `Origin` = `Host` check, since the browser sends that domain as both.
-The `GET` routes are not protected. The rate limit is a single bucket for the whole API, shared by all
-callers. Authentication and per-client limits belong to the deployment project.
-
-## Known limitations
-
-- **Node 20.17 is end-of-life** (April 2026). Tooling is pinned to Node-20-compatible versions
-  (Vitest 3, ESLint 9, Vite 6); `npm audit` reports advisories in those dev-only tools. Upgrading to
-  Node 24 LTS allows Vitest 5 / ESLint 10 and clears them. Nothing affected ships in the runtime bundle.
-- Analyses run synchronously in the request (`TODO(jobs)`: background jobs once live connectors are slow).
-- Revenue uses a single input currency (EUR); per-country FX conversion is a TODO.
-- Multilingual terms come from the user; automatic translation/synonyms (`TODO(llm-expansion)`) and
-  Keyword Planner ideas (`TODO(google-ads-ideas)`) are not implemented.
-- Competition history is stored per run (`competition_snapshots`) but the projection currently uses
-  the weekly launch dates exposed by ad libraries.
+Le modèle Qwen3.5-9B n'est pas inclus dans ce dépôt : il se télécharge à part et reste soumis à sa propre licence
+(Apache-2.0).

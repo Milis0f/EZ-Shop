@@ -1,29 +1,55 @@
 # Architecture
 
-## Principles
+Vue d'ensemble du code d'EZ-Shop. Les formules détaillées sont sur la page **Méthode** de l'application
+(`src/app/methodology/page.tsx`).
 
-1. **Pre-launch only.** Inputs are external, country-level data. No owner sales, campaigns or analytics.
-2. **Country level only.** Every geographic field is an ISO 3166-1 alpha-2 code (enforced by DB `CHECK`s).
-3. **No invented numbers.** A value is either a `Known<T>` with sources, or `Insufficient` with a reason.
-4. **Separate what is measured from what is assumed.** Kinds: `observed`, `derived`, `estimate`, `assumption`.
-5. **Score and confidence are independent.** Never merged, never drawn the same way.
+## Principes
 
-## Layers
+1. **Avant lancement uniquement** : seules des données externes entrent dans l'analyse, jamais les ventes, campagnes
+   ou statistiques du propriétaire.
+2. **Niveau pays uniquement** : chaque champ géographique est un code ISO 3166-1 alpha-2 (contraintes `CHECK` en
+   base).
+3. **Aucun nombre inventé** : une valeur est soit connue avec ses sources, soit `DATA_INSUFFICIENT` avec une raison.
+4. **Le mesuré et le supposé restent séparés**, et le score et la confiance ne sont jamais fusionnés.
+
+## Dossiers
+
+| Dossier | Contenu |
+|---|---|
+| `src/domain/` | Types et schémas Zod : `Datum`, provenance, pays, analyse, lecture de l'IA, lecture des liens fournisseurs (`supplier-url.ts`). |
+| `src/engine/` | Fonctions pures et testées : termes et traductions, modèle de demande, concurrence, coûts publicitaires, ventes, taxes, score, confiance, verdict et journal des sources (`report/`). |
+| `src/providers/` | Un adaptateur par source derrière des contrats de capacité (`contracts.ts`), et le registre (`registry.ts`), seul endroit qui connaît les classes concrètes. |
+| `src/server/` | Base de données (Drizzle, PGlite ou Postgres), dépôts, pipeline d'analyse, IA locale (`ai/`), limites de débit, garde des requêtes. |
+| `src/components/` | Interface : `ui/` (shadcn), `layout/`, `data/` (affichage des `Datum`), `analysis/`, `country/`, `search/`, `ai/`, `connectors/`, `motion/`. |
+| `src/app/` | Pages Next.js (recherche, analyse, page pays, sources, méthode), routes d'API et server actions. |
+| `src/config/` | Environnement validé (`env.ts`), modèle de score (`scoring.ts`), hypothèses par défaut, guides des connecteurs. |
+| `src/test/` | Doublures des sources et fixtures. Une règle ESLint interdit au code produit de les importer. |
+| `drizzle/` | Migrations SQL. |
+
+Règle de dépendance : `engine/` et `domain/` n'importent jamais `server/`, `app/` ni un SDK tiers.
+
+## Flux d'une analyse
 
 ```
-UI (app/, components/)         server components + 3 client charts, renders Datum<T>
-        │
-server/ (services, pipeline)   validate → expand terms → collect → analyze → persist
-        │                 ╲
-engine/ (pure, tested)     providers/ (adapters behind capability contracts)
-        │                          │
-domain/ (types, Zod schemas) ◄─────┘
+formulaire ─► server action / POST /api/analyses
+                 │
+                 ▼
+server/pipeline/run-analysis.ts
+  1. valider l'entrée (Zod)                       domain/schemas.ts
+  2. préparer les termes, traduire par pays        engine/terms, pipeline/translate.ts
+  3. collecter : sources globales puis par pays    pipeline/collect*.ts ─► providers/*
+  4. analyser chaque pays (pur, déterministe)      engine/analyze-country.ts
+  5. enregistrer analyse + tables d'audit          server/repositories
+                 │
+                 ▼
+pages /analyses/[id] et /analyses/[id]/[country] ─► verdict, journal, IA locale
 ```
 
-Dependency rule: `engine/` and `domain/` never import `server/`, `app/` or vendor SDKs.
-Providers depend on `domain/` contracts; the registry is the only place that knows concrete classes.
+Chaque échec d'une source devient un `DATA_INSUFFICIENT` et un incident de collecte, visibles dans le journal des
+sources. Les tables d'audit gardent les observations brutes, les hypothèses, les prévisions, les composantes du score
+et les instantanés de concurrence.
 
-## Core type: `Datum<T>`
+## Modèle de provenance
 
 ```ts
 type Datum<T> = Known<T> | Insufficient;
@@ -33,80 +59,79 @@ interface Known<T> {
   kind: "observed" | "derived" | "estimate" | "assumption";
   value: T;
   unit: Unit;
-  sources: SourceRef[];      // provider, origin (live | mock | user | config), period, query ref
-  method?: string;           // formula / model identifier
-  assumptionKeys?: string[]; // hypotheses the value depends on
+  sources: SourceRef[];      // source, origine (live | user | config | mock ancien), période, requête
+  method?: string;
+  assumptionKeys?: string[];
 }
 
 interface Insufficient { status: "DATA_INSUFFICIENT"; reason: string; missing: string[] }
 ```
 
-`derived()` and `estimate()` merge the sources and assumption keys of their inputs, so provenance
-propagates automatically from raw observations to the final score.
+- **observed** : mesuré par une source externe, non transformé.
+- **assumption** : paramètre choisi (taux de conversion, part de demande captée), affiché dans chaque analyse.
+- **derived** : calcul déterministe à partir d'autres valeurs.
+- **estimate** : projection d'un modèle, avec son incertitude (P10 / P50 / P90).
 
-## Analysis flow
+Les valeurs saisies par l'utilisateur ont l'origine `user` et s'affichent « saisi par toi ». `derived()` et
+`estimate()` fusionnent les sources et hypothèses de leurs entrées : la provenance remonte jusqu'au score.
 
-1. **Validate** input with `analysisInputSchema` (Zod).
-2. **Expand terms** (`engine/terms`): normalized input, user synonyms/translations, orthographic variants
-   (displayed but not queried — Google Ads already merges close variants; summing them would double count).
-   Each country gets terms in one of its languages, or the input term flagged `languageMismatch`.
-3. **Collect** (`server/pipeline/collect.ts`): macro providers once (batched), then per country
-   (concurrency 3) keyword metrics, search interest, ad libraries, ad cost estimates.
-   Every `ProviderResult` failure becomes `Insufficient` + a `CollectionIssue`.
-4. **Analyze** (`engine/analyze-country.ts`, pure and seeded):
-   - *Demand*: history = Keyword Planner volumes (absolute) or Trends index (relative) or Trends
-     calibrated on Keyword Planner. Model: OLS on `log1p(y) = a + b·t + month dummies`.
-     Trend from 12 months; seasonality and 12-month forecast from 24 months. P10/P90 from the OLS
-     prediction standard error (`σ·√(1 + x₀ᵀ(XᵀX)⁻¹x₀)`).
-   - *Competition*: weighted index (Google competition, Meta and TikTok unique advertisers);
-     future pressure from the log-linear trend of new ads per week (≥ 8 weeks).
-   - *Ad costs*: Google CPC from the top-of-page bid P20–P80 (log-normal), Meta/TikTok from
-     CPM ÷ CTR assumption; CPA = CPC ÷ CVR; test budget = CPA × target conversions (Monte Carlo).
-   - *Sales potential*: forecast searches × capture share × CVR (5 000 draws), only with an
-     absolute demand basis. Revenue requires a user price.
-   - *Score* and *confidence* (below).
-5. **Persist** (`server/repositories`): analysis, per-country result (JSONB), plus audit tables:
-   every raw observation, assumptions, forecasts, score components, competition snapshots.
+## Score et verdict
 
-## Scoring model (`config/scoring.ts`, versioned)
+Le score d'opportunité (sur 100, `config/scoring.ts`, versionné) combine 12 critères : volume de demande (15),
+tendance historique (10), demande future (5), timing saisonnier (5), recherches associées (8), intérêt vidéo (5),
+concurrence actuelle (12), concurrence future (3), coût publicitaire (7), contexte de marché (8), économie unitaire
+(10), marge au prix du marché (12). Les poids sont renormalisés sur les critères disponibles ; pas de score sous 50 %
+de couverture ni sans critère de demande ; plafond à 35 quand le CPA estimé dépasse la marge. Les bornes de
+normalisation sont absolues.
 
-| Criterion | Weight | Normalization |
-|---|---:|---|
-| Demand volume | 20 | log10 searches/month, 100 → 0, 100 000 → 1 |
-| Historical trend | 15 | annual growth −30 % → 0, +50 % → 1 |
-| 12-month outlook | 10 | forecast vs last 12 months, −20 % → 0, +30 % → 1 |
-| Seasonal timing | 5 | 1–3 months before peak → 1 |
-| Current competition | 15 | 1 − index/100 |
-| Future competition | 5 | decreasing 1 … surging 0 |
-| Ad cost | 10 | Google CPC P50, log, 0.10 → 1, 5.00 → 0 |
-| Market context | 10 | GDP/capita PPP (log), internet users, online buyers |
-| Unit economics | 10 | CPA P50 / margin, ≤ 0.3 → 1, ≥ 1.2 → 0 |
+La confiance est calculée à part : couverture × fraîcheur × qualité des sources × cohérence entre sources.
 
-Rules: weights renormalized over scored criteria; no total below 50 % coverage or without a demand
-criterion; total capped at 35 when CPA exceeds margin. Bounds are absolute, so a country's score
-does not depend on which other countries are compared.
+La décision en découle (prioriser, tester prudemment, éviter, exploratoire, données insuffisantes), puis la règle
+`verdict_v1` (`engine/report/verdict.ts`) la présente en OUI / NON / À SURVEILLER, dans cet ordre :
 
-**Confidence** = coverage × freshness × source quality × cross-source consistency
-(Pearson r between Keyword Planner and Trends mapped to (r + 1) / 2; 0.7 with a single demand source).
+| Condition | Verdict |
+|---|---|
+| Facteur bloquant connu (perte à ton prix, prix sous ton prix minimum, aucune donnée de demande nationale) | NON |
+| Aucun score | À SURVEILLER |
+| Confiance < 40 % | À SURVEILLER |
+| Score ≥ 65 et confiance ≥ 60 % | OUI |
+| Score < 50 | NON |
+| Sinon (score ≥ 50) | À SURVEILLER |
 
-**Decision**: prioritize (score ≥ 65 and confidence ≥ 60), test carefully (score ≥ 50), avoid,
-exploratory only (confidence < 40), insufficient data (no score).
+Une marge inconnue n'est jamais bloquante.
 
-## Extending
+## Pipeline de l'IA locale
 
-**Add a scoring criterion**: implement `Criterion` (`engine/scoring/types.ts`) in
-`engine/scoring/criteria.ts`, add its id and weight to `config/scoring.ts` (weights must sum to 100 —
-a test asserts it), bump `SCORING_MODEL_VERSION`.
+`src/server/ai/`, appelé par `POST /api/analyses/:id/ai` :
 
-**Add a data source**: pick or add a capability contract in `providers/contracts.ts`, create
-`providers/<source>/adapter.ts` with `meta` (access, coverage, verification level, quality tier),
-a pure parser tested against a recorded payload, register it in `providers/registry.ts`, add its id
-to `PROVIDER_IDS`. Mark it `live_verified` only after a run against the real API.
+1. **Fiche de faits** (`fact-sheet.ts`) : l'analyse enregistrée est réécrite en français, avec la nature et la
+   source de chaque valeur et les `DATA_INSUFFICIENT` groupés par raison. Les secrets et les adresses web en sont
+   retirés. Pour les analyses longues, une version brève, puis une version qui regroupe les pays aux faits
+   identiques.
+2. **Génération contrainte** (`engine.ts`) : node-llama-cpp charge Qwen3.5-9B (Q4_K_M) une fois par processus, avec
+   des binaires précompilés uniquement (`build: "never"`). La réponse est forcée dans un schéma JSON par une
+   grammaire (`createGrammarForJsonSchema`), à température 0,2, une génération à la fois, avec un délai maximal.
+3. **Garde-fou des nombres** (`number-guard.ts`) : chaque nombre de la réponse doit exister parmi les valeurs de la
+   fiche, avec le même analyseur des deux côtés. Sinon la lecture est rejetée et n'est pas affichée.
+4. **Cache** (`insight.ts`) : une lecture réussie est gardée en mémoire par analyse, date de fin et
+   `PROMPT_VERSION`. Les échecs ne sont jamais mis en cache. Deux limites de débit séparent les requêtes et les
+   générations réelles.
 
-**Switch to Supabase**: set `DATABASE_URL`, run `npm run db:migrate`. Same schema and migrations as PGlite.
+Le texte arrive dans l'interface (`components/ai/`, `components/analysis/ai-insight.tsx`), toujours dans l'aura
+avec le badge « IA locale ».
 
-## Database
+## Tests
 
-`products`, `product_terms`, `data_providers`, `analyses`, `country_results`, `observations`,
-`assumptions`, `forecasts`, `score_components`, `competition_snapshots`, `provider_cache`.
-Schema: `src/server/db/schema.ts`; migrations: `drizzle/`.
+Vitest (`npm test`), fichiers `src/**/*.test.ts`, environnement Node. Les sources sont testées sur des réponses
+enregistrées avec un `fetch` simulé ; le pipeline reçoit des sources de test par son paramètre `providers` ;
+node-llama-cpp est simulé dans les tests de l'IA. Couverture (`npm run test:coverage`) sur `engine`, `providers`,
+`domain`, `server/pipeline` et `server/repositories`. `npm run check` enchaîne typecheck, lint et tests.
+
+## Étendre
+
+- **Nouveau critère** : l'implémenter dans `engine/scoring/criteria.ts`, ajouter son poids dans `config/scoring.ts`
+  (la somme doit faire 100, un test le vérifie) et changer `SCORING_MODEL_VERSION`.
+- **Nouvelle source** : choisir ou ajouter un contrat dans `providers/contracts.ts`, créer
+  `providers/<source>/adapter.ts` avec son analyseur testé sur une réponse enregistrée, l'enregistrer dans
+  `providers/registry.ts`, ajouter son guide dans `config/connector-guides.ts`. Ne la marquer vérifiée qu'après un
+  essai sur la vraie API.
