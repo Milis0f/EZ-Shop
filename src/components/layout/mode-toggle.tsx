@@ -2,7 +2,7 @@
 
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useSyncExternalStore } from "react";
-import { prefersReducedMotion } from "@/components/motion/use-reduced-motion";
+import { viewTransition } from "@/components/motion/view-transition";
 import { cn } from "@/lib/utils";
 import { MODE_STORAGE_KEY, type AppMode } from "./mode";
 
@@ -23,8 +23,9 @@ export function setMode(mode: AppMode): void {
       // Storage unavailable (private mode): the choice lasts for this page only.
     }
   };
-  if (prefersReducedMotion() || typeof document.startViewTransition !== "function") apply();
-  else document.startViewTransition(apply);
+  // The DOM changes synchronously (data-mode on <html>), so no React flush is needed inside the update.
+  // Under reduced motion, or without View Transitions, viewTransition() applies it straight away.
+  void viewTransition(apply).catch(() => undefined);
 }
 
 export function useMode(): AppMode | null {
@@ -32,7 +33,7 @@ export function useMode(): AppMode | null {
   return useSyncExternalStore(subscribe, currentMode, () => null);
 }
 
-/** "Mode avancé" under the simple search, "Mode simple" in the advanced sidebar. */
+/** "Mode avancé" in the simple top bar and under the search, "Mode simple" in the advanced rail. */
 export function ModeToggle({ className, variant = "link", label: forced }: { className?: string; variant?: "link" | "button"; label?: string }) {
   const mode = useMode();
   const next: AppMode = mode === "advanced" ? "simple" : "advanced";
@@ -45,12 +46,14 @@ export function ModeToggle({ className, variant = "link", label: forced }: { cla
       aria-pressed={mode === "advanced"}
       className={cn(
         "interactive inline-flex items-center gap-1.5 rounded-pill text-sm whitespace-nowrap",
-        variant === "button" ? "border border-line px-3 py-1.5 text-xs font-medium hover:bg-surface-2" : "px-2 py-1 text-muted-foreground hover:text-foreground",
+        variant === "button"
+          ? "min-h-10 border border-line bg-surface-2 px-4 py-2 font-medium hover:bg-line"
+          : "px-2 py-1 text-muted-foreground hover:text-foreground",
         className,
       )}
     >
       {/* The button stays on one line; on phones the icon gives way so the header row fits in 390px. */}
-      <SlidersHorizontal className={cn("size-3.5", variant === "button" && "max-sm:hidden")} aria-hidden />
+      <SlidersHorizontal className={cn("size-4", variant === "button" && "max-sm:hidden")} strokeWidth={1.75} aria-hidden />
       {label}
       {variant === "link" && next === "advanced" && <ChevronDown className="size-3.5" aria-hidden />}
     </button>
