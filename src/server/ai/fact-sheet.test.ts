@@ -174,3 +174,32 @@ describe("buildFactSheet", () => {
     expect(brief).toContain("- Décision actuelle : ");
   });
 });
+
+describe("buildFactSheet by locale", () => {
+  it("writes numbers the English way and the guard reads them with English separators", () => {
+    const { text, numbers, locale } = buildFactSheet(liveVariant(mock), { locale: "en" });
+
+    expect(locale).toBe("en");
+    expect(text).toContain("- Google searches per month (average): 1,234 [observed; Google Ads]");
+    expect(text).toContain("- Trend: declining, -12.2% a year (calculated over 36 months) [estimate; Google Trends (mock)]");
+    expect(text).toContain("Selling price: €29 [assumption; user input]");
+    expect(text).not.toMatch(/Données|Tendance|Pays analysés/);
+    expect(findUnsupportedNumbers("1,234 searches, 1 234 too, −12.2% a year over 36 months", numbers, "en")).toEqual([]);
+    expect(findUnsupportedNumbers("+12.2% a year", numbers, "en")).toEqual(["+12.2"]);
+  });
+
+  it("writes numbers the Spanish way", () => {
+    const { text, numbers } = buildFactSheet(liveVariant(mock), { locale: "es" });
+
+    expect(text).toContain("- Búsquedas en Google al mes (media): 1234 [observado; Google Ads]");
+    expect(text).toContain("- Tendencia: a la baja, -12,2 % al año (calculada sobre 36 meses)");
+    expect(text).toContain("Países analizados (3): Francia (FR), Alemania (DE), Estados Unidos (US)");
+    expect(findUnsupportedNumbers("1234 búsquedas, 1.234 también, -12,2 % al año", numbers, "es")).toEqual([]);
+  });
+
+  it("allows the same values whatever the language", () => {
+    const values = (locale: "en" | "fr" | "es") => [...buildFactSheet(mock, { locale }).numbers].sort();
+    expect(values("en")).toEqual(values("fr"));
+    expect(values("es")).toEqual(values("fr"));
+  });
+});

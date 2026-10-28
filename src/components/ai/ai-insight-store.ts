@@ -1,9 +1,12 @@
 import { aiInsightResponseSchema, type AiInsightResponse } from "@/domain/ai-insight";
+import type { Locale } from "@/i18n/config";
 
 /**
  * Client store of the local AI reading, one entry per analysis. The simple and advanced views of a
  * page are both mounted (CSS hides one), so they read the same entry: one request, one outcome, and
  * a retry from either view updates both. The request is aborted once nobody listens any more.
+ * Entries are kept per language too: after a language switch the page asks for the reading in the
+ * new language (the server reads the ez-locale cookie the switcher just set).
  */
 
 export type ReadyResponse = Extract<AiInsightResponse, { status: "ready" }>;
@@ -12,7 +15,13 @@ export type InsightView =
   | { readonly kind: "thinking"; readonly attempt: number }
   | { readonly kind: "ready"; readonly result: ReadyResponse }
   | { readonly kind: "unavailable" | "rejected"; readonly reason: string }
-  | { readonly kind: "error"; readonly message: string };
+  | { readonly kind: "error"; readonly error: InsightRequestError };
+
+/** Why the request failed. `server` carries the server's own message, already in the visitor's language. */
+export type InsightRequestError =
+  | { readonly code: "server"; readonly message: string }
+  | { readonly code: "http"; readonly status: number }
+  | { readonly code: "unexpected" | "timeout" | "network" };
 
 type Outcome = Exclude<InsightView, { kind: "thinking" }> | { readonly kind: "aborted" };
 
@@ -44,14 +53,17 @@ async function requestInsight(analysisId: string, signal: AbortSignal): Promise<
       signal: AbortSignal.any([signal, timeout]),
     });
     const body: unknown = await res.json().catch(() => null);
-    if (!res.ok) return { kind: "error", message: envelopeMessage(body) ?? `le serveur a répondu ${res.status}.` };
+    if (!res.ok) {
+      const message = envelopeMessage(body);
+      return { kind: "error", error: message ? { code: "server", message } : { code: "http", status: res.status } };
+    }
     const data = typeof body === "object" && body !== null && "data" in body ? (body as { data: unknown }).data : undefined;
     const parsed = aiInsightResponseSchema.safeParse(data);
-    return parsed.success ? toView(parsed.data) : { kind: "error", message: "réponse inattendue du serveur." };
+    return parsed.success ? toView(parsed.data) : { kind: "error", error: { code: "unexpected" } };
   } catch {
     if (signal.aborted) return { kind: "aborted" };
-    if (timeout.aborted) return { kind: "error", message: "l'IA locale n'a pas répondu à temps." };
-    return { kind: "error", message: "le serveur ne répond pas." };
+    if (timeout.aborted) return { kind: "error", error: { code: "timeout" } };
+    return { kind: "error", error: { code: "network" } };
   }
 }
 
@@ -64,6 +76,8 @@ interface Entry {
 }
 
 const entries = new Map<string, Entry>();
+
+const entryKey = (analysisId: string, locale: Locale): string => `${analysisId}|${locale}`;
 
 function notify(entry: Entry): void {
   for (const listener of entry.listeners) listener();
@@ -80,17 +94,18 @@ function start(analysisId: string, entry: Entry): void {
   });
 }
 
-/** Current view of an analysis's reading (stable reference until it changes). */
-export function getInsightView(analysisId: string): InsightView {
-  return entries.get(analysisId)?.view ?? INITIAL_VIEW;
+/** Current view of an analysis's reading in one language (stable reference until it changes). */
+export function getInsightView(analysisId: string, locale: Locale): InsightView {
+  return entries.get(entryKey(analysisId, locale))?.view ?? INITIAL_VIEW;
 }
 
 /** Subscribes a view; the first subscriber starts the request. Returns the unsubscribe function. */
-export function subscribeInsight(analysisId: string, listener: () => void): () => void {
-  let entry = entries.get(analysisId);
+export function subscribeInsight(analysisId: string, locale: Locale, listener: () => void): () => void {
+  const key = entryKey(analysisId, locale);
+  let entry = entries.get(key);
   if (!entry) {
     entry = { view: INITIAL_VIEW, controller: null, attempts: 0, users: 0, listeners: new Set() };
-    entries.set(analysisId, entry);
+    entries.set(key, entry);
   }
   const current = entry;
   current.listeners.add(listener);
@@ -101,16 +116,16 @@ export function subscribeInsight(analysisId: string, listener: () => void): () =
     current.users -= 1;
     // Deferred, so a Strict Mode remount keeps the request alive.
     setTimeout(() => {
-      if (current.users > 0 || entries.get(analysisId) !== current || !current.controller) return;
+      if (current.users > 0 || entries.get(key) !== current || !current.controller) return;
       current.controller.abort();
-      entries.delete(analysisId);
+      entries.delete(key);
     }, 0);
   };
 }
 
 /** Asks again, for every view of this analysis at once. */
-export function retryInsight(analysisId: string): void {
-  const entry = entries.get(analysisId);
+export function retryInsight(analysisId: string, locale: Locale): void {
+  const entry = entries.get(entryKey(analysisId, locale));
   if (!entry || entry.view.kind === "thinking") return;
   entry.controller?.abort();
   entry.attempts += 1;

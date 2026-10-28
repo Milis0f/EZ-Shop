@@ -2,7 +2,7 @@ import "server-only";
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import { getEnv, type ServerEnv } from "@/config/env";
-import { AiAnswerIncompleteError, type AiJsonRequest, type AiJsonSchema, type AiModelInfo, type EngineLoadResult, type LocalAiEngine } from "./types";
+import { AiAnswerIncompleteError, type EngineFailure, type AiJsonRequest, type AiJsonSchema, type AiModelInfo, type EngineLoadResult, type LocalAiEngine } from "./types";
 
 /**
  * Local LLM engine (node-llama-cpp, prebuilt GPU binaries, GGUF model on disk).
@@ -10,8 +10,8 @@ import { AiAnswerIncompleteError, type AiJsonRequest, type AiJsonSchema, type Ai
  * - Nothing is imported or loaded until the first call.
  * - One engine per process, kept on globalThis so dev hot reloads never load the model twice.
  * - Generations run one at a time through a single queue (one context sequence, ~6.5 GB of VRAM).
- * - When the engine cannot run, callers get a plain French reason and must show it as is:
- *   nothing is generated in its place.
+ * - When the engine cannot run, callers get a failure code (translated by the caller) and a plain
+ *   French reason for the log: nothing is generated in its place.
  */
 
 type NodeLlamaCpp = typeof import("node-llama-cpp");
@@ -47,7 +47,7 @@ export function deadlineFor(maxTokens: number): number {
 interface EngineState {
   engine?: LocalAiEngine;
   loading?: Promise<EngineLoadResult>;
-  failure?: { readonly reason: string; readonly retryAt: number };
+  failure?: { readonly reason: string; readonly code: EngineFailure; readonly retryAt: number };
 }
 
 const STATE_KEY = Symbol.for("ez-shop.local-ai-engine");
@@ -59,15 +59,20 @@ function engineState(): EngineState {
 }
 
 /** Only the file name reaches the client; the full path stays in the server log. */
-function missingModelReason(absolutePath: string): string {
+function missingModel(absolutePath: string): EngineLoadResult {
   console.error("[ai] model file not found", absolutePath);
-  return `Modèle introuvable (${path.basename(absolutePath)}). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.`;
+  const file = path.basename(absolutePath);
+  return {
+    ok: false,
+    reason: `Modèle introuvable (${file}). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.`,
+    failure: { code: "model_missing", file },
+  };
 }
 
 /** Short French sentence + the error name only: no message, no stack, no path. */
-function loadFailureReason(error: unknown): string {
+function loadFailure(error: unknown): { readonly reason: string; readonly code: EngineFailure } {
   const name = error instanceof Error && error.name ? error.name : "UnknownError";
-  return `Le moteur d'IA locale n'a pas pu démarrer (${name}). Nouvel essai possible dans une minute.`;
+  return { reason: `Le moteur d'IA locale n'a pas pu démarrer (${name}). Nouvel essai possible dans une minute.`, code: { code: "load_failed", error: name } };
 }
 
 async function isFile(absolutePath: string): Promise<boolean> {
@@ -215,22 +220,22 @@ async function loadRuntime(modelPath: string): Promise<LoadedRuntime> {
 }
 
 async function load(state: EngineState, modelPath: string): Promise<EngineLoadResult> {
-  if (!(await isFile(modelPath))) return { ok: false, reason: missingModelReason(modelPath) };
+  if (!(await isFile(modelPath))) return missingModel(modelPath);
   try {
     const runtime = await loadRuntime(modelPath);
     const engine = createEngine(runtime, () => {
       console.error("[ai] generation did not stop after its deadline: engine dropped");
       if (state.engine === engine) state.engine = undefined;
-      state.failure = { reason: STUCK_REASON, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
+      state.failure = { reason: STUCK_REASON, code: { code: "stuck" }, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
       void runtime.llama.dispose().catch(() => undefined);
     });
     state.engine = engine;
     state.failure = undefined;
     return { ok: true, engine };
   } catch (error) {
-    const reason = loadFailureReason(error);
-    state.failure = { reason, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
-    return { ok: false, reason };
+    const { reason, code } = loadFailure(error);
+    state.failure = { reason, code, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
+    return { ok: false, reason, failure: code };
   }
 }
 
@@ -239,7 +244,7 @@ async function load(state: EngineState, modelPath: string): Promise<EngineLoadRe
  * a failed load is reported for 60 s, then retried.
  */
 export function getLocalAiEngine(env: ServerEnv = getEnv()): Promise<EngineLoadResult> {
-  if (!env.LOCAL_AI_ENABLED) return Promise.resolve({ ok: false, reason: DISABLED_REASON });
+  if (!env.LOCAL_AI_ENABLED) return Promise.resolve({ ok: false, reason: DISABLED_REASON, failure: { code: "disabled" } });
 
   const modelPath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.LOCAL_AI_MODEL_PATH);
   const state = engineState();
@@ -247,7 +252,7 @@ export function getLocalAiEngine(env: ServerEnv = getEnv()): Promise<EngineLoadR
   if (state.engine) return Promise.resolve({ ok: true, engine: state.engine });
   if (state.loading) return state.loading;
   if (state.failure && Date.now() < state.failure.retryAt) {
-    return Promise.resolve({ ok: false, reason: state.failure.reason });
+    return Promise.resolve({ ok: false, reason: state.failure.reason, failure: state.failure.code });
   }
 
   const loading = load(state, modelPath).finally(() => {

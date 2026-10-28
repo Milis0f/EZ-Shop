@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectNumbers, extractNumbers, findUnsupportedNumbers } from "./number-guard";
+import { collectNumbers, collectNumbersFor, extractNumbers, findUnsupportedNumbers } from "./number-guard";
 
 const values = (text: string) => extractNumbers(text).map((t) => t.value);
 const NNBSP = " ";
@@ -137,5 +137,55 @@ describe("findUnsupportedNumbers and labels", () => {
     expect(findUnsupportedNumbers("12 % de croissance", allowed)).toEqual(["12"]);
     expect(findUnsupportedNumbers("90 % des ventes", allowed)).toEqual(["90"]);
     expect(findUnsupportedNumbers("9 sur 1000", allowed)).toEqual(["1000"]);
+  });
+});
+
+describe("number guard by locale", () => {
+  const valuesIn = (locale: "en" | "fr" | "es", text: string) => extractNumbers(text, locale).map((t) => t.value);
+
+  it.each(["en", "fr", "es"] as const)("reads the unambiguous forms the same way in %s", (locale) => {
+    expect(valuesIn(locale, "1,234.5 et 1 234,5 et 1.234,5 et 1 234.5")).toEqual(["1234.5", "1234.5", "1234.5", "1234.5"]);
+    expect(valuesIn(locale, "1,234,567 / 1.234.567 / 1 234 567")).toEqual(["1234567", "1234567", "1234567"]);
+    expect(valuesIn(locale, "12,2 % or 12.2%")).toEqual(["12.2", "12.2"]);
+  });
+
+  it("reads a lone separator before three digits as the locale writes thousands", () => {
+    expect(valuesIn("en", "1,234 and 1.234")).toEqual(["1234", "1.234"]);
+    expect(valuesIn("fr", "1,234 et 1.234")).toEqual(["1.234", "1.234"]);
+    expect(valuesIn("es", "1,234 y 12.345")).toEqual(["1.234", "12345"]);
+    // More than three digits before the separator is never a thousands group.
+    expect(valuesIn("en", "1234,567")).toEqual(["1234.567"]);
+  });
+
+  it("accepts a fact sheet value written in either decimal style, in every locale", () => {
+    const sheets = { en: "€1,234.5, -12.2%", fr: "1 234,5 €, -12,2 %", es: "1234,5 €, -12,2 %" } as const;
+    for (const locale of ["en", "fr", "es"] as const) {
+      const allowed = collectNumbersFor(locale, [sheets[locale]]);
+      expect(findUnsupportedNumbers("1,234.5 · 1 234,5 · 1.234,5 · −12.2 % · -12,2%", allowed, locale), locale).toEqual([]);
+      expect(findUnsupportedNumbers("+12.2%", allowed, locale), locale).toEqual(["+12.2"]);
+    }
+  });
+
+  it("never lets an English thousand pass for a French decimal, nor the reverse", () => {
+    const en = collectNumbersFor("en", ["2,500 listings"]);
+    expect(findUnsupportedNumbers("2,500 listings", en, "en")).toEqual([]);
+    expect(findUnsupportedNumbers("2.5 listings", en, "en")).toEqual(["2.5"]);
+
+    const fr = collectNumbersFor("fr", ["2,5 annonces"]);
+    expect(findUnsupportedNumbers("2.5 annonces", fr, "fr")).toEqual([]);
+    expect(findUnsupportedNumbers("2 500 annonces", fr, "fr")).toEqual(["2 500"]);
+
+    const es = collectNumbersFor("es", ["12.345 anuncios"]);
+    expect(findUnsupportedNumbers("12 345 anuncios", es, "es")).toEqual([]);
+    expect(findUnsupportedNumbers("12,345 anuncios", es, "es")).toEqual(["12,345"]);
+  });
+
+  it("ignores the fixed labels in English and Spanish too", () => {
+    const allowed = collectNumbersFor("en", ["9", "-24.2%"]);
+    expect(findUnsupportedNumbers("confidence of 9 out of 100, -24.2% over the last 12 months, an index from 0 to 100", allowed, "en")).toEqual([]);
+    expect(findUnsupportedNumbers("the next 12 months, P10 and P90", allowed, "en")).toEqual([]);
+    const es = collectNumbersFor("es", ["9", "-24,2 %"]);
+    expect(findUnsupportedNumbers("confianza de 9 sobre 100, -24,2 % en los últimos 12 meses, índice de 0 a 100", es, "es")).toEqual([]);
+    expect(findUnsupportedNumbers("un margen del 100 % en los próximos 24 meses", es, "es")).toEqual(["100", "24"]);
   });
 });

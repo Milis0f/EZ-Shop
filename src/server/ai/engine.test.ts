@@ -88,7 +88,7 @@ afterEach(() => {
 describe("getLocalAiEngine", () => {
   it("reports a disabled engine without importing node-llama-cpp", async () => {
     const result = await getLocalAiEngine(envWith({ LOCAL_AI_ENABLED: false }));
-    expect(result).toEqual({ ok: false, reason: "IA locale désactivée (LOCAL_AI_ENABLED=false)." });
+    expect(result).toEqual({ ok: false, reason: "IA locale désactivée (LOCAL_AI_ENABLED=false).", failure: { code: "disabled" } });
     expect(fake.getLlama).not.toHaveBeenCalled();
   });
 
@@ -98,6 +98,7 @@ describe("getLocalAiEngine", () => {
     expect(result).toEqual({
       ok: false,
       reason: "Modèle introuvable (absent.gguf). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.",
+      failure: { code: "model_missing", file: "absent.gguf" },
     });
     expect(result.ok ? "" : result.reason).not.toContain("private");
     expect(log).toHaveBeenCalledWith("[ai] model file not found", expect.stringContaining("private"));
@@ -139,6 +140,7 @@ describe("getLocalAiEngine", () => {
     expect(first).toEqual({
       ok: false,
       reason: "Le moteur d'IA locale n'a pas pu démarrer (InsufficientMemoryError). Nouvel essai possible dans une minute.",
+      failure: { code: "load_failed", error: "InsufficientMemoryError" },
     });
     expect(first.ok ? "" : first.reason).not.toMatch(/secret|VRAM|at native/);
 
@@ -155,7 +157,7 @@ describe("getLocalAiEngine", () => {
   it("frees the model when the context cannot be created", async () => {
     fake.model.createContext.mockRejectedValueOnce(new Error("no memory"));
     const result = await getLocalAiEngine(envWith({}));
-    expect(result).toEqual({ ok: false, reason: expect.stringContaining("(Error)") });
+    expect(result).toEqual({ ok: false, reason: expect.stringContaining("(Error)"), failure: { code: "load_failed", error: "Error" } });
     expect(fake.model.dispose).toHaveBeenCalledTimes(1);
     expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
   });
@@ -284,7 +286,7 @@ describe("LocalAiEngine.completeJson", () => {
     expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
 
     const after = await getLocalAiEngine(envWith({}));
-    expect(after).toEqual({ ok: false, reason: expect.stringContaining("ne s'est pas arrêté") });
+    expect(after).toEqual({ ok: false, reason: expect.stringContaining("ne s'est pas arrêté"), failure: { code: "stuck" } });
     log.mockRestore();
   });
 

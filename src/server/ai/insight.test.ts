@@ -23,7 +23,7 @@ function fakeEngine(answer: (request: AiJsonRequest) => Promise<unknown> | unkno
   const completeJson = vi.fn(async (request: AiJsonRequest) => answer(request));
   const engine: LocalAiEngine = { model: MODEL, completeJson };
   const loadEngine = vi.fn(async (): Promise<EngineLoadResult> => ({ ok: true, engine }));
-  const deps: InsightDeps = { loadEngine, now: () => TEST_NOW };
+  const deps: InsightDeps = { loadEngine, now: () => TEST_NOW, locale: "fr" };
   return { completeJson, loadEngine, deps };
 }
 
@@ -74,7 +74,7 @@ describe("getAnalysisInsight", () => {
   it("says plainly when the engine cannot run, and invents nothing", async () => {
     const loadEngine = vi.fn(async (): Promise<EngineLoadResult> => ({ ok: false, reason: "IA locale désactivée (LOCAL_AI_ENABLED=false)." }));
 
-    const result = await getAnalysisInsight(analysis, { loadEngine, now: () => TEST_NOW });
+    const result = await getAnalysisInsight(analysis, { loadEngine, now: () => TEST_NOW, locale: "fr" });
 
     expect(result).toEqual({ status: "unavailable", reason: "IA locale désactivée (LOCAL_AI_ENABLED=false)." });
   });
@@ -174,7 +174,7 @@ describe("getAnalysisInsight", () => {
     const admitGeneration = vi.fn(() => ({ allowed: false as const, retryAfterSeconds: 42 }));
     const off = vi.fn(async (): Promise<EngineLoadResult> => ({ ok: false, reason: "IA locale désactivée (LOCAL_AI_ENABLED=false)." }));
 
-    expect(await getAnalysisInsight(analysis, { loadEngine: off, now: () => TEST_NOW, admitGeneration })).toMatchObject({ status: "unavailable" });
+    expect(await getAnalysisInsight(analysis, { loadEngine: off, now: () => TEST_NOW, admitGeneration, locale: "fr" })).toMatchObject({ status: "unavailable" });
     expect(admitGeneration).not.toHaveBeenCalled();
 
     const { deps, completeJson } = fakeEngine(goodAnswer);
@@ -283,5 +283,60 @@ describe("getAnalysisInsight", () => {
 
     expect(result).toMatchObject({ status: "unavailable", reason: expect.stringContaining("trop longue pour l'IA locale (18 pays") });
     expect(loadEngine).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAnalysisInsight in the visitor's language", () => {
+  it("sends an English sheet and prompt, and checks numbers with English separators", async () => {
+    const { deps, completeJson } = fakeEngine(() => ({ ...goodAnswer(), summary: `Mock data only. Confidence for France is ${frConfidence} out of 100.` }));
+
+    const result = await getAnalysisInsight(analysis, { ...deps, locale: "en" });
+
+    expect(result).toMatchObject({ status: "ready" });
+    const request = completeJson.mock.calls[0][0];
+    expect(request.system).toContain("in plain English");
+    expect(request.user).toContain("Product: “Chaussettes chauffantes”");
+    expect(request.user).toContain("Analysed countries (2): France (FR), Germany (DE)");
+    expect(request.user).toContain("Write the reading of this analysis");
+  });
+
+  it("writes the Spanish sheet with Spanish country names", async () => {
+    const { deps, completeJson } = fakeEngine(goodAnswer);
+
+    await getAnalysisInsight(analysis, { ...deps, locale: "es" });
+
+    const request = completeJson.mock.calls[0][0];
+    expect(request.system).toContain("en un español sencillo");
+    expect(request.user).toContain("Países analizados (2): Francia (FR), Alemania (DE)");
+  });
+
+  it("caches one reading per language", async () => {
+    const { deps, completeJson } = fakeEngine(goodAnswer);
+
+    expect(await getAnalysisInsight(analysis, { ...deps, locale: "en" })).toMatchObject({ cached: false });
+    expect(await getAnalysisInsight(analysis, { ...deps, locale: "fr" })).toMatchObject({ cached: false });
+    expect(await getAnalysisInsight(analysis, { ...deps, locale: "en" })).toMatchObject({ cached: true });
+    expect(completeJson).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["en", "Local AI is turned off (LOCAL_AI_ENABLED=false)."],
+    ["fr", "IA locale désactivée (LOCAL_AI_ENABLED=false)."],
+    ["es", "IA local desactivada (LOCAL_AI_ENABLED=false)."],
+  ] as const)("translates the engine's failure code (%s)", async (locale, reason) => {
+    const loadEngine = vi.fn(async (): Promise<EngineLoadResult> => ({ ok: false, reason: "IA locale désactivée.", failure: { code: "disabled" } }));
+
+    expect(await getAnalysisInsight(analysis, { loadEngine, now: () => TEST_NOW, locale })).toEqual({ status: "unavailable", reason });
+  });
+
+  it("gives the rejection reason in English", async () => {
+    const { deps } = fakeEngine(() => ({ ...goodAnswer(), summary: "About 4,321.77 sales a month." }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    expect(await getAnalysisInsight(analysis, { ...deps, locale: "en" })).toEqual({
+      status: "rejected",
+      reason: "The AI cited a number that is not in the analysis data: reading discarded.",
+    });
+    warn.mockRestore();
   });
 });

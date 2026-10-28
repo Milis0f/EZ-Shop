@@ -26,9 +26,20 @@ export interface LocalAiEngine {
   completeJson(request: AiJsonRequest): Promise<unknown>;
 }
 
+/**
+ * Why the engine cannot run, as a code the caller translates into the visitor's language. The detail
+ * is safe to show: a file name, never a path; an error name, never a message.
+ */
+export type EngineFailure =
+  | { readonly code: "disabled" }
+  | { readonly code: "model_missing"; readonly file: string }
+  | { readonly code: "load_failed"; readonly error: string }
+  | { readonly code: "stuck" };
+
 export type EngineLoadResult =
   | { readonly ok: true; readonly engine: LocalAiEngine }
-  | { readonly ok: false; readonly reason: string };
+  /** `reason`: French sentence kept for the server log and as a fallback when `failure` is absent. */
+  | { readonly ok: false; readonly reason: string; readonly failure?: EngineFailure };
 
 /** The model stopped before closing its JSON (token limit reached): the answer is incomplete, not an engine failure. */
 export class AiAnswerIncompleteError extends Error {

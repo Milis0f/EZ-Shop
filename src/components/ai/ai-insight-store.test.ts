@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AI_INSIGHT_METHOD } from "@/domain/ai-insight";
 import { getInsightView, resetInsightStore, retryInsight, subscribeInsight } from "./ai-insight-store";
-import { groupCountryLines, lowerFirst } from "./ai-reading";
+import { countryName, groupCountryLines, lowerFirst } from "./ai-reading";
 
 const ID = "0f8e6a52-3c1d-4f5e-9a7b-2d4c6e8f0a1b";
 
@@ -41,14 +41,14 @@ describe("insight store", () => {
     const simple = vi.fn();
     const advanced = vi.fn();
 
-    subscribeInsight(ID, simple);
-    subscribeInsight(ID, advanced);
-    await vi.waitFor(() => expect(getInsightView(ID).kind).toBe("ready"));
+    subscribeInsight(ID, "en", simple);
+    subscribeInsight(ID, "en", advanced);
+    await vi.waitFor(() => expect(getInsightView(ID, "en").kind).toBe("ready"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(simple).toHaveBeenCalled();
     expect(advanced).toHaveBeenCalled();
-    const view = getInsightView(ID);
+    const view = getInsightView(ID, "en");
     expect(view.kind === "ready" && view.result.missingCountries).toEqual([]);
   });
 
@@ -56,13 +56,13 @@ describe("insight store", () => {
     fetchMock.mockRejectedValueOnce(new TypeError("offline")).mockImplementation(async () => okResponse());
     const simple = vi.fn();
     const advanced = vi.fn();
-    subscribeInsight(ID, simple);
-    subscribeInsight(ID, advanced);
-    await vi.waitFor(() => expect(getInsightView(ID)).toEqual({ kind: "error", message: "le serveur ne répond pas." }));
+    subscribeInsight(ID, "en", simple);
+    subscribeInsight(ID, "en", advanced);
+    await vi.waitFor(() => expect(getInsightView(ID, "en")).toEqual({ kind: "error", error: { code: "network" } }));
 
-    retryInsight(ID);
-    expect(getInsightView(ID).kind).toBe("thinking");
-    await vi.waitFor(() => expect(getInsightView(ID).kind).toBe("ready"));
+    retryInsight(ID, "en");
+    expect(getInsightView(ID, "en").kind).toBe("thinking");
+    await vi.waitFor(() => expect(getInsightView(ID, "en").kind).toBe("ready"));
 
     // One store entry: whichever view is shown, it reads the same ready state.
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -76,22 +76,44 @@ describe("insight store", () => {
       return new Promise<Response>(() => undefined);
     });
 
-    const unsubscribe = subscribeInsight(ID, () => undefined);
+    const unsubscribe = subscribeInsight(ID, "en", () => undefined);
     unsubscribe();
     await flush();
 
     expect(seen?.aborted).toBe(true);
-    expect(getInsightView(ID).kind).toBe("thinking");
-    subscribeInsight(ID, () => undefined);
+    expect(getInsightView(ID, "en").kind).toBe("thinking");
+    subscribeInsight(ID, "en", () => undefined);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("shows the server's message for an HTTP error", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: false, data: null, error: { message: "Trop de demandes à l'IA, réessaie plus tard." } }), { status: 429 }));
 
-    subscribeInsight(ID, () => undefined);
+    subscribeInsight(ID, "en", () => undefined);
 
-    await vi.waitFor(() => expect(getInsightView(ID)).toEqual({ kind: "error", message: "Trop de demandes à l'IA, réessaie plus tard." }));
+    await vi.waitFor(() => expect(getInsightView(ID, "en")).toEqual({ kind: "error", error: { code: "server", message: "Trop de demandes à l'IA, réessaie plus tard." } }));
+  });
+});
+
+describe("insight store by language", () => {
+  it("asks again after a language switch, and keeps each language's reading apart", async () => {
+    fetchMock.mockImplementation(async () => okResponse());
+
+    subscribeInsight(ID, "en", () => undefined);
+    await vi.waitFor(() => expect(getInsightView(ID, "en").kind).toBe("ready"));
+    subscribeInsight(ID, "fr", () => undefined);
+
+    expect(getInsightView(ID, "fr").kind).toBe("thinking");
+    await vi.waitFor(() => expect(getInsightView(ID, "fr").kind).toBe("ready"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an HTTP error without a message by its status", async () => {
+    fetchMock.mockResolvedValue(new Response("oops", { status: 502 }));
+
+    subscribeInsight(ID, "es", () => undefined);
+
+    await vi.waitFor(() => expect(getInsightView(ID, "es")).toEqual({ kind: "error", error: { code: "http", status: 502 } }));
   });
 });
 
@@ -114,5 +136,12 @@ describe("reading helpers", () => {
     expect(lowerFirst("C'est un accessoire.")).toBe("c'est un accessoire.");
     expect(lowerFirst("LED de bureau.")).toBe("LED de bureau.");
     expect(lowerFirst("")).toBe("");
+  });
+
+  it("names countries in the interface language", () => {
+    expect(countryName("DE", "fr")).toBe("Allemagne");
+    expect(countryName("DE", "en")).toBe("Germany");
+    expect(countryName("DE", "es")).toBe("Alemania");
+    expect(countryName("GB", "es")).toBe("Reino Unido");
   });
 });
