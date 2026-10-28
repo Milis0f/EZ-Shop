@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import type { CountryAnalysis } from "@/domain/analysis";
-import { COUNTRIES } from "@/domain/country";
 import { isKnown } from "@/domain/datum";
+import { advancedMessages } from "@/components/data/labels";
+import { countryName } from "@/engine/report/localize";
 import { verdictFor } from "@/engine/report/verdict";
+import type { Locale } from "@/i18n/config";
+import { formatInt } from "@/i18n/format";
+import { plural } from "@/i18n/translate";
 import { VerdictChip } from "./verdict-chip";
 import { sortByScore } from "./country-ranking";
 
@@ -21,7 +25,8 @@ function Tile({ label, children, note, stagger }: { label: string; children: Rea
  * The analysis in four figures, all derived from the stored result (nothing estimated here):
  * countries compared, best opportunity, average confidence of scored countries, missing sources.
  */
-export function AnalysisSummary({ countries }: { countries: readonly CountryAnalysis[] }) {
+export function AnalysisSummary({ countries, locale }: { countries: readonly CountryAnalysis[]; locale: Locale }) {
+  const m = advancedMessages(locale).summary;
   const scored = countries.filter((c) => isKnown(c.scoring.score));
   const [best] = sortByScore(scored);
   const avgConfidence = scored.length > 0 ? scored.reduce((s, c) => s + c.scoring.confidence.score, 0) / scored.length : null;
@@ -29,17 +34,17 @@ export function AnalysisSummary({ countries }: { countries: readonly CountryAnal
 
   return (
     <dl className="panel grid grid-cols-2 overflow-hidden lg:grid-cols-4 [&>div]:border-line max-lg:[&>div:nth-child(-n+2)]:border-b max-lg:[&>div:nth-child(odd)]:border-r lg:divide-x lg:divide-line">
-      <Tile label="Pays comparés" stagger={1} note={`${scored.length} avec un score`}>
+      <Tile label={m.compared} stagger={1} note={plural(locale, scored.length, m.withScore, { count: formatInt(scored.length, locale) })}>
         <AnimatedNumber value={countries.length} format="int" />
       </Tile>
       <Tile
-        label="Meilleure opportunité"
+        label={m.best}
         stagger={2}
-        note={best ? <VerdictChip verdict={verdictFor(best)} /> : "Aucun pays n'a de score"}
+        note={best ? <VerdictChip verdict={verdictFor(best)} /> : m.noScore}
       >
         {best && isKnown(best.scoring.score) ? (
           <span className="flex items-baseline gap-2">
-            <span className="truncate">{COUNTRIES[best.country].nameFr}</span>
+            <span className="truncate">{countryName(best.country, locale)}</span>
             <span className="text-base font-medium text-muted-foreground">
               <AnimatedNumber value={Math.round(best.scoring.score.value.total)} format="int" />
               /100
@@ -49,17 +54,17 @@ export function AnalysisSummary({ countries }: { countries: readonly CountryAnal
           <span className="text-muted-foreground">—</span>
         )}
       </Tile>
-      <Tile label="Confiance moyenne" stagger={3} note="Moyenne des pays notés">
+      <Tile label={m.avgConfidence} stagger={3} note={m.avgNote}>
         {avgConfidence === null ? (
           <span className="text-muted-foreground">—</span>
         ) : (
           <span>
             <AnimatedNumber value={Math.round(avgConfidence)} format="int" />
-            <span className="text-base text-muted-foreground">&nbsp;%</span>
+            <span className="text-base text-muted-foreground">{locale === "en" ? "%" : " %"}</span>
           </span>
         )}
       </Tile>
-      <Tile label="Données manquantes" stagger={4} note={gaps.size === 0 ? "Toutes les sources ont répondu" : "Détail dans les limites ci-dessous"}>
+      <Tile label={m.missing} stagger={4} note={gaps.size === 0 ? m.allResponded : m.detailBelow}>
         <AnimatedNumber value={gaps.size} format="int" />
       </Tile>
     </dl>

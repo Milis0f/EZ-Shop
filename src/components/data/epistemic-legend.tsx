@@ -1,10 +1,14 @@
-import { KIND_HINTS, KIND_LABELS } from "@/lib/format";
+"use client";
+
+import { useLocale } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 import { KindMarker, type MarkerKind } from "./kind-marker";
+import { advancedMessages } from "./labels";
 
 const ORDER: readonly MarkerKind[] = ["observed", "derived", "estimate", "assumption", "insufficient", "mock"];
 
 export function EpistemicLegend({ className, compact = false }: { className?: string; compact?: boolean }) {
+  const m = advancedMessages(useLocale()).data;
   return (
     <dl className={cn("grid text-xs", compact ? "gap-2.5" : "gap-4", className)}>
       {ORDER.map((kind) => (
@@ -20,8 +24,8 @@ export function EpistemicLegend({ className, compact = false }: { className?: st
             <KindMarker kind={kind} />
           </dt>
           <dd>
-            <span className="text-foreground">{KIND_LABELS[kind]}</span>
-            {!compact && <span className="block text-muted-foreground">{KIND_HINTS[kind]}</span>}
+            <span className="text-foreground">{m.kinds[kind]}</span>
+            {!compact && <span className="block text-muted-foreground">{m.kindHints[kind]}</span>}
           </dd>
         </div>
       ))}

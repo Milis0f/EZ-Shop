@@ -4,20 +4,14 @@ import { IntervalBar, IntervalValue } from "@/components/data/interval-value";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CountryAnalysis, UnitEconomics } from "@/domain/analysis";
 import { isKnown } from "@/domain/datum";
-import { MONTH_LABELS_FR } from "@/domain/time";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { cn } from "@/lib/utils";
-import {
-  COMPETITION_LABELS,
-  formatCompact,
-  formatDecimal,
-  formatInt,
-  formatMoney,
-  formatPct,
-  OUTLOOK_LABELS,
-  PLATFORM_LABELS,
-  TREND_LABELS,
-} from "@/lib/format";
+import { advancedMessages, byId } from "@/components/data/labels";
+import { monthLabel } from "@/engine/report/localize";
+import type { Locale } from "@/i18n/config";
+import { formatCompact, formatDecimal, formatInt, formatMoney, formatPct } from "@/i18n/format";
+import { t } from "@/i18n/translate";
+import { PLATFORM_LABELS } from "@/lib/format";
 
 export function Stat({ label, children, hint, className }: { label: string; children: ReactNode; hint?: string; className?: string }) {
   return (
@@ -33,38 +27,40 @@ export function Stat({ label, children, hint, className }: { label: string; chil
 export const KPI_GRID =
   "panel grid min-w-0 grid-cols-2 gap-px overflow-hidden bg-line [&>div]:bg-surface [&>div]:px-4 [&>div]:py-5 sm:[&>div]:px-[22px]";
 
-export function KeyFigures({ c }: { c: CountryAnalysis }) {
+export function KeyFigures({ c, locale }: { c: CountryAnalysis; locale: Locale }) {
   const { demand } = c;
+  const all = advancedMessages(locale);
+  const m = all.panels;
   return (
     <dl className={cn(KPI_GRID, "sm:grid-cols-3 lg:grid-cols-6")}>
-      <Stat label="Recherches par mois">
+      <Stat label={m.searches}>
         <DatumValue datum={demand.avgMonthlySearches} format={(v) => <AnimatedNumber value={v} format="int" />} />
       </Stat>
-      <Stat label="Tendance historique" hint={isKnown(demand.trend) ? TREND_LABELS[demand.trend.value.direction] : undefined}>
+      <Stat label={m.trend} hint={isKnown(demand.trend) ? all.labels.trend[demand.trend.value.direction] : undefined}>
         <DatumValue
           datum={demand.trend}
           format={(t) => (
             <>
               <AnimatedNumber value={t.annualGrowthPct} format="percentSigned" />
-              /an
+              {m.perYear}
             </>
           )}
         />
       </Stat>
-      <Stat label="Demande à 12 mois">
+      <Stat label={m.demand12}>
         <DatumValue datum={demand.futureGrowthPct} format={(v) => <AnimatedNumber value={v} format="percentSigned" />} />
       </Stat>
-      <Stat label="Mois de pic">
+      <Stat label={m.peakMonths}>
         <DatumValue
           datum={demand.seasonality}
-          format={(s) => (s.isSeasonal ? s.peakMonths.map((m) => MONTH_LABELS_FR[m - 1]).join(", ") : "Pas de pic marqué")}
+          format={(s) => (s.isSeasonal ? s.peakMonths.map((p) => monthLabel(p, locale)).join(", ") : m.noPeak)}
         />
       </Stat>
-      <Stat label="Concurrence actuelle">
-        <DatumValue datum={c.competition.current} format={(v) => `${COMPETITION_LABELS[v.level]}, ${Math.round(v.index)}/100`} />
+      <Stat label={m.competitionNow}>
+        <DatumValue datum={c.competition.current} format={(v) => `${all.labels.competition[v.level]}, ${Math.round(v.index)}/100`} />
       </Stat>
-      <Stat label="Concurrence à 3–6 mois">
-        <DatumValue datum={c.competition.future} format={(v) => OUTLOOK_LABELS[v.outlook]} />
+      <Stat label={m.competitionSoon}>
+        <DatumValue datum={c.competition.future} format={(v) => all.labels.outlook[v.outlook]} />
       </Stat>
     </dl>
   );
@@ -72,35 +68,38 @@ export function KeyFigures({ c }: { c: CountryAnalysis }) {
 
 const BIG = "text-2xl font-semibold tracking-tight";
 
-export function SalesPanel({ c, economics }: { c: CountryAnalysis; economics: UnitEconomics }) {
+export function SalesPanel({ c, economics, locale }: { c: CountryAnalysis; economics: UnitEconomics; locale: Locale }) {
+  const m = advancedMessages(locale).panels;
+  const compact = (v: number) => formatCompact(v, locale);
   const { sales } = c;
   const max = isKnown(sales.annualOrders) ? sales.annualOrders.value.p90 : 0;
   return (
     <dl className={cn(KPI_GRID, "grid-cols-1 sm:grid-cols-3 [&>div]:py-6")}>
-      <Stat label="Commandes par mois" hint="Moyenne sur les 12 prochains mois">
+      <Stat label={m.monthlyOrders} hint={m.monthlyOrdersHint}>
         <DatumValue
           datum={sales.monthlyOrders}
-          format={(i) => <IntervalValue interval={i} format={formatCompact} countUp={{ format: "compact" }} valueClassName={BIG} />}
+          format={(i) => <IntervalValue interval={i} format={compact} locale={locale} countUp={{ format: "compact" }} valueClassName={BIG} />}
         />
       </Stat>
-      <Stat label="Commandes sur 12 mois">
+      <Stat label={m.annualOrders}>
         <DatumValue
           datum={sales.annualOrders}
           format={(i) => (
             <span className="flex flex-col gap-2.5">
-              <IntervalValue interval={i} format={formatCompact} countUp={{ format: "compact" }} valueClassName={BIG} />
+              <IntervalValue interval={i} format={compact} locale={locale} countUp={{ format: "compact" }} valueClassName={BIG} />
               <IntervalBar interval={i} max={max} className="w-full max-w-40" />
             </span>
           )}
         />
       </Stat>
-      <Stat label="Chiffre d'affaires HT sur 12 mois">
+      <Stat label={m.annualRevenue}>
         <DatumValue
           datum={sales.annualRevenue}
           format={(i) => (
             <IntervalValue
               interval={i}
-              format={(v) => formatMoney(v, economics.currency)}
+              format={(v) => formatMoney(v, locale, economics.currency)}
+              locale={locale}
               countUp={{ format: "money", currency: economics.currency }}
               valueClassName={BIG}
             />
@@ -111,17 +110,19 @@ export function SalesPanel({ c, economics }: { c: CountryAnalysis; economics: Un
   );
 }
 
-export function AdCostsTable({ c }: { c: CountryAnalysis }) {
-  const money = (i: Parameters<typeof IntervalValue>[0]["interval"]) => <IntervalValue interval={i} format={(v) => formatMoney(v)} className="items-end" />;
+export function AdCostsTable({ c, locale }: { c: CountryAnalysis; locale: Locale }) {
+  const m = advancedMessages(locale).panels;
+  const toMoney = (v: number) => formatMoney(v, locale);
+  const money = (i: Parameters<typeof IntervalValue>[0]["interval"]) => <IntervalValue interval={i} format={toMoney} locale={locale} className="items-end" />;
   return (
     <div className="panel min-w-0 overflow-hidden p-1.5">
       <Table className="min-w-[34rem] [&_td]:py-4 [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th]:h-12 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
         <TableHeader>
           <TableRow className="border-line hover:bg-transparent">
-            <TableHead>Plateforme</TableHead>
-            <TableHead className="text-right">CPC</TableHead>
-            <TableHead className="text-right">CPA</TableHead>
-            <TableHead className="text-right">Budget de test</TableHead>
+            <TableHead>{m.platform}</TableHead>
+            <TableHead className="text-right">{m.cpc}</TableHead>
+            <TableHead className="text-right">{m.cpa}</TableHead>
+            <TableHead className="text-right">{m.testBudget}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -138,7 +139,7 @@ export function AdCostsTable({ c }: { c: CountryAnalysis }) {
                 <DatumValue
                   datum={ch.testBudget}
                   format={(i) => (
-                    <IntervalValue interval={i} format={(v) => formatMoney(v)} countUp={{ format: "money" }} className="items-end" valueClassName="font-medium" />
+                    <IntervalValue interval={i} format={toMoney} locale={locale} countUp={{ format: "money" }} className="items-end" valueClassName="font-medium" />
                   )}
                 />
               </TableCell>
@@ -150,38 +151,46 @@ export function AdCostsTable({ c }: { c: CountryAnalysis }) {
   );
 }
 
-export function CompetitionPanel({ c }: { c: CountryAnalysis }) {
+export function CompetitionPanel({ c, locale }: { c: CountryAnalysis; locale: Locale }) {
   const { competition } = c;
+  const all = advancedMessages(locale);
+  const m = all.panels;
   const activity = (label: string, d: CountryAnalysis["competition"]["meta"]) => (
     <Stat label={label}>
-      <DatumValue datum={d} format={(a) => `${formatInt(a.activeAds)} annonces actives, ${formatInt(a.uniqueAdvertisers)} annonceurs`} />
+      <DatumValue datum={d} format={(a) => t(m.activity, { ads: formatInt(a.activeAds, locale), advertisers: formatInt(a.uniqueAdvertisers, locale) })} />
     </Stat>
   );
   return (
     <div className="panel grid min-w-0 gap-8 p-5 sm:p-[26px] min-[900px]:grid-cols-2 min-[900px]:gap-12">
       <dl className="grid gap-7">
-        <Stat label="Indice de concurrence Google Ads">
-          <DatumValue datum={competition.googleCompetitionIndex} format={(v) => `${formatDecimal(v)}/100`} />
+        <Stat label={m.googleIndex}>
+          <DatumValue datum={competition.googleCompetitionIndex} format={(v) => `${formatDecimal(v, locale)}/100`} />
         </Stat>
         {activity("Meta Ad Library", competition.meta)}
         {activity("TikTok Commercial Content", competition.tiktok)}
       </dl>
       <dl className="grid content-start gap-7">
-        <Stat label="Indice combiné" hint="Pondéré sur les sources disponibles">
+        <Stat label={m.combined} hint={m.combinedHint}>
           <DatumValue
             datum={competition.current}
             format={(v) => (
               <span>
-                {COMPETITION_LABELS[v.level]} ({formatDecimal(v.index)}/100)
-                <span className="block text-xs text-muted-foreground">{v.components.map((x) => x.label).join(", ")}</span>
+                {all.labels.competition[v.level]} ({formatDecimal(v.index, locale)}/100)
+                <span className="block text-xs text-muted-foreground">{v.components.map((x) => byId(all.breakdown.components, x.id, x.label)).join(", ")}</span>
               </span>
             )}
           />
         </Stat>
-        <Stat label="Pression concurrentielle à 3–6 mois" hint="Projection des nouvelles annonces visibles, pas du nombre réel de concurrents">
+        <Stat label={m.pressure} hint={m.pressureHint}>
           <DatumValue
             datum={competition.future}
-            format={(v) => `${OUTLOOK_LABELS[v.outlook]}, ${formatPct(v.monthlyGrowthPct, true)} par mois sur ${v.weeksUsed} semaines`}
+            format={(v) =>
+              t(m.pressureValue, {
+                outlook: all.labels.outlook[v.outlook],
+                growth: formatPct(v.monthlyGrowthPct, locale, { signed: true }),
+                weeks: formatInt(v.weeksUsed, locale),
+              })
+            }
           />
         </Stat>
       </dl>
@@ -189,24 +198,26 @@ export function CompetitionPanel({ c }: { c: CountryAnalysis }) {
   );
 }
 
-export function MarketPanel({ c }: { c: CountryAnalysis }) {
+export function MarketPanel({ c, locale }: { c: CountryAnalysis; locale: Locale }) {
   const { market } = c;
+  const m = advancedMessages(locale).panels;
+  const pct = (v: number) => formatPct(v, locale);
   return (
     <dl className={cn(KPI_GRID, "sm:grid-cols-3 lg:grid-cols-5")}>
-      <Stat label="Population">
-        <DatumValue datum={market.population} format={formatCompact} />
+      <Stat label={m.population}>
+        <DatumValue datum={market.population} format={(v) => formatCompact(v, locale)} />
       </Stat>
-      <Stat label="PIB par habitant (PPA, $ int.)">
-        <DatumValue datum={market.gdpPerCapitaPpp} format={formatInt} />
+      <Stat label={m.gdp}>
+        <DatumValue datum={market.gdpPerCapitaPpp} format={(v) => formatInt(v, locale)} />
       </Stat>
-      <Stat label="Internautes">
-        <DatumValue datum={market.internetUsersPct} format={(v) => formatPct(v)} />
+      <Stat label={m.internet}>
+        <DatumValue datum={market.internetUsersPct} format={pct} />
       </Stat>
-      <Stat label="Acheteurs en ligne (12 mois)">
-        <DatumValue datum={market.onlineBuyersPct} format={(v) => formatPct(v)} />
+      <Stat label={m.onlineBuyers}>
+        <DatumValue datum={market.onlineBuyersPct} format={pct} />
       </Stat>
-      <Stat label="Confiance des consommateurs" hint="Moyenne long terme = 100">
-        <DatumValue datum={market.consumerConfidence} format={formatDecimal} />
+      <Stat label={m.consumerConfidence} hint={m.consumerConfidenceHint}>
+        <DatumValue datum={market.consumerConfidence} format={(v) => formatDecimal(v, locale)} />
       </Stat>
     </dl>
   );

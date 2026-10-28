@@ -6,6 +6,12 @@ import { CartesianGrid, Cell, LabelList, ReferenceArea, ReferenceLine, Scatter, 
 import { motionDuration } from "@/components/motion/motion-tokens";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { advancedMessages } from "@/components/data/labels";
+import { verdictWord } from "@/engine/report/localize";
+import type { VerdictValue } from "@/engine/report/verdict";
+import { useFormat } from "@/i18n/client";
+import { t } from "@/i18n/translate";
+import { VERDICT_COLOR } from "./verdict-orb";
 
 export interface MapPoint {
   readonly code: string;
@@ -13,10 +19,8 @@ export interface MapPoint {
   readonly score: number;
   readonly confidence: number;
   readonly mock: boolean;
-  /** Verdict word of the country (OUI, À SURVEILLER, NON). */
-  readonly verdict: string;
-  /** Verdict hue, the only colour of the interface. */
-  readonly color: string;
+  /** Verdict of the country; its word and hue (the only colour of the interface) are resolved here. */
+  readonly verdict: VerdictValue;
 }
 
 interface OpportunityMapProps {
@@ -25,7 +29,6 @@ interface OpportunityMapProps {
   readonly thresholds: { readonly prioritizeScore: number; readonly prioritizeConfidence: number; readonly testScore: number; readonly minConfidence: number };
 }
 
-const config = { score: { label: "Score", color: "var(--foreground)" } } satisfies ChartConfig;
 
 /** Neighbouring points closer than this (axis units) are labelled together; positions are never moved. */
 const MERGE = { confidence: 5, score: 4 } as const;
@@ -63,17 +66,20 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
   const reducedMotion = useReducedMotion();
   // The points draw in once, on the slow motion token (read from the stylesheet).
   const drawMs = useMemo(() => motionDuration("slow"), []);
-  const t = thresholds;
+  const f = useFormat();
+  const m = advancedMessages(f.locale).map;
+  const config = useMemo(() => ({ score: { label: m.score, color: "var(--foreground)" } }) satisfies ChartConfig, [m.score]);
+  const z = thresholds;
   const data = withClusterLabels(points);
 
   return (
     <ChartContainer config={config} className="aspect-auto h-[22rem] w-full">
       <ScatterChart margin={{ top: 16, right: 24, bottom: 28, left: 4 }}>
-        <ReferenceArea x1={0} x2={t.minConfidence} y1={0} y2={100} fill="var(--muted-foreground)" fillOpacity={0.06} />
-        <ReferenceArea x1={t.prioritizeConfidence} x2={100} y1={t.prioritizeScore} y2={100} fill="var(--foreground)" fillOpacity={0.05} />
+        <ReferenceArea x1={0} x2={z.minConfidence} y1={0} y2={100} fill="var(--muted-foreground)" fillOpacity={0.06} />
+        <ReferenceArea x1={z.prioritizeConfidence} x2={100} y1={z.prioritizeScore} y2={100} fill="var(--foreground)" fillOpacity={0.05} />
         <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" />
-        <ReferenceLine x={t.minConfidence} stroke="var(--line)" />
-        <ReferenceLine y={t.testScore} stroke="var(--line)" />
+        <ReferenceLine x={z.minConfidence} stroke="var(--line)" />
+        <ReferenceLine y={z.testScore} stroke="var(--line)" />
         <XAxis
           type="number"
           dataKey="confidence"
@@ -81,7 +87,7 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           ticks={[0, 20, 40, 60, 80, 100]}
           tickLine={false}
           axisLine={false}
-          label={{ value: "Confiance (%)", position: "insideBottom", offset: -16, fill: "var(--muted-foreground)", fontSize: 12 }}
+          label={{ value: m.confidenceAxis, position: "insideBottom", offset: -16, fill: "var(--muted-foreground)", fontSize: 12 }}
         />
         <YAxis
           type="number"
@@ -91,7 +97,7 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           tickLine={false}
           axisLine={false}
           width={52}
-          label={{ value: "Score", angle: -90, position: "insideLeft", offset: 0, fill: "var(--muted-foreground)", fontSize: 12 }}
+          label={{ value: m.score, angle: -90, position: "insideLeft", offset: 0, fill: "var(--muted-foreground)", fontSize: 12 }}
         />
         <Tooltip
           cursor={false}
@@ -102,12 +108,12 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
               <div className="rounded-menu border border-line bg-popover px-3.5 py-2.5 text-xs">
                 <p className="font-medium">
                   {p.name}{" "}
-                  <span className="font-semibold" style={{ color: p.color }}>
-                    {p.verdict}
+                  <span className="font-semibold" style={{ color: VERDICT_COLOR[p.verdict] }}>
+                    {verdictWord(p.verdict, f.locale)}
                   </span>
                 </p>
-                <p className="tabular mt-0.5 text-muted-foreground">Score {Math.round(p.score)}/100, confiance {p.confidence} %</p>
-                {p.mock && <p className="text-kind-mock">Valeurs fictives (mock)</p>}
+                <p className="tabular mt-0.5 text-muted-foreground">{t(m.tooltip, { score: f.int(p.score), confidence: f.pct(p.confidence) })}</p>
+                {p.mock && <p className="text-kind-mock">{m.mock}</p>}
               </div>
             );
           }}
@@ -125,7 +131,7 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           }}
         >
           {data.map((p) => (
-            <Cell key={p.code} fill={p.color} />
+            <Cell key={p.code} fill={VERDICT_COLOR[p.verdict]} />
           ))}
           <LabelList
             dataKey="label"
@@ -149,10 +155,10 @@ export function OpportunityMap({ analysisId, points, thresholds }: OpportunityMa
           />
         </Scatter>
         <text x="96%" y={22} textAnchor="end" fill="var(--foreground)" fontSize={11} fontWeight={600}>
-          Prioriser
+          {m.prioritize}
         </text>
         <text x={56} y={22} fill="var(--muted-foreground)" fontSize={11}>
-          Exploratoire
+          {m.exploratory}
         </text>
       </ScatterChart>
     </ChartContainer>

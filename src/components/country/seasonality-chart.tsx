@@ -4,12 +4,15 @@ import { useMemo } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import { motionDuration } from "@/components/motion/motion-tokens";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
+import { advancedMessages, monthLong } from "@/components/data/labels";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { useFormat } from "@/i18n/client";
+import { INTL_LOCALES } from "@/i18n/config";
+import { t } from "@/i18n/translate";
 
-const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
-const MONTH_NAMES = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-
-const config = { index: { label: "Indice saisonnier", color: "var(--muted-foreground)" } } satisfies ChartConfig;
+/** One-letter month initials on the axis, from the locale's narrow month names. */
+const narrowMonth = (month: number, intlLocale: string) =>
+  new Intl.DateTimeFormat(intlLocale, { month: "narrow", timeZone: "UTC" }).format(new Date(Date.UTC(2024, month - 1, 15))).toLocaleUpperCase(intlLocale);
 
 interface SeasonalityChartProps {
   readonly monthlyIndex: readonly number[];
@@ -20,7 +23,16 @@ interface SeasonalityChartProps {
 export function SeasonalityChart({ monthlyIndex, peakMonths }: SeasonalityChartProps) {
   const reducedMotion = useReducedMotion();
   const riseMs = useMemo(() => motionDuration("slow"), []);
-  const data = monthlyIndex.map((value, i) => ({ month: MONTHS[i], name: MONTH_NAMES[i], value, peak: peakMonths.includes(i + 1) }));
+  const f = useFormat();
+  const m = advancedMessages(f.locale).seasonality;
+  const config = useMemo(() => ({ index: { label: m.index, color: "var(--muted-foreground)" } }) satisfies ChartConfig, [m.index]);
+  const intlLocale = INTL_LOCALES[f.locale];
+  const data = monthlyIndex.map((value, i) => ({
+    month: narrowMonth(i + 1, intlLocale),
+    name: monthLong(i + 1, f.locale),
+    value,
+    peak: peakMonths.includes(i + 1),
+  }));
   return (
     <ChartContainer config={config} className="aspect-auto h-56 w-full">
       <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
@@ -36,7 +48,7 @@ export function SeasonalityChart({ monthlyIndex, peakMonths }: SeasonalityChartP
             return (
               <div className="rounded-menu border border-line bg-popover px-3.5 py-2.5 text-xs">
                 <p className="font-medium capitalize">{p.name}</p>
-                <p>{pct >= 0 ? `+${pct}` : pct} % par rapport au mois moyen</p>
+                <p>{t(m.vsAverage, { pct: pct === 0 ? f.pct(0) : f.pct(pct, { signed: true }) })}</p>
               </div>
             );
           }}

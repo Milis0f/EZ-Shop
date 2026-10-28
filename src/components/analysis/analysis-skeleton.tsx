@@ -1,9 +1,11 @@
+import { advancedMessages } from "@/components/data/labels";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Locale } from "@/i18n/config";
 
 /** Same silhouette as the analysis page, so nothing jumps when the data streams in. */
-export function AnalysisSkeleton() {
+export function AnalysisSkeleton({ locale }: { locale: Locale }) {
   return (
-    <div role="status" aria-label="Chargement de l'analyse">
+    <div role="status" aria-label={advancedMessages(locale).page.loading}>
       <Skeleton className="h-9 w-80" />
       <Skeleton className="mt-4 h-4 w-[30rem] max-w-full" />
       <Skeleton className="mt-2 h-4 w-72" />

@@ -2,6 +2,8 @@
 
 import { CircleCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { advancedMessages } from "@/components/data/labels";
+import { useLocale } from "@/i18n/client";
 
 /**
  * Shown once right after an analysis is created (?created=1). The flag is removed from the URL
@@ -9,6 +11,7 @@ import { useEffect, useState } from "react";
  */
 export function SuccessNotice({ message }: { message: string }) {
   const [visible, setVisible] = useState(true);
+  const m = advancedMessages(useLocale()).notice;
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -26,7 +29,7 @@ export function SuccessNotice({ message }: { message: string }) {
       <button
         type="button"
         onClick={() => setVisible(false)}
-        aria-label="Masquer"
+        aria-label={m.dismiss}
         className="interactive grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:bg-surface-2 hover:text-foreground"
       >
         <X className="size-4" aria-hidden />

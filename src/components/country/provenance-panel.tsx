@@ -3,24 +3,16 @@ import { Disclosure } from "@/components/motion/disclosure";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CollectionIssue, CountryAnalysis } from "@/domain/analysis";
 import { collectSources } from "@/lib/collect-sources";
-import { formatDate, SOURCE_LABELS } from "@/lib/format";
-
-const ISSUE_LABELS: Record<string, string> = {
-  not_configured: "Non configuré",
-  not_implemented: "À implémenter",
-  unsupported_country: "Pays non couvert",
-  no_data: "Pas de donnée",
-  unauthorized: "Accès refusé",
-  rate_limited: "Quota atteint",
-  timeout: "Délai dépassé",
-  upstream_error: "Erreur de la source",
-  invalid_response: "Réponse inattendue",
-};
-
-const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+import { advancedMessages, byId } from "@/components/data/labels";
+import { sourceName } from "@/engine/report/localize";
+import type { Locale } from "@/i18n/config";
+import { formatDate, formatInt } from "@/i18n/format";
+import { plural, t } from "@/i18n/translate";
+import { engineText } from "@/components/data/engine-text";
 
 /** Collapsed by default: a one-line count of sources and incidents, the full table on demand. */
-export function ProvenancePanel({ c }: { c: CountryAnalysis }) {
+export function ProvenancePanel({ c, locale }: { c: CountryAnalysis; locale: Locale }) {
+  const m = advancedMessages(locale).provenance;
   const sources = collectSources(c);
   const issues = dedupeIssues(c.issues);
   return (
@@ -29,9 +21,9 @@ export function ProvenancePanel({ c }: { c: CountryAnalysis }) {
         summaryClassName="rounded-[calc(var(--radius-panel)-8px)] px-4 py-4 sm:px-[18px]"
         summary={
           <span className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-            <span className="font-medium">{plural(sources.length, "source")}</span>
+            <span className="font-medium">{plural(locale, sources.length, m.sources, { count: formatInt(sources.length, locale) })}</span>
             <span className="text-muted-foreground">
-              {issues.length === 0 ? "aucun incident de collecte" : `${plural(issues.length, "incident")} de collecte`}
+              {plural(locale, issues.length, m.incidents, { count: formatInt(issues.length, locale) })}
             </span>
           </span>
         }
@@ -39,27 +31,28 @@ export function ProvenancePanel({ c }: { c: CountryAnalysis }) {
         <div className="grid gap-2 px-0 pt-1 min-[900px]:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 overflow-x-auto rounded-tile bg-surface-2/40 px-2">
             {sources.length === 0 ? (
-              <p className="px-2 py-4 text-sm text-muted-foreground">Aucune donnée collectée pour ce pays.</p>
+              <p className="px-2 py-4 text-sm text-muted-foreground">{m.noData}</p>
             ) : (
-              <SourcesTable sources={sources} />
+              <SourcesTable sources={sources} locale={locale} />
             )}
           </div>
-          <IssuesList issues={issues} />
+          <IssuesList issues={issues} locale={locale} />
         </div>
       </Disclosure>
     </div>
   );
 }
 
-function SourcesTable({ sources }: { sources: ReturnType<typeof collectSources> }) {
+function SourcesTable({ sources, locale }: { sources: ReturnType<typeof collectSources>; locale: Locale }) {
+  const m = advancedMessages(locale).provenance;
   return (
     <Table className="min-w-[36rem] [&_td]:py-3.5 [&_th]:h-12">
       <TableHeader>
         <TableRow className="border-line hover:bg-transparent">
-          <TableHead>Source</TableHead>
-          <TableHead>Période observée</TableHead>
-          <TableHead>Collectée le</TableHead>
-          <TableHead>Requête</TableHead>
+          <TableHead>{m.source}</TableHead>
+          <TableHead>{m.period}</TableHead>
+          <TableHead>{m.collected}</TableHead>
+          <TableHead>{m.query}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -70,15 +63,15 @@ function SourcesTable({ sources }: { sources: ReturnType<typeof collectSources> 
                 <KindMarker kind={s.origin === "mock" ? "mock" : "observed"} />
                 {s.sourceUrl ? (
                   <a href={s.sourceUrl} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
-                    {SOURCE_LABELS[s.sourceId]}
+                    {sourceName(s.sourceId, locale)}
                   </a>
                 ) : (
-                  SOURCE_LABELS[s.sourceId]
+                  sourceName(s.sourceId, locale)
                 )}
               </span>
             </TableCell>
-            <TableCell className="whitespace-nowrap">{s.period ? `du ${s.period.start} au ${s.period.end}` : "non précisée"}</TableCell>
-            <TableCell className="whitespace-nowrap">{formatDate(s.collectedAt)}</TableCell>
+            <TableCell className="whitespace-nowrap">{s.period ? t(m.periodValue, { start: s.period.start, end: s.period.end }) : m.unspecified}</TableCell>
+            <TableCell className="whitespace-nowrap">{formatDate(s.collectedAt, locale)}</TableCell>
             <TableCell className="max-w-[16rem] truncate text-xs text-muted-foreground">{s.queryRef ?? ""}</TableCell>
           </TableRow>
         ))}
@@ -87,19 +80,20 @@ function SourcesTable({ sources }: { sources: ReturnType<typeof collectSources> 
   );
 }
 
-function IssuesList({ issues }: { issues: readonly CollectionIssue[] }) {
+function IssuesList({ issues, locale }: { issues: readonly CollectionIssue[]; locale: Locale }) {
+  const m = advancedMessages(locale).provenance;
   return (
     <div className="rounded-tile bg-surface-2/40 px-4 py-4 sm:px-[18px]">
-      <h3 className="text-sm font-medium">Incidents de collecte</h3>
+      <h3 className="text-sm font-medium">{m.issuesTitle}</h3>
       {issues.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">Aucun.</p>
+        <p className="mt-2 text-sm text-muted-foreground">{m.none}</p>
       ) : (
         <ul className="mt-4 space-y-4 text-sm">
           {issues.map((i) => (
             <li key={`${i.providerId}|${i.code}`}>
-              <span className="font-medium">{SOURCE_LABELS[i.providerId]}</span>
-              <span className="ml-2 rounded-pill border border-line px-2.5 py-0.5 text-[11px] text-muted-foreground">{ISSUE_LABELS[i.code] ?? i.code}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">{i.message}</span>
+              <span className="font-medium">{sourceName(i.providerId, locale)}</span>
+              <span className="ml-2 rounded-pill border border-line px-2.5 py-0.5 text-[11px] text-muted-foreground">{byId(m.issues, i.code, i.code)}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{engineText(i.message, locale)}</span>
             </li>
           ))}
         </ul>

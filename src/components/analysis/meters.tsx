@@ -1,4 +1,7 @@
+"use client";
+
 import { AnimatedNumber } from "@/components/motion/animated-number";
+import { useLocale } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,12 +36,16 @@ export function ScoreMeter({ value, className, size = "sm" }: { value: number; c
   );
 }
 
+/** French and Spanish put a space before %, English does not. */
+const PERCENT_SPACE = { en: "", fr: "\u00a0", es: "\u00a0" } as const;
+
 export function ConfidenceMeter({ value, className, size = "sm" }: { value: number; className?: string; size?: Size }) {
+  const locale = useLocale();
   return (
     <span className={cn("flex items-center gap-2.5 whitespace-nowrap", size === "lg" && "gap-4", className)}>
       <span className={cn("text-right text-muted-foreground", SIZES[size].number)}>
         <AnimatedNumber value={Math.round(value)} format="int" />
-        <span className={size === "lg" ? "ml-1 text-lg" : undefined}>&nbsp;%</span>
+        <span className={size === "lg" ? "ml-1 text-lg" : undefined}>{PERCENT_SPACE[locale]}%</span>
       </span>
       <Bar value={value} tone="muted" size={size} />
     </span>

@@ -1,10 +1,14 @@
 import { AnimatedNumber, type NumberFormat } from "@/components/motion/animated-number";
 import type { Interval } from "@/domain/datum";
+import type { Locale } from "@/i18n/config";
+import { t } from "@/i18n/translate";
+import { advancedMessages } from "./labels";
 import { cn } from "@/lib/utils";
 
 interface IntervalValueProps {
   readonly interval: Interval;
   readonly format: (v: number) => string;
+  readonly locale: Locale;
   /** Counts the central value up on first view; must describe the same formatting as `format`. */
   readonly countUp?: { readonly format: NumberFormat; readonly currency?: string };
   readonly className?: string;
@@ -12,7 +16,7 @@ interface IntervalValueProps {
 }
 
 /** P50 first (the central scenario), P10–P90 range always visible next to it. */
-export function IntervalValue({ interval, format, countUp, className, valueClassName }: IntervalValueProps) {
+export function IntervalValue({ interval, format, locale, countUp, className, valueClassName }: IntervalValueProps) {
   return (
     <span className={cn("inline-flex flex-col leading-tight", className)}>
       {countUp ? (
@@ -21,7 +25,7 @@ export function IntervalValue({ interval, format, countUp, className, valueClass
         <span className={valueClassName}>{format(interval.p50)}</span>
       )}
       <span className="text-[11px] text-muted-foreground">
-        {format(interval.p10)} à {format(interval.p90)}
+        {t(advancedMessages(locale).assumptions.range, { min: format(interval.p10), max: format(interval.p90) })}
       </span>
     </span>
   );

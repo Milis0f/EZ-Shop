@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DATA_INSUFFICIENT, isKnown, isMockTainted, type Datum, type Known } from "@/domain/datum";
-import { KIND_LABELS, missingLabel, SOURCE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { DatumDetails, InsufficientDetails, InsufficientShort } from "./datum-details";
 import { KindMarker } from "./kind-marker";
 
 interface DatumValueProps<T> {
@@ -29,12 +29,11 @@ export function DatumValue<T>({ datum, format, className, compact = false }: Dat
               className,
             )}
           >
-            {compact ? "insuffisant" : DATA_INSUFFICIENT}
+            {compact ? <InsufficientShort /> : DATA_INSUFFICIENT}
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          <p className="font-medium">{datum.reason}</p>
-          {datum.missing.length > 0 && <p className="mt-1 opacity-80">Manque : {datum.missing.map(missingLabel).join(", ")}</p>}
+          <InsufficientDetails reason={datum.reason} missing={datum.missing} />
         </TooltipContent>
       </Tooltip>
     );
@@ -50,26 +49,24 @@ export function DatumValue<T>({ datum, format, className, compact = false }: Dat
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-sm">
-        <DatumDetails datum={datum} mock={mock} />
+        <Details datum={datum} mock={mock} />
       </TooltipContent>
     </Tooltip>
   );
 }
 
-function DatumDetails({ datum, mock }: { datum: Known<unknown>; mock: boolean }) {
-  const periods = datum.sources.flatMap((s) => (s.period ? [`${s.period.start} → ${s.period.end}`] : []));
-  const sources = [...new Set(datum.sources.map((s) => SOURCE_LABELS[s.sourceId] ?? s.sourceId))];
+/** Only the plain fields the tooltip shows cross to the client, never the value itself. */
+function Details({ datum, mock }: { datum: Known<unknown>; mock: boolean }) {
+  const periods = [...new Set(datum.sources.flatMap((s) => (s.period ? [`${s.period.start} → ${s.period.end}`] : [])))].slice(0, 2);
   return (
-    <div className="space-y-1">
-      <p className="font-medium">
-        {KIND_LABELS[datum.kind]}
-        {mock && " (mock : valeur fictive)"}
-      </p>
-      {sources.length > 0 && <p>Sources : {sources.join(", ")}</p>}
-      {periods.length > 0 && <p>Période : {[...new Set(periods)].slice(0, 2).join(" ; ")}</p>}
-      {datum.method && <p className="opacity-80">Méthode : {datum.method}</p>}
-      {datum.assumptionKeys && datum.assumptionKeys.length > 0 && <p className="opacity-80">Hypothèses : {datum.assumptionKeys.join(", ")}</p>}
-      {datum.note && <p className="opacity-80">{datum.note}</p>}
-    </div>
+    <DatumDetails
+      kind={datum.kind}
+      mock={mock}
+      sourceIds={datum.sources.map((s) => s.sourceId)}
+      periods={periods}
+      method={datum.method}
+      assumptionKeys={datum.assumptionKeys}
+      note={datum.note}
+    />
   );
 }

@@ -15,14 +15,18 @@ import { OpportunityMap, type MapPoint } from "@/components/analysis/opportunity
 import { SourcingPanel } from "@/components/analysis/sourcing-panel";
 import { SimpleReport } from "@/components/analysis/simple-report";
 import { SourceJournalPanel } from "@/components/analysis/source-journal";
-import { VERDICT_COLOR } from "@/components/analysis/verdict-orb";
 import { SuccessNotice } from "@/components/analysis/success-notice";
 import { DECISION_THRESHOLDS } from "@/config/scoring";
 import type { AnalysisResult } from "@/domain/analysis";
-import { COUNTRIES } from "@/domain/country";
+import { advancedMessages } from "@/components/data/labels";
 import { isKnown } from "@/domain/datum";
 import { sourceJournal } from "@/engine/report/source-journal";
+import { countryName } from "@/engine/report/localize";
 import { verdictFor } from "@/engine/report/verdict";
+import type { Locale } from "@/i18n/config";
+import { formatDecimal, formatInt } from "@/i18n/format";
+import { getLocale } from "@/i18n/server";
+import { plural } from "@/i18n/translate";
 import { getAnalysis } from "@/server/services";
 
 interface PageProps {
@@ -32,28 +36,32 @@ interface PageProps {
 
 /** Tab title: the product name, read at request time like the page itself. */
 export async function generateMetadata({ params }: Pick<PageProps, "params">): Promise<Metadata> {
-  const { id } = await params;
+  const [{ id }, locale] = await Promise.all([params, getLocale()]);
   await connection();
   const analysis = await getAnalysis(id);
-  return { title: analysis ? analysis.product.displayName : "Analyse introuvable" };
+  return { title: analysis ? analysis.product.displayName : advancedMessages(locale).page.notFound };
 }
 
-export default function AnalysisPage({ params, searchParams }: PageProps) {
+export default async function AnalysisPage({ params, searchParams }: PageProps) {
+  const locale = await getLocale();
   return (
     <div className="mx-auto max-w-7xl min-w-0">
-      <Suspense fallback={<AnalysisSkeleton />}>
-        <AnalysisContent params={params} searchParams={searchParams} />
+      <Suspense fallback={<AnalysisSkeleton locale={locale} />}>
+        <AnalysisContent params={params} searchParams={searchParams} locale={locale} />
       </Suspense>
     </div>
   );
 }
 
 /** Real run time, measured by the pipeline; no figure is shown when it was not recorded. */
-function createdMessage(analysis: AnalysisResult): string {
+function createdMessage(analysis: AnalysisResult, locale: Locale): string {
+  const m = advancedMessages(locale).page;
   const n = analysis.countries.length;
   const ms = analysis.completedAt ? Date.parse(analysis.completedAt) - Date.parse(analysis.createdAt) : Number.NaN;
-  const duration = Number.isFinite(ms) && ms >= 0 ? ` en ${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s` : "";
-  return `Analyse terminée${duration} pour ${n} pays.`;
+  const count = formatInt(n, locale);
+  return Number.isFinite(ms) && ms >= 0
+    ? plural(locale, n, m.createdIn, { count, seconds: formatDecimal(ms / 1000, locale) })
+    : plural(locale, n, m.created, { count });
 }
 
 function SectionTitle({ id, title, children }: { id: string; title: string; children?: React.ReactNode }) {
@@ -67,7 +75,7 @@ function SectionTitle({ id, title, children }: { id: string; title: string; chil
   );
 }
 
-async function AnalysisContent({ params, searchParams }: PageProps) {
+async function AnalysisContent({ params, searchParams, locale }: PageProps & { locale: Locale }) {
   const [{ id }, { created }] = await Promise.all([params, searchParams]);
   // Stored analyses are read at request time only (never during prerender / prefetch).
   await connection();
@@ -79,12 +87,11 @@ async function AnalysisContent({ params, searchParams }: PageProps) {
       ? [
           {
             code: c.country,
-            name: COUNTRIES[c.country].nameFr,
+            name: countryName(c.country, locale),
             score: c.scoring.score.value.total,
             confidence: c.scoring.confidence.score,
             mock: c.scoring.confidence.mockTainted,
-            verdict: verdictFor(c).label,
-            color: VERDICT_COLOR[verdictFor(c).value],
+            verdict: verdictFor(c).value,
           },
         ]
       : [],
@@ -98,84 +105,89 @@ async function AnalysisContent({ params, searchParams }: PageProps) {
         <SimpleReport analysis={analysis} />
       </div>
       <div className="advanced:block hidden">
-        <AdvancedAnalysis analysis={analysis} points={points} unscored={unscored} created={created} />
+        <AdvancedAnalysis analysis={analysis} points={points} unscored={unscored} created={created} locale={locale} />
       </div>
     </>
   );
 }
 
-function AdvancedAnalysis({ analysis, points, unscored, created }: { analysis: AnalysisResult; points: MapPoint[]; unscored: number; created?: string }) {
+interface AdvancedAnalysisProps {
+  readonly analysis: AnalysisResult;
+  readonly points: MapPoint[];
+  readonly unscored: number;
+  readonly created?: string;
+  readonly locale: Locale;
+}
+
+function AdvancedAnalysis({ analysis, points, unscored, created, locale }: AdvancedAnalysisProps) {
   const journal = sourceJournal(analysis);
+  const m = advancedMessages(locale).page;
   return (
     <div className="pb-16">
-      {created === "1" && analysis.status !== "failed" && <SuccessNotice message={createdMessage(analysis)} />}
-      <AnalysisHeader analysis={analysis} />
+      {created === "1" && analysis.status !== "failed" && <SuccessNotice message={createdMessage(analysis, locale)} />}
+      <AnalysisHeader analysis={analysis} locale={locale} />
 
-      <AnalysisSummary countries={analysis.countries} />
+      <AnalysisSummary countries={analysis.countries} locale={locale} />
 
       <section aria-labelledby="ai-title" className="mt-14 max-w-4xl">
-        <SectionTitle id="ai-title" title="Lecture par l'IA locale">
-          Une reformulation de cette analyse par un modèle qui tourne sur ton ordinateur. Ce n&apos;est pas une donnée.
+        <SectionTitle id="ai-title" title={m.ai.title}>
+          {m.ai.intro}
         </SectionTitle>
         <AiInsight analysisId={analysis.id} />
       </section>
 
       <section aria-labelledby="map-title" className="mt-14 grid grid-cols-1 gap-4 min-[900px]:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="panel min-w-0 p-5 sm:p-[26px]">
-          <SectionTitle id="map-title" title="Où lancer en premier">
-            Chaque pays noté est placé selon son score d&apos;opportunité et, séparément, la confiance qu&apos;on peut accorder aux
-            données. La couleur du point est son verdict. Choisis un point pour le détail.
+          <SectionTitle id="map-title" title={m.map.title}>
+            {m.map.intro}
           </SectionTitle>
           {points.length > 0 ? (
             <OpportunityMap analysisId={analysis.id} points={points} thresholds={DECISION_THRESHOLDS} />
           ) : (
             <div className="hatch flex h-64 items-center justify-center rounded-tile border border-dashed border-line px-6 text-center text-sm text-muted-foreground">
-              Aucun pays n&apos;a assez de données pour être noté. Les sources de demande (Keyword Planner ou Trends) sont nécessaires.
+              {m.map.empty}
             </div>
           )}
           {unscored > 0 && points.length > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">{unscored} pays non notés faute de données, listés dans le comparatif.</p>
+            <p className="mt-3 text-xs text-muted-foreground">{plural(locale, unscored, m.map.unscored, { count: formatInt(unscored, locale) })}</p>
           )}
         </div>
         <aside aria-labelledby="gaps-title" className="panel min-w-0 self-start p-5 sm:p-[26px]">
-          <SectionTitle id="gaps-title" title="Limites de l'analyse" />
-          <DataGaps countries={analysis.countries} />
+          <SectionTitle id="gaps-title" title={m.gapsTitle} />
+          <DataGaps countries={analysis.countries} locale={locale} />
         </aside>
       </section>
 
       <section aria-labelledby="ranking-title" className="mt-16">
-        <SectionTitle id="ranking-title" title="Comparatif des pays">
-          Verdict, score et confiance de chaque pays. Ventes et chiffre d&apos;affaires : scénario central, avec la fourchette P10 à
-          P90 en dessous. Choisis une ligne pour le détail du pays.
+        <SectionTitle id="ranking-title" title={m.ranking.title}>
+          {m.ranking.intro}
         </SectionTitle>
-        <CountryRanking analysisId={analysis.id} countries={analysis.countries} economics={analysis.economics} />
+        <CountryRanking analysisId={analysis.id} countries={analysis.countries} economics={analysis.economics} locale={locale} />
       </section>
 
       {analysis.countries.some((c) => c.signals) && (
         <section aria-labelledby="market-title" className="mt-16">
-          <SectionTitle id="market-title" title="Marché, prix et taxes">
-            Annonces eBay observées, coût d&apos;une unité importée (achat, livraison et droits de douane) et signaux d&apos;intérêt,
-            pays par pays.
+          <SectionTitle id="market-title" title={m.market.title}>
+            {m.market.intro}
           </SectionTitle>
-          <MarketTable analysisId={analysis.id} countries={analysis.countries} />
+          <MarketTable analysisId={analysis.id} countries={analysis.countries} locale={locale} />
         </section>
       )}
 
       {(analysis.sourcing || analysis.classification) && (
         <section aria-labelledby="sourcing-title" className="mt-16">
-          <SectionTitle id="sourcing-title" title="Sourcing et douane">
-            Communs à tous les pays : d&apos;où part le produit, son code douanier et ce qu&apos;il coûte à l&apos;achat.
+          <SectionTitle id="sourcing-title" title={m.sourcing.title}>
+            {m.sourcing.intro}
           </SectionTitle>
-          <SourcingPanel origin={analysis.input.originCountry} classification={analysis.classification} sourcing={analysis.sourcing} />
+          <SourcingPanel origin={analysis.input.originCountry} classification={analysis.classification} sourcing={analysis.sourcing} locale={locale} />
         </section>
       )}
 
       <section aria-labelledby="assumptions-title" className="mt-16">
-        <SectionTitle id="assumptions-title" title="Hypothèses utilisées">
-          Elles ne sont pas mesurées. Les ventes, CPA et budgets de test en dépendent directement. Ouvre une ligne pour voir
-          pourquoi cette fourchette.
+        <SectionTitle id="assumptions-title" title={m.assumptions.title}>
+          {m.assumptions.intro}
         </SectionTitle>
-        <AssumptionsTable assumptions={analysis.assumptions} />
+        <AssumptionsTable assumptions={analysis.assumptions} locale={locale} />
       </section>
 
       <SourceJournalPanel rows={journal} countryCount={analysis.countries.length} className="mt-16" />
