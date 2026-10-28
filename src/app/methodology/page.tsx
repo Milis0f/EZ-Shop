@@ -12,25 +12,34 @@ import {
   SCORING_POLICY,
 } from "@/config/scoring";
 import { DEFAULT_CRITERIA } from "@/engine/scoring/criteria";
+import { formatInt, formatPct } from "@/i18n/format";
+import { getLocale, getMessages } from "@/i18n/server";
+import { t } from "@/i18n/translate";
 import { LOCAL_AI_MODEL_INFO } from "@/server/ai/engine";
 
-export const metadata: Metadata = { title: "Méthode" };
+export async function generateMetadata(): Promise<Metadata> {
+  const m = await getMessages("methodology");
+  return { title: m.metadataTitle };
+}
 
+/** Anchor ids stay the same in every language, so shared links keep working; only the labels change. */
 const SECTIONS = [
-  { id: "valeurs", label: "Nature des valeurs" },
-  { id: "demande", label: "Demande" },
-  { id: "ventes", label: "Ventes et CA" },
-  { id: "publicite", label: "Coûts publicitaires" },
-  { id: "score", label: "Score d'opportunité" },
-  { id: "confiance", label: "Confiance et décision" },
-  { id: "verdict", label: "Verdict" },
-  { id: "ia", label: "IA locale" },
+  { id: "valeurs", key: "values" },
+  { id: "demande", key: "demand" },
+  { id: "ventes", key: "sales" },
+  { id: "publicite", key: "ads" },
+  { id: "score", key: "score" },
+  { id: "confiance", key: "confidence" },
+  { id: "verdict", key: "verdict" },
+  { id: "ia", key: "ai" },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-function Block({ id, children }: { id: SectionId; children: ReactNode }) {
-  const title = SECTIONS.find((s) => s.id === id)?.label;
+/** Size of the Monte Carlo simulation described in the sales section. */
+const MONTE_CARLO_DRAWS = 5000;
+
+function Block({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="panel min-w-0 scroll-mt-8 p-6 sm:p-8">
       <h2 id={`${id}-title`} className="text-xl font-semibold tracking-tight">
@@ -46,139 +55,134 @@ const Formula = ({ children }: { children: ReactNode }) => (
   <p className="rounded-tile bg-surface-2/60 px-5 py-3 text-[15px] text-foreground">{children}</p>
 );
 
-export default function MethodologyPage() {
+/** Splits a template around one {placeholder} so a React node can sit in its place. */
+function withNode(template: string, name: string, node: ReactNode): ReactNode {
+  const [before, after = ""] = template.split(`{${name}}`);
+  return (
+    <>
+      {before}
+      {node}
+      {after}
+    </>
+  );
+}
+
+export default async function MethodologyPage() {
+  const locale = await getLocale();
+  const [m, common] = await Promise.all([getMessages("methodology", locale), getMessages("common", locale)]);
+  const pct = (v: number) => formatPct(v, locale);
+  const sections = SECTIONS.map((s) => ({ id: s.id, label: m.sections[s.key] }));
+  const titleOf = (id: SectionId) => sections.find((s) => s.id === id)?.label ?? "";
+  const thresholds = {
+    prioritizeScore: DECISION_THRESHOLDS.prioritizeScore,
+    prioritizeConfidence: pct(DECISION_THRESHOLDS.prioritizeConfidence),
+    testScore: DECISION_THRESHOLDS.testScore,
+    minConfidence: pct(DECISION_THRESHOLDS.minConfidence),
+  };
   const maxWeight = Math.max(...DEFAULT_CRITERIA.map((c) => CRITERION_WEIGHTS[c.id]));
   const totalWeight = DEFAULT_CRITERIA.reduce((s, c) => s + CRITERION_WEIGHTS[c.id], 0);
 
   return (
     <div className="mx-auto max-w-6xl">
       <header className="animate-enter max-w-3xl">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Méthode</h1>
-        <p className="mt-4 leading-relaxed text-muted-foreground">
-          Modèle de score {SCORING_MODEL_VERSION}. Analyse strictement au niveau pays, uniquement sur des données externes : aucune vente,
-          campagne ou statistique de boutique n&apos;entre dans le calcul.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{m.title}</h1>
+        <p className="mt-4 leading-relaxed text-muted-foreground">{t(m.intro, { version: SCORING_MODEL_VERSION })}</p>
       </header>
 
       <div className="mt-12 grid gap-10 min-[900px]:grid-cols-[13rem_minmax(0,1fr)] min-[900px]:gap-12">
         <aside className="hidden min-[900px]:block">
           <div className="sticky top-8">
-            <SectionNav items={SECTIONS} />
+            <SectionNav items={sections} label={m.tocLabel} />
           </div>
         </aside>
 
         <div className="animate-enter min-w-0 space-y-4" style={{ "--stagger": 1 } as React.CSSProperties}>
-          <Block id="valeurs">
-            <p>Chaque valeur affichée porte sa nature. Survoler une valeur montre sa méthode, ses sources et sa période.</p>
+          <Block id="valeurs" title={titleOf("valeurs")}>
+            <p>{m.values.body}</p>
             <EpistemicLegend className="mt-4 max-w-md" />
           </Block>
 
-          <Block id="demande">
+          <Block id="demande" title={titleOf("demande")}>
+            <p>{m.demand.sources}</p>
+            <Formula>{m.demand.formula}</Formula>
             <p>
-              Volumes absolus : Google Ads Keyword Planner. Forme de la demande : Google Trends (indice relatif 0–100). Quand les deux
-              existent, l&apos;indice Trends est calé sur les volumes Keyword Planner et leur corrélation alimente la confiance.
-            </p>
-            <Formula>log(1 + demande) = a + b × mois + effet du mois de l&apos;année + erreur</Formula>
-            <p>
-              Tendance dès {FORECAST_PARAMS.minMonthsForTrend} mois ; saisonnalité et prévision à partir de{" "}
-              {FORECAST_PARAMS.minMonthsForSeasonality} mois. L&apos;intervalle P10–P90 vient de l&apos;erreur de prédiction du modèle.
-              Limite : l&apos;autocorrélation des résidus est ignorée, l&apos;incertitude réelle est probablement plus large.
+              {t(m.demand.limits, {
+                trendMonths: FORECAST_PARAMS.minMonthsForTrend,
+                seasonMonths: FORECAST_PARAMS.minMonthsForSeasonality,
+              })}
             </p>
           </Block>
 
-          <Block id="ventes">
-            <Formula>commandes = demande projetée × part de demande captée × taux de conversion</Formula>
-            <p>
-              Simulation Monte Carlo de 5 000 tirages. Les deux taux sont des hypothèses affichées dans chaque analyse. Sans volume absolu
-              de recherche, aucune vente n&apos;est estimée. Le chiffre d&apos;affaires exige un prix de vente saisi.
-            </p>
+          <Block id="ventes" title={titleOf("ventes")}>
+            <Formula>{m.sales.formula}</Formula>
+            <p>{t(m.sales.body, { draws: formatInt(MONTE_CARLO_DRAWS, locale) })}</p>
           </Block>
 
-          <Block id="publicite">
-            <Formula>CPA = CPC ÷ taux de conversion ; budget de test = CPA × conversions visées</Formula>
-            <p>
-              Google : l&apos;enchère haut de page P20–P80 de Keyword Planner sert de proxy du CPC, probablement un majorant. Meta et
-              TikTok : estimations officielles uniquement via un compte publicitaire ; sinon, données insuffisantes.
-            </p>
+          <Block id="publicite" title={titleOf("publicite")}>
+            <Formula>{m.ads.formula}</Formula>
+            <p>{m.ads.body}</p>
           </Block>
 
-          <Block id="score">
-            <p>
-              {DEFAULT_CRITERIA.length} critères, {totalWeight} points au total. La barre montre le poids de chaque critère.
-            </p>
+          <Block id="score" title={titleOf("score")}>
+            <p>{t(m.score.intro, { count: DEFAULT_CRITERIA.length, total: totalWeight })}</p>
             <ul className="divide-y divide-line overflow-hidden rounded-tile bg-surface-2">
               {DEFAULT_CRITERIA.map((c, i) => (
                 <li key={c.id} className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem] items-center gap-4 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_6rem_3.5rem]">
-                  <span className="text-foreground">{c.label}</span>
+                  <span className="text-foreground">{m.criteria[c.id]}</span>
                   <span aria-hidden className="h-1.5 overflow-hidden rounded-pill bg-background">
                     <span
                       className="animate-bar block h-full rounded-full bg-foreground"
                       style={{ width: `${(CRITERION_WEIGHTS[c.id] / maxWeight) * 100}%`, "--stagger": i } as React.CSSProperties}
                     />
                   </span>
-                  <span className="text-right text-foreground"><span className="tabular">{CRITERION_WEIGHTS[c.id]}</span> pts</span>
+                  <span className="text-right text-foreground">
+                    <span className="tabular">{CRITERION_WEIGHTS[c.id]}</span> {m.score.pointsUnit}
+                  </span>
                 </li>
               ))}
             </ul>
             <p>
-              Les poids sont renormalisés sur les critères disponibles. Pas de score sous {Math.round(SCORING_POLICY.minCoverage * 100)} %
-              de couverture, ni sans critère de demande. Plafond à {SCORING_POLICY.negativeEconomicsCap} quand le CPA estimé dépasse la
-              marge. Les bornes de normalisation sont absolues : le score d&apos;un pays ne dépend pas des autres pays comparés.
+              {t(m.score.rules, {
+                coverage: pct(Math.round(SCORING_POLICY.minCoverage * 100)),
+                cap: SCORING_POLICY.negativeEconomicsCap,
+              })}
             </p>
           </Block>
 
-          <Block id="confiance">
-            <Formula>confiance = couverture × fraîcheur × qualité des sources × cohérence inter-sources</Formula>
-            <p>
-              Toujours calculée à part du score. Décision : prioriser au-delà d&apos;un score de {DECISION_THRESHOLDS.prioritizeScore} avec{" "}
-              {DECISION_THRESHOLDS.prioritizeConfidence} % de confiance ; tester prudemment à partir de {DECISION_THRESHOLDS.testScore} ;
-              exploratoire seulement sous {DECISION_THRESHOLDS.minConfidence} % de confiance, quel que soit le score.
-            </p>
-            <DecisionZones t={DECISION_THRESHOLDS} />
+          <Block id="confiance" title={titleOf("confiance")}>
+            <Formula>{m.confidence.formula}</Formula>
+            <p>{t(m.confidence.body, thresholds)}</p>
+            <DecisionZones t={DECISION_THRESHOLDS} decisions={m.decisions} caption={m.zones.caption} />
           </Block>
 
-          <Block id="verdict">
-            <p>
-              Chaque pays reçoit un verdict, règle <code className="text-foreground">verdict_v1</code>. Il présente la décision ci-dessus
-              sans changer le score, les poids ni les seuils, et ajoute des facteurs bloquants tirés uniquement de tes saisies et des
-              données réelles. La règle s&apos;applique dans l&apos;ordre du tableau : la première ligne vraie donne le verdict.
-            </p>
+          <Block id="verdict" title={titleOf("verdict")}>
+            <p>{withNode(m.verdict.intro, "rule", <code className="text-foreground">verdict_v1</code>)}</p>
             <div className="rounded-tile bg-surface-2 py-2 max-sm:bg-transparent max-sm:py-0">
-              <VerdictTable t={DECISION_THRESHOLDS} />
+              <VerdictTable thresholds={thresholds} m={m.verdict} words={common.verdict} />
             </div>
-            <p>Facteurs bloquants, chacun calculé seulement quand ses données existent :</p>
+            <p>{m.verdict.blockingIntro}</p>
             <ul className="list-disc space-y-1.5 pl-5 marker:text-line">
-              <li>perte à ton prix de vente, hors TVA, après droits et livraison ;</li>
-              <li>prix prévu sous le prix minimum pour ta marge cible, quand les deux sont saisis ;</li>
-              <li>aucune donnée de demande nationale pour le pays : toutes les sources ont échoué.</li>
+              <li>{m.verdict.blocking.loss}</li>
+              <li>{m.verdict.blocking.belowMinimum}</li>
+              <li>{m.verdict.blocking.noDemand}</li>
             </ul>
-            <p>Une marge inconnue n&apos;est jamais bloquante : sans prix saisi, le verdict reste celui de la décision.</p>
+            <p>{m.verdict.unknownMargin}</p>
           </Block>
 
-          <Block id="ia">
-            <p>
-              L&apos;IA locale reformule l&apos;analyse déjà enregistrée en phrases simples et propose des prochaines étapes. Elle ne
-              collecte rien et ne produit aucune donnée : elle lit seulement ce que l&apos;analyse contient.
-            </p>
+          <Block id="ia" title={titleOf("ia")}>
+            <p>{m.ai.intro}</p>
             <dl className="grid gap-2 sm:grid-cols-2">
               <div className="rounded-tile bg-surface-2 px-5 py-4">
-                <dt className="text-xs">Modèle</dt>
+                <dt className="text-xs">{m.ai.model}</dt>
                 <dd className="mt-1 text-foreground">{LOCAL_AI_MODEL_INFO.name}</dd>
               </div>
               <div className="rounded-tile bg-surface-2 px-5 py-4">
-                <dt className="text-xs">Licence</dt>
+                <dt className="text-xs">{m.ai.license}</dt>
                 <dd className="mt-1 text-foreground">{LOCAL_AI_MODEL_INFO.license}</dd>
               </div>
             </dl>
-            <p>
-              Le modèle tourne sur la carte graphique de ton propre ordinateur, avec node-llama-cpp. Aucune donnée ne quitte la
-              machine : ni le produit, ni l&apos;analyse, ni la réponse.
-            </p>
-            <p>
-              Chaque nombre cité par l&apos;IA est vérifié contre l&apos;analyse. Une réponse qui contient un nombre absent de
-              l&apos;analyse est refusée et n&apos;est pas affichée. Si le modèle ne peut pas tourner, la raison s&apos;affiche telle
-              quelle et rien n&apos;est généré à sa place.
-            </p>
+            <p>{m.ai.runsLocally}</p>
+            <p>{m.ai.checks}</p>
           </Block>
         </div>
       </div>

@@ -5,10 +5,12 @@ import { cn } from "@/lib/utils";
 
 interface SectionNavProps {
   readonly items: ReadonlyArray<{ readonly id: string; readonly label: string }>;
+  /** Accessible name of the navigation, in the active locale. */
+  readonly label: string;
 }
 
 /** Table of contents that follows the reading position. Plain anchors: works without JS. */
-export function SectionNav({ items }: SectionNavProps) {
+export function SectionNav({ items, label }: SectionNavProps) {
   const [active, setActive] = useState(items[0]?.id);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function SectionNav({ items }: SectionNavProps) {
   }, [items]);
 
   return (
-    <nav aria-label="Sommaire">
+    <nav aria-label={label}>
       <ul className="space-y-1 text-sm">
         {items.map((item) => {
           const current = item.id === active;

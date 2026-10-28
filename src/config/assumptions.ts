@@ -1,4 +1,6 @@
 import type { Assumption, AssumptionKey, AssumptionSet, Distribution } from "@/domain/assumption";
+import type { Locale } from "@/i18n/config";
+import { messagesFor } from "@/i18n/messages";
 
 /**
  * DEFAULT ASSUMPTIONS — hypotheses, NOT observed data.
@@ -60,4 +62,20 @@ export function buildAssumptions(
     ];
   });
   return Object.fromEntries(entries) as AssumptionSet;
+}
+
+/**
+ * The same assumption with its label, description and rationale in the interface language.
+ * Stored analyses keep the French texts above (they are part of the saved record); screens call
+ * this at display time. Only texts change: key, unit, distribution and origin stay as stored.
+ */
+export function localizeAssumption(assumption: Assumption, locale: Locale): Assumption {
+  const m = messagesFor("methodology", locale).assumptions;
+  const text = m[assumption.key];
+  return {
+    ...assumption,
+    label: text.label,
+    description: text.description,
+    rationale: assumption.origin === "user" ? m.userRationale : text.rationale,
+  };
 }

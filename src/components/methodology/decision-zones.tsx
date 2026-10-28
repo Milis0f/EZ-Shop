@@ -1,4 +1,5 @@
-import { DECISION_LABELS } from "@/lib/format";
+import type { Decision } from "@/domain/scoring";
+import { t as tr } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 
 interface Thresholds {
@@ -20,11 +21,19 @@ function Zone({ x0, x1, y0, y1, className, label }: { x0: number; x1: number; y0
   );
 }
 
+interface DecisionZonesProps {
+  readonly t: Thresholds;
+  /** Decision labels in the active locale. */
+  readonly decisions: Readonly<Record<Decision, string>>;
+  /** Caption template with an {insufficient} placeholder. */
+  readonly caption: string;
+}
+
 /**
  * The decision rule of the engine drawn to scale: confidence on x, score on y.
  * Built from the same thresholds the engine uses, so the figure cannot drift from the code.
  */
-export function DecisionZones({ t }: { t: Thresholds }) {
+export function DecisionZones({ t, decisions, caption }: DecisionZonesProps) {
   return (
     <figure className="mt-2">
       <div className="grid grid-cols-[2rem_1fr] gap-2">
@@ -36,17 +45,17 @@ export function DecisionZones({ t }: { t: Thresholds }) {
           ))}
         </div>
         <div className="relative aspect-[16/9] overflow-hidden rounded-tile border border-line">
-          <Zone x0={0} x1={t.minConfidence} y0={0} y1={100} className="hatch border-r border-line bg-decision-explore/10 text-decision-explore" label={DECISION_LABELS.exploratory_only} />
-          <Zone x0={t.minConfidence} x1={100} y0={0} y1={t.testScore} className="border-t border-line bg-decision-avoid/10 text-decision-avoid" label={DECISION_LABELS.avoid} />
+          <Zone x0={0} x1={t.minConfidence} y0={0} y1={100} className="hatch border-r border-line bg-decision-explore/10 text-decision-explore" label={decisions.exploratory_only} />
+          <Zone x0={t.minConfidence} x1={100} y0={0} y1={t.testScore} className="border-t border-line bg-decision-avoid/10 text-decision-avoid" label={decisions.avoid} />
           {/* Label at the bottom of its zone, against the line it shares with "avoid", clear of "prioritize". */}
-          <Zone x0={t.minConfidence} x1={100} y0={t.testScore} y1={100} className="items-end bg-decision-test/10 text-decision-test" label={DECISION_LABELS.test_carefully} />
+          <Zone x0={t.minConfidence} x1={100} y0={t.testScore} y1={100} className="items-end bg-decision-test/10 text-decision-test" label={decisions.test_carefully} />
           <Zone
             x0={t.prioritizeConfidence}
             x1={100}
             y0={t.prioritizeScore}
             y1={100}
             className="border-b border-l border-decision-prioritize/30 bg-decision-prioritize/12 text-decision-prioritize"
-            label={DECISION_LABELS.prioritize}
+            label={decisions.prioritize}
           />
         </div>
         <span />
@@ -59,7 +68,7 @@ export function DecisionZones({ t }: { t: Thresholds }) {
         </div>
       </div>
       <figcaption className="mt-3 pl-10 text-xs text-muted-foreground">
-        Horizontal : confiance (%). Vertical : score d&apos;opportunité. Sans score calculable, la décision est « {DECISION_LABELS.insufficient_data} ».
+        {tr(caption, { insufficient: decisions.insufficient_data })}
       </figcaption>
     </figure>
   );
