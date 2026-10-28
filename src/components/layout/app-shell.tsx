@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { EpistemicLegend } from "@/components/data/epistemic-legend";
+import { getMessages } from "@/i18n/server";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "./language-switcher";
 import { ModeToggle } from "./mode-toggle";
 import { MainNav, MainNavFallback, type NavLayout } from "./nav-link";
 
@@ -33,35 +35,41 @@ function Nav({ layout }: { layout: NavLayout }) {
 
 /**
  * Two interfaces in one shell, switched by data-mode on <html> (set before paint by MODE_INIT_SCRIPT):
- * - simple: a top bar with the logo and the « Mode avancé » pill, nothing else;
+ * - simple: a top bar with the logo, the language switcher and the "Advanced mode" pill, nothing else;
  * - advanced, from 900px: a floating rounded rail on the left with the navigation and the value legend;
  * - advanced, below 900px: the same top bar, and the navigation in a floating pill bar at the bottom.
+ * Reads the request locale: renders below the root layout's <Suspense> (Cache Components).
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export async function AppShell({ children }: { children: ReactNode }) {
+  const m = await getMessages("shell");
   return (
     <div className="min-h-dvh">
       <header className="flex items-center justify-between gap-3 px-4 pt-5 pb-2 sm:px-8 advanced:min-[900px]:hidden">
         <Logo />
-        <ModeToggle variant="button" />
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <ModeToggle variant="button" />
+        </div>
       </header>
 
       <aside className="fixed inset-y-4 left-4 z-30 hidden w-60 flex-col overflow-y-auto rounded-panel border border-line bg-surface p-3 advanced:min-[900px]:flex">
         <div className="px-1 pt-1 pb-8">
           <Logo />
-          <p className="mt-3 px-1 text-xs text-muted-foreground">Potentiel produit avant lancement</p>
+          <p className="mt-3 px-1 text-xs text-muted-foreground">{m.tagline}</p>
         </div>
-        <nav aria-label="Navigation principale">
+        <nav aria-label={m.mainNav}>
           <Nav layout="rail" />
         </nav>
         <div className="mt-auto px-2 pt-10 pb-2">
-          <p className="mb-4 text-xs font-medium text-muted-foreground">Lecture des valeurs</p>
+          <p className="mb-4 text-xs font-medium text-muted-foreground">{m.valuesLegend}</p>
           <EpistemicLegend compact />
-          <ModeToggle variant="button" className="mt-6" />
+          <LanguageSwitcher className="mt-6" />
+          <ModeToggle variant="button" className="mt-3" />
         </div>
       </aside>
 
       <nav
-        aria-label="Navigation principale"
+        aria-label={m.mainNav}
         className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 mx-auto hidden max-w-md rounded-pill border border-line bg-surface p-1.5 advanced:block advanced:min-[900px]:hidden"
       >
         <Nav layout="bar" />

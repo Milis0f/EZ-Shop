@@ -3,6 +3,7 @@
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { viewTransition } from "@/components/motion/view-transition";
+import { useMessages } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 import { MODE_STORAGE_KEY, type AppMode } from "./mode";
 
@@ -33,11 +34,12 @@ export function useMode(): AppMode | null {
   return useSyncExternalStore(subscribe, currentMode, () => null);
 }
 
-/** "Mode avancé" in the simple top bar and under the search, "Mode simple" in the advanced rail. */
+/** "Advanced mode" in the simple top bar and under the search, "Simple mode" in the advanced rail. */
 export function ModeToggle({ className, variant = "link", label: forced }: { className?: string; variant?: "link" | "button"; label?: string }) {
   const mode = useMode();
+  const m = useMessages("shell");
   const next: AppMode = mode === "advanced" ? "simple" : "advanced";
-  const label = forced ?? (next === "advanced" ? "Mode avancé" : "Mode simple");
+  const label = forced ?? (next === "advanced" ? m.mode.advanced : m.mode.simple);
 
   return (
     <button

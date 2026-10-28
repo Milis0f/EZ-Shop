@@ -4,28 +4,24 @@ import type { CompetitionLevel, CompetitionOutlook, TrendDirection } from "@/dom
 import type { SourceId } from "@/domain/provenance";
 import type { ConfidenceLevel, Decision } from "@/domain/scoring";
 import type { VerificationLevel } from "@/providers/contracts";
+import type { Locale } from "@/i18n/config";
+import * as i18n from "@/i18n/format";
 
-/** French display formatting and vocabulary. One place, so labels stay consistent everywhere. */
+/**
+ * Display formatting and vocabulary. The number and date helpers take an optional trailing locale
+ * and default to "fr" (the output before i18n), so callers not yet translated keep printing what
+ * they printed. Translated code passes the active locale, or uses "@/i18n/format" directly.
+ * The label maps below are still French only: each area moves its labels into src/i18n/messages/.
+ */
 
-const integer = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
-const compact = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
-const decimal1 = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
-
-export const formatInt = (v: number): string => integer.format(v);
+export const formatInt = (v: number, locale: Locale = "fr"): string => i18n.formatInt(v, locale);
 /** Compact for large values, one decimal below 10 so small estimates are not rounded to zero. */
-export const formatCompact = (v: number): string =>
-  Math.abs(v) >= 10_000 ? compact.format(v) : Math.abs(v) < 10 ? decimal1.format(v) : integer.format(v);
-export const formatDecimal = (v: number): string => decimal1.format(v);
-export const formatPct = (v: number, signed = false): string => `${signed && v > 0 ? "+" : ""}${decimal1.format(v)} %`;
-export const formatRatioPct = (v: number): string => `${decimal1.format(v * 100)} %`;
-
-export function formatMoney(v: number, currency = "EUR"): string {
-  const digits = Math.abs(v) < 10 ? 2 : 0;
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(v);
-}
-
-export const formatDate = (iso: string): string =>
-  new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+export const formatCompact = (v: number, locale: Locale = "fr"): string => i18n.formatCompact(v, locale);
+export const formatDecimal = (v: number, locale: Locale = "fr"): string => i18n.formatDecimal(v, locale);
+export const formatPct = (v: number, signed = false, locale: Locale = "fr"): string => i18n.formatPct(v, locale, { signed });
+export const formatRatioPct = (v: number, locale: Locale = "fr"): string => i18n.formatRatioPct(v, locale);
+export const formatMoney = (v: number, currency = "EUR", locale: Locale = "fr"): string => i18n.formatMoney(v, locale, currency);
+export const formatDate = (iso: string, locale: Locale = "fr"): string => i18n.formatDate(iso, locale);
 
 export const KIND_LABELS: Record<ValueKind | "insufficient" | "mock", string> = {
   observed: "Donnée observée",

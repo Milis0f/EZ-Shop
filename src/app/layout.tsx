@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Unbounded } from "next/font/google";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { MODE_INIT_SCRIPT } from "@/components/layout/mode";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LocaleProvider } from "@/i18n/client";
+import { DEFAULT_LOCALE, INTL_LOCALES } from "@/i18n/config";
+import { LOCALE_INIT_SCRIPT } from "@/i18n/locale-script";
+import { getLocale, getMessages } from "@/i18n/server";
 import "./globals.css";
 
 /** Everything except the display moments: body text, UI, numbers. */
@@ -20,11 +24,14 @@ const display = Unbounded({
   weight: ["500", "700"],
 });
 
-export const metadata: Metadata = {
-  title: { default: "EZ-Shop", template: "%s | EZ-Shop" },
-  description:
-    "Estimer le potentiel commercial d'un produit avant lancement, pays par pays, à partir de données externes traçables.",
-};
+/** Request-bound like the rest of the tree (the locale comes from the cookie): streams with it. */
+export async function generateMetadata(): Promise<Metadata> {
+  const m = await getMessages("shell");
+  return {
+    title: { default: "EZ-Shop", template: "%s | EZ-Shop" },
+    description: m.metadata.description,
+  };
+}
 
 /** Dark only: the browser chrome and form controls match the true black base before the CSS loads. */
 export const viewport: Viewport = {
@@ -32,16 +39,34 @@ export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
+/**
+ * Reads the locale (cookie, then Accept-Language) and hands it to the shell and to Client Components.
+ * Request data under Cache Components: it renders inside the root <Suspense> below.
+ */
+async function LocalizedShell({ children }: { children: ReactNode }) {
+  const locale = await getLocale();
+  return (
+    <LocaleProvider locale={locale}>
+      <AppShell>{children}</AppShell>
+    </LocaleProvider>
+  );
+}
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    // data-mode is set by the inline script before paint, hence the hydration exception.
-    <html lang="fr" className={`${sans.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
+    // data-mode and lang are set by the inline scripts before paint, hence the hydration exception.
+    // The layout itself stays static: reading the cookie here would leave no child to suspend
+    // (Next 16 Cache Components guidance for <html> attributes).
+    <html lang={INTL_LOCALES[DEFAULT_LOCALE]} className={`${sans.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: MODE_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full">
         <TooltipProvider delayDuration={150}>
-          <AppShell>{children}</AppShell>
+          <Suspense fallback={<div className="min-h-dvh" />}>
+            <LocalizedShell>{children}</LocalizedShell>
+          </Suspense>
         </TooltipProvider>
       </body>
     </html>

@@ -4,32 +4,30 @@ import { BookOpen, History, PlugZap, Search, type LucideIcon } from "lucide-reac
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef } from "react";
+import { useMessages } from "@/i18n/client";
+import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
+
+type NavKey = keyof Messages<"shell">["nav"];
 
 interface NavItem {
   readonly href: string;
-  readonly label: string;
+  readonly label: NavKey;
   /** Visible label in the phone bottom bar, where four full labels do not fit in 390px. */
-  readonly shortLabel: string;
+  readonly shortLabel: NavKey;
   readonly icon: LucideIcon;
   readonly isActive: (pathname: string) => boolean;
 }
 
 /**
- * "Analyses récentes" has no page of its own: it points at the home's recent list, and an opened
+ * "Recent analyses" has no page of its own: it points at the home's recent list, and an opened
  * analysis (/analyses/...) counts as one of the recent analyses.
  */
 const ITEMS: readonly NavItem[] = [
-  { href: "/", label: "Nouvelle analyse", shortLabel: "Analyser", icon: Search, isActive: (p) => p === "/" },
-  {
-    href: "/#recent-title",
-    label: "Analyses récentes",
-    shortLabel: "Récentes",
-    icon: History,
-    isActive: (p) => p.startsWith("/analyses"),
-  },
-  { href: "/connectors", label: "Sources de données", shortLabel: "Sources", icon: PlugZap, isActive: (p) => p.startsWith("/connectors") },
-  { href: "/methodology", label: "Méthode", shortLabel: "Méthode", icon: BookOpen, isActive: (p) => p.startsWith("/methodology") },
+  { href: "/", label: "newAnalysis", shortLabel: "newAnalysisShort", icon: Search, isActive: (p) => p === "/" },
+  { href: "/#recent-title", label: "recent", shortLabel: "recentShort", icon: History, isActive: (p) => p.startsWith("/analyses") },
+  { href: "/connectors", label: "sources", shortLabel: "sourcesShort", icon: PlugZap, isActive: (p) => p.startsWith("/connectors") },
+  { href: "/methodology", label: "method", shortLabel: "methodShort", icon: BookOpen, isActive: (p) => p.startsWith("/methodology") },
 ];
 
 export type NavLayout = "rail" | "bar";
@@ -93,6 +91,7 @@ function useSlidingIndicator(pathname: string | null) {
 
 function NavLinks({ pathname, layout }: { pathname: string | null; layout: NavLayout }) {
   const listRef = useSlidingIndicator(pathname);
+  const { nav } = useMessages("shell");
   const rail = layout === "rail";
 
   return (
@@ -122,7 +121,7 @@ function NavLinks({ pathname, layout }: { pathname: string | null; layout: NavLa
               )}
             >
               <Icon className={cn("shrink-0", rail ? "size-4" : "size-[18px]")} strokeWidth={1.75} aria-hidden />
-              <span className="truncate">{rail ? label : shortLabel}</span>
+              <span className="truncate">{nav[rail ? label : shortLabel]}</span>
             </Link>
           </li>
         );
