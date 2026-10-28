@@ -3,6 +3,7 @@ import type { ServerEnv } from "@/config/env";
 import { SCORING_MODEL_VERSION } from "@/config/scoring";
 import { ANALYSIS_SCHEMA_VERSION, type AnalysisResult, type UnitEconomics } from "@/domain/analysis";
 import { analysisInputSchema, type AnalysisInput } from "@/domain/schemas";
+import type { RawInputIssue } from "@/domain/validation-messages";
 import { analyzeCountry } from "@/engine/analyze-country";
 import { readSourcing } from "@/engine/economics/market-margin";
 import { expandProduct } from "@/engine/terms/expand";
@@ -20,8 +21,9 @@ import { collectGlobal } from "./collect-global";
 import { addMachineTranslations } from "./translate";
 import { observationsFor, snapshotsFor } from "./observations";
 
+/** Issues carry message keys: the caller localizes them (`localizeInputIssues`). */
 export class AnalysisValidationError extends Error {
-  constructor(readonly issues: ReadonlyArray<{ path: string; message: string }>) {
+  constructor(readonly issues: ReadonlyArray<RawInputIssue>) {
     super("Invalid analysis input");
     this.name = "AnalysisValidationError";
   }
@@ -38,7 +40,13 @@ export interface PipelineDeps {
 export function parseAnalysisInput(raw: unknown): AnalysisInput {
   const parsed = analysisInputSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new AnalysisValidationError(parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
+    throw new AnalysisValidationError(
+      parsed.error.issues.map((i) => ({
+        path: i.path.join("."),
+        message: i.message,
+        ...(i.code === "custom" && i.params !== undefined && { params: i.params }),
+      })),
+    );
   }
   return parsed.data;
 }

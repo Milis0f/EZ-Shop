@@ -1,14 +1,15 @@
-import { apiError, apiErrorFrom, apiOk } from "@/server/api-response";
+import { apiError, apiErrorFrom, apiMessages, apiOk } from "@/server/api-response";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { checkJsonPost } from "@/server/request-guard";
+import { GUARD_MESSAGE_KEY, requestLocale } from "@/server/request-locale";
 import { createAnalysis, listRecentAnalyses } from "@/server/services";
 
 /** GET /api/analyses — recent analyses (summaries). */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     return apiOk(await listRecentAnalyses(20));
   } catch (error: unknown) {
-    return apiErrorFrom(error);
+    return apiErrorFrom(error, requestLocale(request));
   }
 }
 
@@ -24,12 +25,14 @@ const RATE_LIMIT_KEY = "analysis:api";
  * Order matters: request guard, then rate limit, then body.
  */
 export async function POST(request: Request) {
+  const locale = requestLocale(request);
+  const m = apiMessages(locale);
   const guard = checkJsonPost(request.headers);
-  if (!guard.ok) return apiError(guard.status, guard.code, guard.message);
+  if (!guard.ok) return apiError(guard.status, guard.code, m[GUARD_MESSAGE_KEY[guard.code]]);
 
   const limit = checkRateLimit(RATE_LIMIT_KEY, ANALYSIS_RATE_LIMIT.limit, ANALYSIS_RATE_LIMIT.windowMs);
   if (!limit.allowed) {
-    return apiError(429, "rate_limited", "Trop d'analyses, réessaie plus tard.", undefined, {
+    return apiError(429, "rate_limited", m.analysisRateLimited, undefined, {
       "Retry-After": String(limit.retryAfterSeconds),
     });
   }
@@ -38,13 +41,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return apiError(400, "invalid_json", "Corps JSON invalide.");
+    return apiError(400, "invalid_json", m.invalidJson);
   }
 
   try {
     const result = await createAnalysis(body);
     return apiOk({ id: result.id, status: result.status }, 201);
   } catch (error: unknown) {
-    return apiErrorFrom(error);
+    return apiErrorFrom(error, locale);
   }
 }

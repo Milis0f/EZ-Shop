@@ -6,7 +6,7 @@ export interface SearchFormState {
 
 export const INITIAL_SEARCH_STATE: SearchFormState = {};
 
-/** A validation issue as the pipeline reports it: dotted path and French message. */
+/** A validation issue ready to show: dotted path and message in the active locale. */
 export interface InputIssue {
   readonly path: string;
   readonly message: string;

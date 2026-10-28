@@ -45,7 +45,7 @@ describe("POST /api/analyses", () => {
     expect(await response.json()).toMatchObject({
       success: false,
       data: null,
-      error: { code: "unsupported_media_type", message: "Content-Type application/json requis." },
+      error: { code: "unsupported_media_type", message: "Content-Type application/json required." },
     });
     expect(createAnalysis).not.toHaveBeenCalled();
   });
@@ -57,9 +57,18 @@ describe("POST /api/analyses", () => {
     expect(await response.json()).toMatchObject({
       success: false,
       data: null,
-      error: { code: "forbidden_origin", message: "Origine non autorisée." },
+      error: { code: "forbidden_origin", message: "Origin not allowed." },
     });
     expect(createAnalysis).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ cookie: "theme=dark; ez-locale=fr" }, "Origine non autorisée."],
+    [{ "accept-language": "es-ES,es;q=0.9" }, "Origen no permitido."],
+  ])("words the refusal in the request's locale (%j)", async (localeHeaders, message) => {
+    const response = await post(VALID_BODY, { "content-type": "application/json", origin: "https://evil.example", host: HOST, ...localeHeaders });
+
+    expect(await response.json()).toMatchObject({ error: { code: "forbidden_origin", message } });
   });
 
   it("ignores a forged X-Forwarded-Host when checking the origin", async () => {

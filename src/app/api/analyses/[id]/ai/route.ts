@@ -5,9 +5,11 @@ import {
   getAnalysisInsight,
   type GenerationAdmission,
 } from "@/server/ai/insight";
-import { apiError, apiErrorFrom, apiOk } from "@/server/api-response";
+import { apiError, apiErrorFrom, apiMessages, apiOk } from "@/server/api-response";
+import type { Locale } from "@/i18n/config";
 import { checkRateLimit } from "@/server/rate-limit";
 import { checkJsonPost } from "@/server/request-guard";
+import { GUARD_MESSAGE_KEY, requestLocale } from "@/server/request-locale";
 import { getAnalysis } from "@/server/services";
 
 /**
@@ -19,8 +21,8 @@ import { getAnalysis } from "@/server/services";
 const REQUEST_RATE_LIMIT_KEY = "analysis:ai";
 const GENERATION_RATE_LIMIT_KEY = "analysis:ai:generate";
 
-function tooManyRequests(retryAfterSeconds: number): Response {
-  return apiError(429, "rate_limited", "Trop de demandes à l'IA, réessaie plus tard.", undefined, {
+function tooManyRequests(retryAfterSeconds: number, locale: Locale): Response {
+  return apiError(429, "rate_limited", apiMessages(locale).aiRateLimited, undefined, {
     "Retry-After": String(retryAfterSeconds),
   });
 }
@@ -37,19 +39,21 @@ function admitGeneration(): GenerationAdmission {
  * before the model runs) the generation limit.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const locale = requestLocale(request);
+  const m = apiMessages(locale);
   const guard = checkJsonPost(request.headers);
-  if (!guard.ok) return apiError(guard.status, guard.code, guard.message);
+  if (!guard.ok) return apiError(guard.status, guard.code, m[GUARD_MESSAGE_KEY[guard.code]]);
 
   const limit = checkRateLimit(REQUEST_RATE_LIMIT_KEY, AI_REQUEST_RATE_LIMIT.limit, AI_REQUEST_RATE_LIMIT.windowMs);
-  if (!limit.allowed) return tooManyRequests(limit.retryAfterSeconds);
+  if (!limit.allowed) return tooManyRequests(limit.retryAfterSeconds, locale);
 
   try {
     const { id } = await params;
     const analysis = await getAnalysis(id);
-    if (!analysis) return apiError(404, "not_found", "Analyse introuvable.");
+    if (!analysis) return apiError(404, "not_found", m.notFound);
     return apiOk(await getAnalysisInsight(analysis, { admitGeneration }));
   } catch (error: unknown) {
-    if (error instanceof GenerationRateLimitedError) return tooManyRequests(error.retryAfterSeconds);
-    return apiErrorFrom(error);
+    if (error instanceof GenerationRateLimitedError) return tooManyRequests(error.retryAfterSeconds, locale);
+    return apiErrorFrom(error, locale);
   }
 }

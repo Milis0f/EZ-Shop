@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { LANGUAGE_CODES, type LanguageCode } from "@/domain/country";
 import type { AnalysisInputRaw } from "@/domain/schemas";
+import { localizeInputIssues } from "@/domain/validation-messages";
 import { formatInt } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
 import { t } from "@/i18n/translate";
@@ -73,7 +74,7 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
   try {
     id = (await createAnalysis(raw)).id;
   } catch (error: unknown) {
-    if (error instanceof AnalysisValidationError) return searchFormStateFrom(error.issues);
+    if (error instanceof AnalysisValidationError) return searchFormStateFrom(localizeInputIssues(error.issues, locale));
     console.error("[submitAnalysis]", error);
     return { error: m.failed };
   }

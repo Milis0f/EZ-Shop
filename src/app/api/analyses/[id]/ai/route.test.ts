@@ -81,7 +81,7 @@ describe("POST /api/analyses/:id/ai", () => {
     const response = await post(sameOriginJson);
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toMatchObject({ success: false, error: { code: "not_found", message: "Analyse introuvable." } });
+    expect(await response.json()).toMatchObject({ success: false, error: { code: "not_found", message: "Analysis not found." } });
     expect(getLocalAiEngine).not.toHaveBeenCalled();
   });
 

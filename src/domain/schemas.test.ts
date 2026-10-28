@@ -4,13 +4,13 @@ import { analysisInputSchema } from "./schemas";
 const parse = (productName: string) => analysisInputSchema.safeParse({ productName, countries: ["FR"] });
 
 describe("analysisInputSchema user text", () => {
-  it("rejects NUL in a product name with a French validation message", () => {
+  it("rejects NUL in a product name with the forbidden-character message key", () => {
     const result = parse("Lampe\u0000LED");
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0]).toMatchObject({
         path: ["productName"],
-        message: "Le nom du produit contient des caractères non autorisés.",
+        message: "productName.forbidden",
       });
     }
   });
@@ -24,7 +24,7 @@ describe("analysisInputSchema user text", () => {
         expect(result.error.issues).toHaveLength(1);
         expect(result.error.issues[0]).toMatchObject({
           path: ["productName"],
-          message: "Le nom du produit contient des caractères non autorisés.",
+          message: "productName.forbidden",
         });
       }
     },
@@ -36,7 +36,7 @@ describe("analysisInputSchema user text", () => {
     if (!result.success) {
       expect(result.error.issues[0]).toMatchObject({
         path: ["productName"],
-        message: "Le nom du produit contient des caractères non autorisés.",
+        message: "productName.forbidden",
       });
     }
   });
@@ -47,7 +47,7 @@ describe("analysisInputSchema user text", () => {
     if (!result.success) {
       expect(result.error.issues[0]).toMatchObject({
         path: ["productName"],
-        message: "Le nom du produit contient des caractères non autorisés.",
+        message: "productName.forbidden",
       });
     }
   });
@@ -62,7 +62,7 @@ describe("analysisInputSchema user text", () => {
     if (!result.success) {
       expect(result.error.issues[0]).toMatchObject({
         path: ["extraTerms", 0, "term"],
-        message: "Ce terme contient des caractères non autorisés.",
+        message: "extraTerm.forbidden",
       });
     }
   });
@@ -75,7 +75,7 @@ describe("analysisInputSchema user text", () => {
       if (!result.success) {
         expect(result.error.issues[0]).toMatchObject({
           path: ["productName"],
-          message: "Le nom du produit contient des caractères non autorisés.",
+          message: "productName.forbidden",
         });
       }
     },
@@ -95,7 +95,7 @@ describe("analysisInputSchema user text", () => {
 const BASE = { productName: "Casquette", countries: ["FR"] };
 const PRODUCT_URL = "https://fr.aliexpress.com/item/1005006123456789.html?spm=a2g0o.home";
 
-/** Issues as the pipeline reports them: dotted path and message. */
+/** Issues as the pipeline reports them: dotted path and message key. */
 function issuesOf(raw: unknown): Array<{ path: string; message: string }> {
   const result = analysisInputSchema.safeParse(raw);
   return result.success ? [] : result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
@@ -115,15 +115,15 @@ describe("analysisInputSchema supplier URL", () => {
     expect(issuesOf({ ...BASE, supplierUrl: `${atLimit}a` })).toEqual([{ path: "supplierUrl", message: expect.any(String) }]);
   });
 
-  it("refuses a short link with the French guidance", () => {
+  it("refuses a short link with the short-link message key", () => {
     expect(issuesOf({ ...BASE, supplierUrl: "https://s.click.aliexpress.com/e/_DmXyZ12" })).toEqual([
-      { path: "supplierUrl", message: "Lien court : ouvre-le et colle l'adresse finale de la fiche produit." },
+      { path: "supplierUrl", message: "supplierUrl.shortLink" },
     ]);
   });
 
-  it("refuses a non-web address with the parser's message", () => {
+  it("refuses a non-web address with the not-web message key", () => {
     expect(issuesOf({ ...BASE, supplierUrl: "javascript:alert(1)" })).toEqual([
-      { path: "supplierUrl", message: "Adresse refusée : seules les adresses web en http ou https sont acceptées." },
+      { path: "supplierUrl", message: "supplierUrl.notWeb" },
     ]);
   });
 
@@ -142,7 +142,7 @@ describe("analysisInputSchema supplier URL", () => {
     "refuses an address with whitespace inside (%j)",
     (supplierUrl) => {
       expect(issuesOf({ ...BASE, supplierUrl })).toEqual([
-        { path: "supplierUrl", message: "Adresse invalide : colle l'adresse complète de la fiche produit, sans espace." },
+        { path: "supplierUrl", message: "supplierUrl.whitespace" },
       ]);
     },
   );
@@ -192,13 +192,13 @@ describe("analysisInputSchema economics", () => {
   });
 
   it.each([
-    ["sellingPrice", Number.NaN, "Prix de vente : saisis un nombre."],
-    ["sellingPrice", 0, "Prix de vente : indique un montant supérieur à 0 €."],
-    ["sellingPrice", 100_000.01, "Prix de vente : 100 000 € au plus."],
-    ["landedCost", Number.NaN, "Coût de revient : saisis un nombre."],
-    ["landedCost", 0, "Coût de revient : indique un montant supérieur à 0 €."],
-    ["landedCost", 100_000.01, "Coût de revient : 100 000 € au plus."],
-  ])("explains a refused %s in French (%d)", (field, value, message) => {
+    ["sellingPrice", Number.NaN, "sellingPrice.notNumber"],
+    ["sellingPrice", 0, "sellingPrice.notPositive"],
+    ["sellingPrice", 100_000.01, "sellingPrice.tooLarge"],
+    ["landedCost", Number.NaN, "landedCost.notNumber"],
+    ["landedCost", 0, "landedCost.notPositive"],
+    ["landedCost", 100_000.01, "landedCost.tooLarge"],
+  ])("gives a refused %s its message key (%d)", (field, value, message) => {
     expect(issuesOf({ ...BASE, economics: { currency: "EUR", [field]: value } })).toEqual([{ path: `economics.${field}`, message }]);
   });
 
@@ -212,7 +212,7 @@ describe("analysisInputSchema economics", () => {
     expect(issuesOf({ ...BASE, economics: { currency: "EUR", landedCost: 10, shippingCost: 4 } })).toEqual([
       {
         path: "economics.landedCost",
-        message: "Coût de revient : il inclut déjà la livraison. Indique plutôt le prix fournisseur et les frais de livraison.",
+        message: "landedCost.withShipping",
       },
     ]);
   });
@@ -236,9 +236,9 @@ describe("analysisInputSchema data mode", () => {
     expect(analysisInputSchema.safeParse(BASE)).toMatchObject({ success: true, data: { dataMode: "live" } });
   });
 
-  it("refuses mock data with the French message", () => {
+  it("refuses mock data with its message key", () => {
     expect(issuesOf({ ...BASE, dataMode: "mock" })).toEqual([
-      { path: "dataMode", message: "Les données fictives ont été retirées de l'application." },
+      { path: "dataMode", message: "dataMode.mockRemoved" },
     ]);
   });
 });

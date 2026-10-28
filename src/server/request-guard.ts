@@ -19,8 +19,8 @@ export type GuardResult =
   | {
       readonly ok: false;
       readonly status: 403 | 415;
+      /** The route words it in the request's locale (server messages, `api.*`). */
       readonly code: "forbidden_origin" | "unsupported_media_type";
-      readonly message: string;
     };
 
 const ALLOWED: GuardResult = { ok: true };
@@ -29,14 +29,12 @@ const UNSUPPORTED_MEDIA_TYPE: GuardResult = {
   ok: false,
   status: 415,
   code: "unsupported_media_type",
-  message: "Content-Type application/json requis.",
 };
 
 const FORBIDDEN_ORIGIN: GuardResult = {
   ok: false,
   status: 403,
   code: "forbidden_origin",
-  message: "Origine non autorisée.",
 };
 
 function mediaType(headers: Headers): string {

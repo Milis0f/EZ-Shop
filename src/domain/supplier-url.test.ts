@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseSupplierUrl } from "./supplier-url";
 
-const SHORT_LINK_MESSAGE = "Lien court : ouvre-le et colle l'adresse finale de la fiche produit.";
 
 describe("parseSupplierUrl product pages", () => {
   it.each([
@@ -98,8 +97,8 @@ describe("parseSupplierUrl short links", () => {
     "https://a.aliexpress.com/_mKabc12",
     "https://share.temu.com/AbCdEfGh12",
     "https://temu.to/k/abc123xyz",
-  ])("refuses the short link %s with the French guidance", (input) => {
-    expect(parseSupplierUrl(input)).toEqual({ kind: "short_link", message: SHORT_LINK_MESSAGE });
+  ])("refuses the short link %s", (input) => {
+    expect(parseSupplierUrl(input)).toEqual({ kind: "short_link" });
   });
 });
 
@@ -109,10 +108,8 @@ describe("parseSupplierUrl invalid input", () => {
     "http://",
     "ftp://fr.aliexpress.com/item/1005006294811234.html",
     "data:text/html,<b>x</b>",
-  ])("rejects %s as invalid with a French message", (input) => {
-    const result = parseSupplierUrl(input);
-    expect(result.kind).toBe("invalid");
-    if (result.kind === "invalid") expect(result.message).toMatch(/\S/);
+  ])("rejects %s as invalid", (input) => {
+    expect(parseSupplierUrl(input).kind).toBe("invalid");
   });
 
   it.each([
@@ -129,9 +126,7 @@ describe("parseSupplierUrl invalid input", () => {
     "https://www.alibaba.com/showroom/baseball-cap.html",
     "https://detail.1688.com/offer/notanid.html",
   ])("rejects a supplier address that is not a product page: %s", (input) => {
-    const result = parseSupplierUrl(input);
-    expect(result).toMatchObject({ kind: "invalid", reason: "not_product" });
-    if (result.kind === "invalid") expect(result.message).toMatch(/\S/);
+    expect(parseSupplierUrl(input)).toMatchObject({ kind: "invalid", reason: "not_product" });
   });
 });
 

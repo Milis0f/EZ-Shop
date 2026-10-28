@@ -11,18 +11,22 @@ export type SupplierPlatform = "aliexpress" | "temu" | "alibaba" | "1688";
 export type SupplierUrlIssue = "malformed" | "not_web" | "not_product";
 
 /**
- * `message` is the French guidance, kept for the server-side schema (src/domain/schemas.ts) until the
- * server messages are translated; localized views use `kind`, `reason` and `platform` instead.
+ * Codes only: the form (home messages, `supplier.*`) and the schema (server messages,
+ * `validation.supplierUrl.*`) word them in the active locale.
  */
 export type SupplierUrl =
   | { kind: "product"; platform: SupplierPlatform; productId: string; canonicalUrl: string }
-  | { kind: "short_link"; message: string }
+  | { kind: "short_link" }
   | { kind: "not_a_supplier_url" }
-  | { kind: "invalid"; reason: SupplierUrlIssue; platform?: SupplierPlatform; message: string };
+  | { kind: "invalid"; reason: SupplierUrlIssue; platform?: SupplierPlatform };
 
-const SHORT_LINK_MESSAGE = "Lien court : ouvre-le et colle l'adresse finale de la fiche produit.";
-const MALFORMED_MESSAGE = "Adresse invalide : colle l'adresse complète de la fiche produit.";
-const NOT_WEB_MESSAGE = "Adresse refusée : seules les adresses web en http ou https sont acceptées.";
+/** Brand names, the same in every language. */
+export const SUPPLIER_PLATFORM_LABELS: Readonly<Record<SupplierPlatform, string>> = {
+  aliexpress: "AliExpress",
+  temu: "Temu",
+  alibaba: "Alibaba",
+  "1688": "1688",
+};
 
 const SHORT_LINK_HOSTS: ReadonlySet<string> = new Set([
   "s.click.aliexpress.com",
@@ -31,11 +35,11 @@ const SHORT_LINK_HOSTS: ReadonlySet<string> = new Set([
   "temu.to",
 ]);
 
-const PLATFORM_DOMAINS: ReadonlyArray<{ platform: SupplierPlatform; domain: string; label: string }> = [
-  { platform: "aliexpress", domain: "aliexpress.com", label: "AliExpress" },
-  { platform: "temu", domain: "temu.com", label: "Temu" },
-  { platform: "alibaba", domain: "alibaba.com", label: "Alibaba" },
-  { platform: "1688", domain: "1688.com", label: "1688" },
+const PLATFORM_DOMAINS: ReadonlyArray<{ platform: SupplierPlatform; domain: string }> = [
+  { platform: "aliexpress", domain: "aliexpress.com" },
+  { platform: "temu", domain: "temu.com" },
+  { platform: "alibaba", domain: "alibaba.com" },
+  { platform: "1688", domain: "1688.com" },
 ];
 
 const ALIEXPRESS_PATH = /^\/item\/(\d+)\.html$/i;
@@ -73,8 +77,8 @@ function looksLikeUrlAttempt(text: string, scheme: string): boolean {
 
 function parseAbsoluteUrl(text: string): SupplierUrl {
   const url = toUrl(text);
-  if (!url) return { kind: "invalid", reason: "malformed", message: MALFORMED_MESSAGE };
-  if (url.protocol !== "http:" && url.protocol !== "https:") return { kind: "invalid", reason: "not_web", message: NOT_WEB_MESSAGE };
+  if (!url) return { kind: "invalid", reason: "malformed" };
+  if (url.protocol !== "http:" && url.protocol !== "https:") return { kind: "invalid", reason: "not_web" };
   return classify(url);
 }
 
@@ -94,7 +98,7 @@ function toUrl(text: string): URL | null {
 
 function classify(url: URL): SupplierUrl {
   const host = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (SHORT_LINK_HOSTS.has(host)) return { kind: "short_link", message: SHORT_LINK_MESSAGE };
+  if (SHORT_LINK_HOSTS.has(host)) return { kind: "short_link" };
 
   const match = PLATFORM_DOMAINS.find(({ domain }) => host === domain || host.endsWith(`.${domain}`));
   if (!match) return { kind: "not_a_supplier_url" };
@@ -104,7 +108,6 @@ function classify(url: URL): SupplierUrl {
       kind: "invalid",
       reason: "not_product",
       platform: match.platform,
-      message: `Ce lien ${match.label} ne mène pas à une fiche produit : colle l'adresse de la fiche.`,
     }
   );
 }

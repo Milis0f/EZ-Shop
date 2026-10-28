@@ -4,8 +4,8 @@ import { checkJsonPost } from "./request-guard";
 const JSON_TYPE = "application/json";
 const HOST = "localhost:3100";
 
-const UNSUPPORTED = { ok: false, status: 415, code: "unsupported_media_type", message: "Content-Type application/json requis." };
-const FORBIDDEN = { ok: false, status: 403, code: "forbidden_origin", message: "Origine non autorisée." };
+const UNSUPPORTED = { ok: false, status: 415, code: "unsupported_media_type" };
+const FORBIDDEN = { ok: false, status: 403, code: "forbidden_origin" };
 
 interface Row {
   readonly name: string;

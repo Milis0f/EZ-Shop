@@ -85,7 +85,7 @@ describe("runAnalysis (mock providers, in-memory repositories)", () => {
 
     await expect(promise).rejects.toBeInstanceOf(AnalysisValidationError);
     await expect(promise).rejects.toMatchObject({
-      issues: [{ path: "dataMode", message: "Les données fictives ont été retirées de l'application." }],
+      issues: [{ path: "dataMode", message: "dataMode.mockRemoved" }],
     });
     expect(await repositories.analyses.listRecent(5)).toHaveLength(0);
   });
