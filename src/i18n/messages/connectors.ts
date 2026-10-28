@@ -1,13 +1,1096 @@
 import type { DeepStringShape } from "./types";
 
 /**
- * Placeholder: filled by the agent translating the connectors page and source status (src/app/connectors, src/components/connectors).
- * Write English first in `en` (as const), then the same keys in `fr` and `es`.
+ * Connectors page: source cards, configuration dialog and form, connection test, the save action,
+ * the per-variable descriptions (src/config/connector-fields.ts) and the setup guides
+ * (src/config/connector-guides.ts). Variable names and URLs are never translated.
  */
-export const en = {} as const;
+export const en = {
+  page: {
+    title: "Data sources",
+    intro:
+      "Open sources already work on every analysis, with no account. The others are connected here with “Set up”: a step-by-step guide, the fields to fill in, then a real test. A source that isn't connected never produces a value: anything that depends on it stays at insufficient data.",
+    summary: "Summary",
+    ringLabel: "{ready} of {total} sources ready",
+    ringOf: "of",
+    readyCount: { one: "{count} of {total} sources ready", other: "{count} of {total} sources ready" },
+    dotTitle: "{name}: {status}",
+    docsNewTab: "(documentation, opens in a new tab)",
+    unofficial: "Unofficial",
+    variables: "Variables",
+    missingVars: { one: "{count} variable to fill in", other: "{count} variables to fill in" },
+    loading: "Loading sources",
+    freshNote: "Connected since your last visit",
+  },
+  status: { ready: "Ready", repair: "Needs fixing", not_configured: "Not connected", not_implemented: "Not built yet" },
+  /** Footer line of a card when no required variable is missing, derived from the provider state. */
+  statusDetail: {
+    open: "Open API, no key.",
+    configured: "Configured.",
+    notConfigured: "Not connected.",
+    notImplemented: "Connector not built yet.",
+  },
+  fieldState: { set: "Set", optional: "Optional", missing: "To fill in", removing: "Will be removed" },
+  access: { open: "Open, no account", account: "Account required", approval: "Application and approval" },
+  verification: {
+    live_verified: "Verified live",
+    documented_unverified: "Written from the docs, not verified",
+    not_implemented: "Contract only",
+  },
+  /** Coverage notes of the sources that do not cover every country, by provider id. */
+  coverage: {
+    "usitc-hts": "United States only.",
+    "ebay-browse": "Countries with a national eBay site (not Luxembourg, Portugal, Sweden or Denmark).",
+    eurostat: "EU and Switzerland (partial series). United Kingdom missing since Brexit.",
+    "meta-ad-library": "All ads: EU countries only (DSA). Outside the EU: political ads only.",
+    oecd: "OECD member countries.",
+    "tiktok-commercial-content": "Ads shown in the EU.",
+  },
+  dialog: {
+    setUp: "Set up",
+    edit: "Edit",
+    officialDocs: "Official documentation",
+    close: "Close",
+    notices: {
+      not_implemented: "This connector isn't built yet: the values are saved for later, but no data will be collected.",
+      documented_unverified:
+        "Connector written from the official documentation and never tested with real keys: the first real call may reveal a mismatch.",
+    },
+  },
+  form: {
+    leftoverStep: { title: "Enter the values", body: "Copy each value from the platform." },
+    testStep: { title: "Test the connection", body: "Save first, then check the values with the platform." },
+    stepPrefix: "Step {index}: ",
+    storageNote: "Written to .env.local, never sent back to the browser.",
+    cancel: "Cancel",
+    close: "Close",
+    save: "Save",
+    saving: "Saving",
+    placeholderKeep: "Already set: leave empty to keep it",
+    placeholderPaste: "Paste the value",
+    hideValue: "Hide the value",
+    showValue: "Show the value",
+    see: "See",
+    keep: "Keep",
+    remove: "Remove",
+    copy: "Copy",
+    copied: "Copied",
+  },
+  editor: {
+    production: "Disabled in production: set these variables in your host's configuration.",
+    remote: "Can only be changed from this machine (localhost).",
+  },
+  test: {
+    label: "Connection test",
+    passed: "Connection verified: the source will be used in the next analysis.",
+    hint: "Real, read-only calls with the saved values.",
+    running: "Testing",
+    rerun: "Run again",
+    run: "Test",
+    launchFailed: "The test couldn't be started. Check that the server is running.",
+    step: { ok: "Passed", error: "Failed", skipped: "Not tested" },
+  },
+  actions: {
+    tooManyTests: "Too many tests in a row. Try again in {seconds} s.",
+    tooManySaves: "Too many saves. Try again in {seconds} s.",
+    unknownSource: "Unknown source.",
+    testUnavailable: "The connection test isn't available for this source yet.",
+    fixFields: "Fix the flagged fields: nothing was saved.",
+    nothingEntered: "No value entered: nothing was changed.",
+    writeFailed: "Couldn't write .env.local. Check the permissions on the project folder.",
+    savedComplete: "Saved to .env.local. All required variables are set.",
+    savedMissing: {
+      one: "Saved to .env.local. {count} required variable still to fill in.",
+      other: "Saved to .env.local. {count} required variables still to fill in.",
+    },
+  },
+  validation: {
+    empty: "Empty value.",
+    tooLong: "Value too long.",
+    unsafe: "Unsupported characters (space, quote, $, #, \\). Check the copied value.",
+    unexpected: "Unexpected format.",
+  },
+  fields: {
+    GOOGLE_TRENDS_API_KEY: {
+      label: "Google Trends API key",
+      help: "Issued by Google once your application to the alpha API is accepted.",
+    },
+    GOOGLE_ADS_API_VERSION: {
+      label: "API version",
+      help: "Current Google Ads API version, given in the release notes.",
+      patternHint: "Expected format: v followed by the number, for example v20.",
+    },
+    GOOGLE_ADS_CLIENT_ID: {
+      label: "OAuth client ID",
+      help: "Google Cloud Console, OAuth 2.0 credentials. This client's project holds the API access level (Keyword Planner requires Basic).",
+      patternHint: "A Google OAuth client ID ends with .apps.googleusercontent.com.",
+      rejects: { cloudKey: "This is a Google Cloud API key (AIza…), not an OAuth client ID." },
+    },
+    GOOGLE_ADS_CLIENT_SECRET: {
+      label: "OAuth client secret",
+      help: "Shown with the client ID in Google Cloud Console.",
+    },
+    GOOGLE_ADS_REFRESH_TOKEN: {
+      label: "OAuth refresh token",
+      help: "Generated once with the client ID and secret, by authorising the Google Ads account. It starts with 1//.",
+      patternHint: "A Google refresh token starts with 1//. Check that you didn't copy another value.",
+      rejects: {
+        authCode: "This is an authorisation code (4/…): it is exchanged once for the refresh token (1//…).",
+        accessToken: "This is an access token (ya29.…), valid for one hour: the refresh token (1//…) is needed.",
+      },
+    },
+    GOOGLE_ADS_CUSTOMER_ID: {
+      label: "Google Ads account ID",
+      help: "Account used for Keyword Planner, shown at the top of the Google Ads interface.",
+      patternHint: "10 digits, dashes optional.",
+    },
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: {
+      label: "Manager account ID",
+      help: "Only if access goes through a manager account (MCC).",
+      patternHint: "10 digits, dashes optional.",
+    },
+    META_GRAPH_API_VERSION: {
+      label: "Graph API version",
+      help: "Current Graph API version, given in the Meta changelog.",
+      patternHint: "Expected format: vNN.N, for example v23.0.",
+    },
+    META_AD_LIBRARY_ACCESS_TOKEN: {
+      label: "Access token",
+      help: "Meta developer account with a confirmed identity for the Ad Library API.",
+    },
+    TIKTOK_CLIENT_KEY: {
+      label: "Client key",
+      help: "App approved for the Commercial Content API, TikTok developer portal.",
+    },
+    TIKTOK_CLIENT_SECRET: {
+      label: "Client secret",
+      help: "Shown with the client key of the same app.",
+    },
+    WIKIMEDIA_CONTACT: {
+      label: "Contact for Wikimedia",
+      help: "Your email or the address of a page about you, sent in the request header. Wikimedia then raises the limit from 10 to 200 requests per minute.",
+      placeholder: "you@example.com",
+      patternHint: "An email address or a web address starting with https://.",
+    },
+    YOUTUBE_API_KEY: {
+      label: "Google Cloud API key",
+      help: "Key from a project where the YouTube Data API v3 is enabled. Your existing AIza… key works if the API is enabled in its project.",
+      patternHint: "A Google API key starts with AIza.",
+    },
+    EBAY_CLIENT_ID: {
+      label: "App ID (Client ID)",
+      help: "Your app's Production keyset, on the Application Keys page of the eBay developer portal.",
+      rejects: { sandbox: "This is a Sandbox key (SBX): use the Production keyset." },
+    },
+    EBAY_CLIENT_SECRET: {
+      label: "Cert ID (Client Secret)",
+      help: "Shown next to the App ID in the same Production keyset.",
+      rejects: { sandbox: "This is a Sandbox key (SBX): use the Production keyset." },
+    },
+    ALIEXPRESS_APP_KEY: {
+      label: "App Key",
+      help: "AliExpress Open Platform console, in the details of your approved app.",
+      patternHint: "The AliExpress App Key is a number.",
+    },
+    ALIEXPRESS_APP_SECRET: {
+      label: "App Secret",
+      help: "Shown with the App Key in the Open Platform console.",
+    },
+    ALIEXPRESS_TRACKING_ID: {
+      label: "Tracking ID",
+      help: "Tracking ID of your AliExpress Portals affiliate account. Without it, some apps receive no products.",
+    },
+    META_MARKETING_ACCESS_TOKEN: {
+      label: "Marketing API access token",
+      help: "Token of a system user or an app with access to the ad account.",
+    },
+    META_AD_ACCOUNT_ID: {
+      label: "Ad account ID",
+      help: "Meta Ads Manager, account settings.",
+      patternHint: "Digits, with or without the act_ prefix.",
+    },
+    TIKTOK_BUSINESS_ACCESS_TOKEN: {
+      label: "TikTok for Business access token",
+      help: "Long-term token of the Marketing API app authorised on the advertiser account.",
+    },
+    TIKTOK_ADVERTISER_ID: {
+      label: "Advertiser ID",
+      help: "ID of the advertiser account in TikTok Ads Manager.",
+      patternHint: "Digits only.",
+    },
+  },
+  groups: {
+    ready: { title: "Active without setup", intro: "Queried on every analysis, with no account or key." },
+    free_account: { title: "Free, to connect", intro: "A free account and a few minutes: follow each source's guide." },
+    application: { title: "By application", intro: "The platform grants access after a review; the connector works as soon as it is granted." },
+    planned: { title: "Coming soon", intro: "Connectors not built yet: the keys can already be prepared." },
+  },
+  guides: {
+    free: "Free",
+    prepareStep: { title: "Prepare the credentials", body: "The connector isn't built yet: the values will be used as soon as it is." },
+    worldBank: { brings: "Population, GDP per capita and share of internet users in each country." },
+    eurostat: { brings: "Share of residents who shop online, European countries." },
+    oecd: { brings: "Consumer confidence, OECD countries." },
+    googleAutocomplete: {
+      brings: "What people type after the product name in each country: buying, reviews, brands, marketplaces.",
+      unofficial: "Public endpoint not documented by Google: it may change without notice.",
+    },
+    wikimedia: {
+      brings: "Wikipedia audience for the product's category: trend and seasonality when Google gives none.",
+      contact: {
+        title: "Add a contact (recommended)",
+        body: "Without a contact, Wikimedia limits requests to 10 per minute: a “Whole world” analysis may then miss countries. With an email or a web address, the limit rises to 200 per minute.",
+        link: "Wikimedia rules",
+      },
+    },
+    ukTradeTariff: { brings: "The product's customs code and import duties in the United Kingdom and the EU, by country of origin." },
+    usitcHts: { brings: "US import duties for the product's customs code." },
+    vatRates: { brings: "VAT rate in each country, to compare prices shown including tax." },
+    ecbFx: { brings: "Official exchange rates to convert foreign prices into euros." },
+    mymemory: { brings: "Translates the product name into each country's language, to analyse the whole world from a single name." },
+    youtube: {
+      brings: "Videos published about the product in each country and their median views: real interest and competing content.",
+      cost: "Free (10,000 units per day)",
+      setupTime: "5 min",
+      enable: {
+        title: "Enable the YouTube Data API v3",
+        body: "Open the page, pick or create a Google Cloud project, then click “Enable”.",
+        link: "Google Cloud API library",
+      },
+      key: {
+        title: "Create an API key",
+        body: "Credentials > Create credentials > API key. An existing AIza… key from the same project works. Recommended: restrict it to the YouTube Data API v3.",
+        link: "Project credentials",
+      },
+      paste: { title: "Paste the key", body: "It is written to .env.local on your machine, never sent back to the browser." },
+    },
+    ebay: {
+      brings: "Real listings and prices of the product on each country's eBay site, and the share of sellers based in China.",
+      setupTime: "10 min",
+      account: {
+        title: "Create an eBay developer account",
+        body: "Free sign-up to the developer programme, with your eBay account or a new one.",
+      },
+      keyset: {
+        title: "Generate a Production keyset",
+        body: "Application Keys: name your app, then create the Production keyset (not Sandbox).",
+      },
+      activate: {
+        title: "Activate the keyset",
+        body: "eBay blocks Production keys until the account deletion notification question is settled. This app stores no eBay user data: ask for the exemption.",
+      },
+      paste: { title: "Paste the App ID and Cert ID", body: "Both come from the same Production keyset." },
+    },
+    aliexpress: {
+      brings: "Real purchase prices, recent sales and ratings of AliExpress products: your sourcing cost with nothing to type.",
+      setupTime: "15 min + approval (usually 1 to 3 working days)",
+      join: {
+        title: "Join the AliExpress affiliate programme",
+        body: "Free sign-up to AliExpress Portals. In your affiliate area, create or copy a Tracking ID.",
+      },
+      app: {
+        title: "Create an app on the Open Platform",
+        body: "Sign in with the same account, open the app console and create an affiliate app. AliExpress usually approves it within 1 to 3 working days.",
+      },
+      paste: {
+        title: "Paste the app credentials",
+        body: "App Key and App Secret appear in the console once the app is approved.",
+      },
+    },
+    googleAds: {
+      brings: "Real monthly search volumes, competition and Google CPC: the only data that makes a sales estimate possible.",
+      cost: "Free, Basic access required",
+      setupTime: "20 min + Basic access approval",
+      enable: {
+        title: "Enable the Google Ads API",
+        body: "In a Google Cloud project, enable the Google Ads API. The project's access level (Test, Explorer, Basic) is shown on its Google Ads API page.",
+        link: "Google Ads API",
+      },
+      basic: {
+        title: "Request Basic access",
+        body: "Keyword Planner requires Basic; Explorer isn't enough. It is requested after brand verification. Until it is granted, fill in the fields anyway: nothing to change afterwards.",
+        link: "The project's Google Ads API page",
+      },
+      oauth: {
+        title: "Create an OAuth client ID",
+        body: "Credentials > OAuth client ID > Web application, with https://developers.google.com/oauthplayground as an authorised redirect URI.",
+        link: "Project credentials",
+      },
+      refresh: {
+        title: "Generate the refresh token",
+        body: "Gear icon > tick “Use your own OAuth credentials” and paste your ID and secret. Scope https://www.googleapis.com/auth/adwords, Authorize APIs, then “Exchange authorization code for tokens”. Copy the Refresh token (1//…).",
+      },
+      account: {
+        title: "Account and version",
+        body: "The Google Ads account ID is shown at the top of the Google Ads interface. The version is the latest one in the release notes.",
+      },
+    },
+    googleTrends: {
+      brings: "The exact shape of search demand (trend, seasonality) in each country.",
+      cost: "Free, by application",
+      apply: {
+        title: "Apply for the alpha API",
+        body: "Google opens the Trends API by application. The connector isn't built yet for the alpha response format.",
+        link: "Google Trends API",
+      },
+      paste: { title: "Paste the key you receive", body: "Once accepted." },
+    },
+    metaAdLibrary: {
+      brings: "Active ads and advertisers for the product on Facebook and Instagram (EU): the visible competition.",
+      cost: "Free, confirmed identity required",
+      identity: {
+        title: "Confirm your identity with Meta",
+        body: "Required for the Ad Library API.",
+        link: "Identity confirmation",
+      },
+      app: {
+        title: "Create a Meta for Developers app",
+        body: "Then generate a user access token in the Graph API Explorer.",
+      },
+      paste: { title: "Paste the version and the token", body: "Graph API version in the vNN.0 format." },
+    },
+    tiktokCommercial: {
+      brings: "Ads shown on TikTok in the EU for the product: ads and advertisers.",
+      cost: "Free, research access by application",
+      apply: {
+        title: "Apply for the Commercial Content API",
+        body: "Access granted after TikTok reviews the request.",
+      },
+      paste: { title: "Paste the app credentials", body: "Client key and client secret of the approved app." },
+    },
+    metaMarketing: {
+      brings: "Ad cost estimated by Meta for the product's targeting.",
+      cost: "Free, ad account required",
+    },
+    tiktokBusiness: {
+      brings: "Reach and cost estimated by TikTok for the product's targeting.",
+      cost: "Free, advertiser account required",
+    },
+  },
+} as const;
 
 type Shape = DeepStringShape<typeof en>;
 
-export const fr: Shape = {};
+export const fr: Shape = {
+  page: {
+    title: "Sources de données",
+    intro:
+      "Les sources ouvertes travaillent déjà à chaque analyse, sans compte. Les autres se branchent ici avec « Configurer » : un guide pas à pas, les champs à remplir, puis un test réel. Une source non branchée ne produit jamais de valeur : ce qui en dépend reste en données insuffisantes.",
+    summary: "Résumé",
+    ringLabel: "{ready} sources prêtes sur {total}",
+    ringOf: "sur",
+    readyCount: { one: "{count} source prête sur {total}", other: "{count} sources prêtes sur {total}" },
+    dotTitle: "{name} : {status}",
+    docsNewTab: "(documentation, nouvel onglet)",
+    unofficial: "Non officiel",
+    variables: "Variables",
+    missingVars: { one: "{count} variable à renseigner", other: "{count} variables à renseigner" },
+    loading: "Chargement des sources",
+    freshNote: "Branchée depuis ta dernière visite",
+  },
+  status: { ready: "Prête", repair: "À réparer", not_configured: "Non branchée", not_implemented: "À implémenter" },
+  statusDetail: {
+    open: "API ouverte, sans clé.",
+    configured: "Configuré.",
+    notConfigured: "Non branché.",
+    notImplemented: "Connecteur à implémenter.",
+  },
+  fieldState: { set: "Définie", optional: "Facultative", missing: "À renseigner", removing: "Sera retirée" },
+  access: { open: "Ouverte, sans compte", account: "Compte requis", approval: "Candidature et approbation" },
+  verification: {
+    live_verified: "Vérifié en réel",
+    documented_unverified: "Écrit d'après la doc, non vérifié",
+    not_implemented: "Contrat seulement",
+  },
+  coverage: {
+    "usitc-hts": "États-Unis uniquement.",
+    "ebay-browse": "Pays avec un site eBay national (pas le Luxembourg, le Portugal, la Suède ni le Danemark).",
+    eurostat: "UE + Suisse (séries partielles). Royaume-Uni absent depuis le Brexit.",
+    "meta-ad-library": "Toutes les publicités : pays de l'UE uniquement (DSA). Hors UE : publicités politiques seulement.",
+    oecd: "Pays membres de l'OCDE.",
+    "tiktok-commercial-content": "Publicités diffusées dans l'UE.",
+  },
+  dialog: {
+    setUp: "Configurer",
+    edit: "Modifier",
+    officialDocs: "Documentation officielle",
+    close: "Fermer",
+    notices: {
+      not_implemented: "Ce connecteur n'est pas encore codé : les valeurs sont enregistrées pour plus tard, mais aucune donnée ne sera collectée.",
+      documented_unverified:
+        "Connecteur écrit d'après la documentation officielle, jamais testé avec de vraies clés : le premier appel réel peut révéler un écart.",
+    },
+  },
+  form: {
+    leftoverStep: { title: "Saisir les valeurs", body: "Copie chaque valeur depuis la plateforme." },
+    testStep: { title: "Tester la connexion", body: "Enregistre d'abord, puis vérifie les valeurs auprès de la plateforme." },
+    stepPrefix: "Étape {index} : ",
+    storageNote: "Écrit dans .env.local, jamais renvoyé au navigateur.",
+    cancel: "Annuler",
+    close: "Fermer",
+    save: "Enregistrer",
+    saving: "Enregistrement",
+    placeholderKeep: "Déjà définie : laisser vide pour la conserver",
+    placeholderPaste: "Coller la valeur",
+    hideValue: "Masquer la valeur",
+    showValue: "Afficher la valeur",
+    see: "Voir",
+    keep: "Conserver",
+    remove: "Retirer",
+    copy: "Copier",
+    copied: "Copié",
+  },
+  editor: {
+    production: "Désactivé en production : renseigne ces variables dans la configuration de l'hébergeur.",
+    remote: "Modification possible uniquement depuis cette machine (localhost).",
+  },
+  test: {
+    label: "Test de connexion",
+    passed: "Connexion vérifiée : la source sera utilisée à la prochaine analyse.",
+    hint: "Appels réels, en lecture seule, avec les valeurs enregistrées.",
+    running: "Test en cours",
+    rerun: "Relancer",
+    run: "Tester",
+    launchFailed: "Le test n'a pas pu être lancé. Vérifie que le serveur tourne.",
+    step: { ok: "Réussi", error: "Échec", skipped: "Non testé" },
+  },
+  actions: {
+    tooManyTests: "Trop de tests d'affilée. Réessaie dans {seconds} s.",
+    tooManySaves: "Trop d'enregistrements. Réessaie dans {seconds} s.",
+    unknownSource: "Source inconnue.",
+    testUnavailable: "Le test de connexion n'est pas encore disponible pour cette source.",
+    fixFields: "Corrige les champs signalés, rien n'a été enregistré.",
+    nothingEntered: "Aucune valeur saisie : rien n'a été modifié.",
+    writeFailed: "Impossible d'écrire .env.local. Vérifie les droits sur le dossier du projet.",
+    savedComplete: "Enregistré dans .env.local. Toutes les variables obligatoires sont renseignées.",
+    savedMissing: {
+      one: "Enregistré dans .env.local. Il reste {count} variable obligatoire à renseigner.",
+      other: "Enregistré dans .env.local. Il reste {count} variables obligatoires à renseigner.",
+    },
+  },
+  validation: {
+    empty: "Valeur vide.",
+    tooLong: "Valeur trop longue.",
+    unsafe: "Caractères non pris en charge (espace, guillemet, $, #, \\). Vérifie la valeur copiée.",
+    unexpected: "Format inattendu.",
+  },
+  fields: {
+    GOOGLE_TRENDS_API_KEY: {
+      label: "Clé API Google Trends",
+      help: "Délivrée par Google après acceptation de la candidature à l'API alpha.",
+    },
+    GOOGLE_ADS_API_VERSION: {
+      label: "Version de l'API",
+      help: "Version en cours de l'API Google Ads, indiquée dans les notes de version.",
+      patternHint: "Format attendu : v suivi du numéro, par exemple v20.",
+    },
+    GOOGLE_ADS_CLIENT_ID: {
+      label: "ID client OAuth",
+      help: "Google Cloud Console, identifiants OAuth 2.0. Le projet de ce client porte le niveau d'accès à l'API (Keyword Planner exige Basic).",
+      patternHint: "Un ID client OAuth Google se termine par .apps.googleusercontent.com.",
+      rejects: { cloudKey: "C'est une clé API Google Cloud (AIza…), pas un ID client OAuth." },
+    },
+    GOOGLE_ADS_CLIENT_SECRET: {
+      label: "Secret client OAuth",
+      help: "Affiché avec l'ID client dans Google Cloud Console.",
+    },
+    GOOGLE_ADS_REFRESH_TOKEN: {
+      label: "Jeton d'actualisation OAuth",
+      help: "Généré une fois avec l'ID et le secret client, en autorisant le compte Google Ads. Il commence par 1//.",
+      patternHint: "Un jeton d'actualisation Google commence par 1//. Vérifie que tu n'as pas copié une autre valeur.",
+      rejects: {
+        authCode: "C'est un code d'autorisation (4/…) : il s'échange une seule fois contre le jeton d'actualisation (1//…).",
+        accessToken: "C'est un jeton d'accès (ya29.…), valable une heure : il faut le jeton d'actualisation (1//…).",
+      },
+    },
+    GOOGLE_ADS_CUSTOMER_ID: {
+      label: "ID du compte Google Ads",
+      help: "Compte utilisé pour Keyword Planner, affiché en haut de l'interface Google Ads.",
+      patternHint: "10 chiffres, tirets facultatifs.",
+    },
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: {
+      label: "ID du compte administrateur",
+      help: "Seulement si l'accès passe par un compte administrateur (MCC).",
+      patternHint: "10 chiffres, tirets facultatifs.",
+    },
+    META_GRAPH_API_VERSION: {
+      label: "Version du Graph API",
+      help: "Version en cours du Graph API, indiquée dans le changelog Meta.",
+      patternHint: "Format attendu : vNN.N, par exemple v23.0.",
+    },
+    META_AD_LIBRARY_ACCESS_TOKEN: {
+      label: "Jeton d'accès",
+      help: "Compte développeur Meta avec identité confirmée pour l'Ad Library API.",
+    },
+    TIKTOK_CLIENT_KEY: {
+      label: "Client key",
+      help: "Application approuvée pour la Commercial Content API, portail développeurs TikTok.",
+    },
+    TIKTOK_CLIENT_SECRET: {
+      label: "Client secret",
+      help: "Affiché avec la client key de la même application.",
+    },
+    WIKIMEDIA_CONTACT: {
+      label: "Contact pour Wikimedia",
+      help: "Ton email ou l'adresse d'une page te concernant, envoyé dans l'en-tête des requêtes. Wikimedia passe alors de 10 à 200 requêtes par minute.",
+      placeholder: "toi@exemple.fr",
+      patternHint: "Une adresse email ou une adresse web en https://.",
+    },
+    YOUTUBE_API_KEY: {
+      label: "Clé API Google Cloud",
+      help: "Clé d'un projet où la YouTube Data API v3 est activée. Ta clé AIza… existante convient si l'API est activée dans son projet.",
+      patternHint: "Une clé API Google commence par AIza.",
+    },
+    EBAY_CLIENT_ID: {
+      label: "App ID (Client ID)",
+      help: "Jeu de clés Production de ton application, page Application Keys du portail développeur eBay.",
+      rejects: { sandbox: "C'est une clé Sandbox (SBX) : utilise le jeu de clés Production." },
+    },
+    EBAY_CLIENT_SECRET: {
+      label: "Cert ID (Client Secret)",
+      help: "Affiché à côté de l'App ID dans le même jeu de clés Production.",
+      rejects: { sandbox: "C'est une clé Sandbox (SBX) : utilise le jeu de clés Production." },
+    },
+    ALIEXPRESS_APP_KEY: {
+      label: "App Key",
+      help: "Console de l'AliExpress Open Platform, dans les informations de ton application validée.",
+      patternHint: "L'App Key AliExpress est un nombre.",
+    },
+    ALIEXPRESS_APP_SECRET: {
+      label: "App Secret",
+      help: "Affiché avec l'App Key dans la console de l'Open Platform.",
+    },
+    ALIEXPRESS_TRACKING_ID: {
+      label: "Tracking ID",
+      help: "Identifiant de suivi de ton compte affilié AliExpress Portals. Sans lui, certaines applications ne reçoivent aucun produit.",
+    },
+    META_MARKETING_ACCESS_TOKEN: {
+      label: "Jeton d'accès Marketing API",
+      help: "Jeton d'un utilisateur système ou d'une application ayant accès au compte publicitaire.",
+    },
+    META_AD_ACCOUNT_ID: {
+      label: "ID du compte publicitaire",
+      help: "Gestionnaire de publicités Meta, paramètres du compte.",
+      patternHint: "Chiffres, avec ou sans le préfixe act_.",
+    },
+    TIKTOK_BUSINESS_ACCESS_TOKEN: {
+      label: "Jeton d'accès TikTok for Business",
+      help: "Jeton long terme de l'application Marketing API autorisée sur le compte annonceur.",
+    },
+    TIKTOK_ADVERTISER_ID: {
+      label: "ID annonceur",
+      help: "Identifiant du compte annonceur dans TikTok Ads Manager.",
+      patternHint: "Chiffres uniquement.",
+    },
+  },
+  groups: {
+    ready: { title: "Actives sans configuration", intro: "Interrogées à chaque analyse, sans compte ni clé." },
+    free_account: { title: "Gratuites, à brancher", intro: "Un compte gratuit et quelques minutes : suis le guide de chaque source." },
+    application: { title: "Sur candidature", intro: "La plateforme accorde l'accès après examen ; le connecteur marche dès qu'il est accordé." },
+    planned: { title: "À venir", intro: "Connecteurs pas encore codés : les clés peuvent déjà être préparées." },
+  },
+  guides: {
+    free: "Gratuit",
+    prepareStep: { title: "Préparer les identifiants", body: "Le connecteur n'est pas encore codé : les valeurs seront utilisées dès qu'il le sera." },
+    worldBank: { brings: "Population, PIB par habitant et part d'internautes de chaque pays." },
+    eurostat: { brings: "Part des habitants qui achètent en ligne, pays européens." },
+    oecd: { brings: "Confiance des consommateurs, pays de l'OCDE." },
+    googleAutocomplete: {
+      brings: "Ce que les gens tapent après le nom du produit dans chaque pays : achat, avis, marques, marketplaces.",
+      unofficial: "Point d'accès public non documenté par Google : peut changer sans préavis.",
+    },
+    wikimedia: {
+      brings: "Audience Wikipédia de la catégorie du produit : tendance et saisonnalité quand Google n'en donne pas.",
+      contact: {
+        title: "Ajouter un contact (recommandé)",
+        body: "Sans contact, Wikimedia limite les requêtes à 10 par minute : une analyse « Monde entier » peut alors manquer des pays. Avec un email ou une adresse web, la limite passe à 200 par minute.",
+        link: "Règles de Wikimedia",
+      },
+    },
+    ukTradeTariff: { brings: "Code douanier du produit et droits d'import au Royaume-Uni et dans l'UE selon le pays d'origine." },
+    usitcHts: { brings: "Droits d'import aux États-Unis pour le code douanier du produit." },
+    vatRates: { brings: "Taux de TVA de chaque pays, pour comparer les prix affichés TTC." },
+    ecbFx: { brings: "Taux de change officiels pour convertir les prix étrangers en euros." },
+    mymemory: { brings: "Traduit le nom du produit dans la langue de chaque pays, pour analyser le monde entier à partir d'un seul nom." },
+    youtube: {
+      brings: "Vidéos publiées sur le produit dans chaque pays et vues médianes : intérêt réel et contenus concurrents.",
+      cost: "Gratuit (10 000 unités par jour)",
+      setupTime: "5 min",
+      enable: {
+        title: "Activer la YouTube Data API v3",
+        body: "Ouvre la page, choisis ou crée un projet Google Cloud, puis clique sur « Activer ».",
+        link: "Bibliothèque d'API Google Cloud",
+      },
+      key: {
+        title: "Créer une clé API",
+        body: "Identifiants > Créer des identifiants > Clé API. Une clé AIza… existante du même projet convient. Conseillé : restreins-la à la YouTube Data API v3.",
+        link: "Identifiants du projet",
+      },
+      paste: { title: "Coller la clé", body: "Elle est écrite dans .env.local sur ta machine, jamais renvoyée au navigateur." },
+    },
+    ebay: {
+      brings: "Annonces et prix réels du produit sur le site eBay de chaque pays, et part des vendeurs basés en Chine.",
+      setupTime: "10 min",
+      account: {
+        title: "Créer un compte développeur eBay",
+        body: "Inscription gratuite au programme développeurs, avec ton compte eBay ou un nouveau.",
+      },
+      keyset: {
+        title: "Générer un jeu de clés Production",
+        body: "Application Keys : nomme ton application puis crée le jeu de clés Production (pas Sandbox).",
+      },
+      activate: {
+        title: "Activer le jeu de clés",
+        body: "eBay bloque les clés Production tant que la question des notifications de suppression de compte n'est pas réglée. Cette app ne stocke aucune donnée d'utilisateur eBay : demande l'exemption.",
+      },
+      paste: { title: "Coller App ID et Cert ID", body: "Les deux viennent du même jeu de clés Production." },
+    },
+    aliexpress: {
+      brings: "Prix d'achat réels, ventes récentes et notes des produits AliExpress : ton coût de sourcing sans saisie.",
+      setupTime: "15 min + validation (1 à 3 jours ouvrés en général)",
+      join: {
+        title: "Rejoindre le programme affilié AliExpress",
+        body: "Inscription gratuite à AliExpress Portals. Dans ton espace affilié, crée ou récupère un Tracking ID.",
+      },
+      app: {
+        title: "Créer une application sur l'Open Platform",
+        body: "Connecte-toi avec le même compte, ouvre la console des applications et crée une application de type affilié. AliExpress la valide en général sous 1 à 3 jours ouvrés.",
+      },
+      paste: {
+        title: "Coller les identifiants de l'application",
+        body: "App Key et App Secret sont affichés dans la console une fois l'application validée.",
+      },
+    },
+    googleAds: {
+      brings: "Volumes de recherche mensuels réels, concurrence et CPC Google : les seules données qui permettent d'estimer des ventes.",
+      cost: "Gratuit, accès Basic requis",
+      setupTime: "20 min + validation de l'accès Basic",
+      enable: {
+        title: "Activer l'API Google Ads",
+        body: "Dans un projet Google Cloud, active l'API Google Ads. Le niveau d'accès du projet (Test, Explorer, Basic) s'affiche sur sa page Google Ads API.",
+        link: "API Google Ads",
+      },
+      basic: {
+        title: "Demander l'accès Basic",
+        body: "Keyword Planner exige Basic ; Explorer ne suffit pas. Il se demande après la vérification de la marque. Tant qu'il n'est pas accordé, renseigne quand même les champs : rien à changer ensuite.",
+        link: "Page Google Ads API du projet",
+      },
+      oauth: {
+        title: "Créer un ID client OAuth",
+        body: "Identifiants > ID client OAuth > Application Web, avec https://developers.google.com/oauthplayground comme URI de redirection autorisée.",
+        link: "Identifiants du projet",
+      },
+      refresh: {
+        title: "Générer le jeton d'actualisation",
+        body: "Engrenage > coche « Use your own OAuth credentials » et colle ton ID et secret. Scope https://www.googleapis.com/auth/adwords, Authorize APIs, puis « Exchange authorization code for tokens ». Copie le Refresh token (1//…).",
+      },
+      account: {
+        title: "Compte et version",
+        body: "L'ID du compte Google Ads s'affiche en haut de l'interface Google Ads. La version est la plus récente des notes de version.",
+      },
+    },
+    googleTrends: {
+      brings: "Forme exacte de la demande de recherche (tendance, saisonnalité) dans chaque pays.",
+      cost: "Gratuit, sur candidature",
+      apply: {
+        title: "Candidater à l'API alpha",
+        body: "Google ouvre l'API Trends sur candidature. Le connecteur n'est pas encore codé pour le format de réponse alpha.",
+        link: "API Google Trends",
+      },
+      paste: { title: "Coller la clé reçue", body: "Une fois accepté." },
+    },
+    metaAdLibrary: {
+      brings: "Publicités actives et annonceurs du produit sur Facebook et Instagram (UE) : la concurrence visible.",
+      cost: "Gratuit, identité confirmée requise",
+      identity: {
+        title: "Confirmer ton identité auprès de Meta",
+        body: "Obligatoire pour l'API de la Bibliothèque publicitaire.",
+        link: "Confirmation d'identité",
+      },
+      app: {
+        title: "Créer une application Meta for Developers",
+        body: "Puis génère un jeton d'accès utilisateur dans l'explorateur de l'API Graph.",
+      },
+      paste: { title: "Coller la version et le jeton", body: "Version du Graph API au format vNN.0." },
+    },
+    tiktokCommercial: {
+      brings: "Publicités diffusées sur TikTok dans l'UE pour le produit : annonces et annonceurs.",
+      cost: "Gratuit, accès recherche sur candidature",
+      apply: {
+        title: "Candidater à la Commercial Content API",
+        body: "Accès réservé après examen de la demande par TikTok.",
+      },
+      paste: { title: "Coller les identifiants de l'application", body: "Client key et client secret de l'application approuvée." },
+    },
+    metaMarketing: {
+      brings: "Coût publicitaire estimé par Meta pour le ciblage du produit.",
+      cost: "Gratuit, compte publicitaire requis",
+    },
+    tiktokBusiness: {
+      brings: "Portée et coût estimés par TikTok pour le ciblage du produit.",
+      cost: "Gratuit, compte annonceur requis",
+    },
+  },
+};
 
-export const es: Shape = {};
+export const es: Shape = {
+  page: {
+    title: "Fuentes de datos",
+    intro:
+      "Las fuentes abiertas ya trabajan en cada análisis, sin cuenta. Las demás se conectan aquí con «Configurar»: una guía paso a paso, los campos que rellenar y después una prueba real. Una fuente sin conectar nunca produce un valor: lo que depende de ella se queda en datos insuficientes.",
+    summary: "Resumen",
+    ringLabel: "{ready} de {total} fuentes listas",
+    ringOf: "de",
+    readyCount: { one: "{count} fuente lista de {total}", other: "{count} fuentes listas de {total}" },
+    dotTitle: "{name}: {status}",
+    docsNewTab: "(documentación, en una pestaña nueva)",
+    unofficial: "No oficial",
+    variables: "Variables",
+    missingVars: { one: "Falta {count} variable", other: "Faltan {count} variables" },
+    loading: "Cargando fuentes",
+    freshNote: "Conectada desde tu última visita",
+  },
+  status: { ready: "Lista", repair: "Por reparar", not_configured: "Sin conectar", not_implemented: "Por implementar" },
+  statusDetail: {
+    open: "API abierta, sin clave.",
+    configured: "Configurada.",
+    notConfigured: "Sin conectar.",
+    notImplemented: "Conector aún por implementar.",
+  },
+  fieldState: { set: "Definida", optional: "Opcional", missing: "Por rellenar", removing: "Se quitará" },
+  access: { open: "Abierta, sin cuenta", account: "Requiere cuenta", approval: "Solicitud y aprobación" },
+  verification: {
+    live_verified: "Verificado en real",
+    documented_unverified: "Escrito según la documentación, sin verificar",
+    not_implemented: "Solo el contrato",
+  },
+  coverage: {
+    "usitc-hts": "Solo Estados Unidos.",
+    "ebay-browse": "Países con un sitio eBay nacional (ni Luxemburgo, ni Portugal, ni Suecia, ni Dinamarca).",
+    eurostat: "UE y Suiza (series parciales). Reino Unido ausente desde el Brexit.",
+    "meta-ad-library": "Todos los anuncios: solo países de la UE (DSA). Fuera de la UE: solo anuncios políticos.",
+    oecd: "Países miembros de la OCDE.",
+    "tiktok-commercial-content": "Anuncios mostrados en la UE.",
+  },
+  dialog: {
+    setUp: "Configurar",
+    edit: "Editar",
+    officialDocs: "Documentación oficial",
+    close: "Cerrar",
+    notices: {
+      not_implemented: "Este conector aún no está programado: los valores se guardan para más adelante, pero no se recogerá ningún dato.",
+      documented_unverified:
+        "Conector escrito según la documentación oficial y nunca probado con claves reales: la primera llamada real puede revelar alguna diferencia.",
+    },
+  },
+  form: {
+    leftoverStep: { title: "Introducir los valores", body: "Copia cada valor desde la plataforma." },
+    testStep: { title: "Probar la conexión", body: "Guarda primero y después comprueba los valores con la plataforma." },
+    stepPrefix: "Paso {index}: ",
+    storageNote: "Se escribe en .env.local y nunca se devuelve al navegador.",
+    cancel: "Cancelar",
+    close: "Cerrar",
+    save: "Guardar",
+    saving: "Guardando",
+    placeholderKeep: "Ya definida: déjala vacía para conservarla",
+    placeholderPaste: "Pega el valor",
+    hideValue: "Ocultar el valor",
+    showValue: "Mostrar el valor",
+    see: "Ver",
+    keep: "Conservar",
+    remove: "Quitar",
+    copy: "Copiar",
+    copied: "Copiado",
+  },
+  editor: {
+    production: "Desactivado en producción: define estas variables en la configuración del alojamiento.",
+    remote: "Solo se puede modificar desde este equipo (localhost).",
+  },
+  test: {
+    label: "Prueba de conexión",
+    passed: "Conexión verificada: la fuente se usará en el próximo análisis.",
+    hint: "Llamadas reales, de solo lectura, con los valores guardados.",
+    running: "Probando",
+    rerun: "Repetir",
+    run: "Probar",
+    launchFailed: "No se pudo iniciar la prueba. Comprueba que el servidor está en marcha.",
+    step: { ok: "Superada", error: "Fallida", skipped: "Sin probar" },
+  },
+  actions: {
+    tooManyTests: "Demasiadas pruebas seguidas. Vuelve a intentarlo en {seconds} s.",
+    tooManySaves: "Demasiados guardados seguidos. Vuelve a intentarlo en {seconds} s.",
+    unknownSource: "Fuente desconocida.",
+    testUnavailable: "La prueba de conexión aún no está disponible para esta fuente.",
+    fixFields: "Corrige los campos señalados: no se ha guardado nada.",
+    nothingEntered: "No has introducido ningún valor: no se ha cambiado nada.",
+    writeFailed: "No se pudo escribir .env.local. Comprueba los permisos de la carpeta del proyecto.",
+    savedComplete: "Guardado en .env.local. Todas las variables obligatorias están definidas.",
+    savedMissing: {
+      one: "Guardado en .env.local. Queda {count} variable obligatoria por definir.",
+      other: "Guardado en .env.local. Quedan {count} variables obligatorias por definir.",
+    },
+  },
+  validation: {
+    empty: "Valor vacío.",
+    tooLong: "Valor demasiado largo.",
+    unsafe: "Caracteres no admitidos (espacio, comillas, $, #, \\). Comprueba el valor copiado.",
+    unexpected: "Formato inesperado.",
+  },
+  fields: {
+    GOOGLE_TRENDS_API_KEY: {
+      label: "Clave de API de Google Trends",
+      help: "La entrega Google cuando acepta tu solicitud a la API alfa.",
+    },
+    GOOGLE_ADS_API_VERSION: {
+      label: "Versión de la API",
+      help: "Versión actual de la API de Google Ads, indicada en las notas de la versión.",
+      patternHint: "Formato esperado: v seguida del número, por ejemplo v20.",
+    },
+    GOOGLE_ADS_CLIENT_ID: {
+      label: "ID de cliente OAuth",
+      help: "Google Cloud Console, credenciales OAuth 2.0. El proyecto de este cliente determina el nivel de acceso a la API (Keyword Planner exige Basic).",
+      patternHint: "Un ID de cliente OAuth de Google termina en .apps.googleusercontent.com.",
+      rejects: { cloudKey: "Es una clave de API de Google Cloud (AIza…), no un ID de cliente OAuth." },
+    },
+    GOOGLE_ADS_CLIENT_SECRET: {
+      label: "Secreto de cliente OAuth",
+      help: "Aparece junto al ID de cliente en Google Cloud Console.",
+    },
+    GOOGLE_ADS_REFRESH_TOKEN: {
+      label: "Token de actualización OAuth",
+      help: "Se genera una vez con el ID y el secreto de cliente, autorizando la cuenta de Google Ads. Empieza por 1//.",
+      patternHint: "Un token de actualización de Google empieza por 1//. Comprueba que no hayas copiado otro valor.",
+      rejects: {
+        authCode: "Es un código de autorización (4/…): se canjea una sola vez por el token de actualización (1//…).",
+        accessToken: "Es un token de acceso (ya29.…), válido durante una hora: hace falta el token de actualización (1//…).",
+      },
+    },
+    GOOGLE_ADS_CUSTOMER_ID: {
+      label: "ID de la cuenta de Google Ads",
+      help: "Cuenta usada para Keyword Planner, visible en la parte superior de la interfaz de Google Ads.",
+      patternHint: "10 dígitos, guiones opcionales.",
+    },
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: {
+      label: "ID de la cuenta de administrador",
+      help: "Solo si el acceso pasa por una cuenta de administrador (MCC).",
+      patternHint: "10 dígitos, guiones opcionales.",
+    },
+    META_GRAPH_API_VERSION: {
+      label: "Versión de la Graph API",
+      help: "Versión actual de la Graph API, indicada en el registro de cambios de Meta.",
+      patternHint: "Formato esperado: vNN.N, por ejemplo v23.0.",
+    },
+    META_AD_LIBRARY_ACCESS_TOKEN: {
+      label: "Token de acceso",
+      help: "Cuenta de desarrollador de Meta con identidad confirmada para la Ad Library API.",
+    },
+    TIKTOK_CLIENT_KEY: {
+      label: "Client key",
+      help: "Aplicación aprobada para la Commercial Content API, portal de desarrolladores de TikTok.",
+    },
+    TIKTOK_CLIENT_SECRET: {
+      label: "Client secret",
+      help: "Aparece junto a la client key de la misma aplicación.",
+    },
+    WIKIMEDIA_CONTACT: {
+      label: "Contacto para Wikimedia",
+      help: "Tu email o la dirección de una página sobre ti, enviado en la cabecera de las peticiones. Wikimedia sube entonces el límite de 10 a 200 peticiones por minuto.",
+      placeholder: "tu@ejemplo.es",
+      patternHint: "Una dirección de email o una dirección web que empiece por https://.",
+    },
+    YOUTUBE_API_KEY: {
+      label: "Clave de API de Google Cloud",
+      help: "Clave de un proyecto con la YouTube Data API v3 activada. Tu clave AIza… actual sirve si la API está activada en su proyecto.",
+      patternHint: "Una clave de API de Google empieza por AIza.",
+    },
+    EBAY_CLIENT_ID: {
+      label: "App ID (Client ID)",
+      help: "Juego de claves de producción de tu aplicación, página Application Keys del portal de desarrolladores de eBay.",
+      rejects: { sandbox: "Es una clave Sandbox (SBX): usa el juego de claves de producción." },
+    },
+    EBAY_CLIENT_SECRET: {
+      label: "Cert ID (Client Secret)",
+      help: "Aparece junto al App ID en el mismo juego de claves de producción.",
+      rejects: { sandbox: "Es una clave Sandbox (SBX): usa el juego de claves de producción." },
+    },
+    ALIEXPRESS_APP_KEY: {
+      label: "App Key",
+      help: "Consola de AliExpress Open Platform, en los datos de tu aplicación aprobada.",
+      patternHint: "La App Key de AliExpress es un número.",
+    },
+    ALIEXPRESS_APP_SECRET: {
+      label: "App Secret",
+      help: "Aparece junto a la App Key en la consola de Open Platform.",
+    },
+    ALIEXPRESS_TRACKING_ID: {
+      label: "Tracking ID",
+      help: "Identificador de seguimiento de tu cuenta de afiliado de AliExpress Portals. Sin él, algunas aplicaciones no reciben ningún producto.",
+    },
+    META_MARKETING_ACCESS_TOKEN: {
+      label: "Token de acceso de la Marketing API",
+      help: "Token de un usuario del sistema o de una aplicación con acceso a la cuenta publicitaria.",
+    },
+    META_AD_ACCOUNT_ID: {
+      label: "ID de la cuenta publicitaria",
+      help: "Administrador de anuncios de Meta, configuración de la cuenta.",
+      patternHint: "Dígitos, con o sin el prefijo act_.",
+    },
+    TIKTOK_BUSINESS_ACCESS_TOKEN: {
+      label: "Token de acceso de TikTok for Business",
+      help: "Token de larga duración de la aplicación de la Marketing API autorizada en la cuenta de anunciante.",
+    },
+    TIKTOK_ADVERTISER_ID: {
+      label: "ID de anunciante",
+      help: "Identificador de la cuenta de anunciante en TikTok Ads Manager.",
+      patternHint: "Solo dígitos.",
+    },
+  },
+  groups: {
+    ready: { title: "Activas sin configuración", intro: "Se consultan en cada análisis, sin cuenta ni clave." },
+    free_account: { title: "Gratuitas, por conectar", intro: "Una cuenta gratuita y unos minutos: sigue la guía de cada fuente." },
+    application: { title: "Con solicitud", intro: "La plataforma concede el acceso tras revisarlo; el conector funciona en cuanto se concede." },
+    planned: { title: "Próximamente", intro: "Conectores aún no programados: ya puedes preparar las claves." },
+  },
+  guides: {
+    free: "Gratis",
+    prepareStep: { title: "Preparar las credenciales", body: "El conector aún no está programado: los valores se usarán en cuanto lo esté." },
+    worldBank: { brings: "Población, PIB per cápita y proporción de internautas de cada país." },
+    eurostat: { brings: "Proporción de habitantes que compran por internet, países europeos." },
+    oecd: { brings: "Confianza del consumidor, países de la OCDE." },
+    googleAutocomplete: {
+      brings: "Lo que la gente escribe después del nombre del producto en cada país: compra, opiniones, marcas, marketplaces.",
+      unofficial: "Punto de acceso público no documentado por Google: puede cambiar sin previo aviso.",
+    },
+    wikimedia: {
+      brings: "Audiencia en Wikipedia de la categoría del producto: tendencia y estacionalidad cuando Google no las da.",
+      contact: {
+        title: "Añadir un contacto (recomendado)",
+        body: "Sin contacto, Wikimedia limita las peticiones a 10 por minuto: un análisis «Todo el mundo» puede quedarse sin algunos países. Con un email o una dirección web, el límite sube a 200 por minuto.",
+        link: "Normas de Wikimedia",
+      },
+    },
+    ukTradeTariff: { brings: "Código aduanero del producto y aranceles de importación en el Reino Unido y la UE según el país de origen." },
+    usitcHts: { brings: "Aranceles de importación en Estados Unidos para el código aduanero del producto." },
+    vatRates: { brings: "Tipo de IVA de cada país, para comparar precios mostrados con impuestos." },
+    ecbFx: { brings: "Tipos de cambio oficiales para convertir precios extranjeros a euros." },
+    mymemory: { brings: "Traduce el nombre del producto al idioma de cada país, para analizar todo el mundo a partir de un solo nombre." },
+    youtube: {
+      brings: "Vídeos publicados sobre el producto en cada país y visualizaciones medianas: interés real y contenido de la competencia.",
+      cost: "Gratis (10.000 unidades al día)",
+      setupTime: "5 min",
+      enable: {
+        title: "Activar la YouTube Data API v3",
+        body: "Abre la página, elige o crea un proyecto de Google Cloud y haz clic en «Habilitar».",
+        link: "Biblioteca de API de Google Cloud",
+      },
+      key: {
+        title: "Crear una clave de API",
+        body: "Credenciales > Crear credenciales > Clave de API. Sirve una clave AIza… existente del mismo proyecto. Recomendado: restríngela a la YouTube Data API v3.",
+        link: "Credenciales del proyecto",
+      },
+      paste: { title: "Pegar la clave", body: "Se escribe en .env.local en tu equipo y nunca se devuelve al navegador." },
+    },
+    ebay: {
+      brings: "Anuncios y precios reales del producto en el sitio eBay de cada país, y proporción de vendedores con sede en China.",
+      setupTime: "10 min",
+      account: {
+        title: "Crear una cuenta de desarrollador de eBay",
+        body: "Registro gratuito en el programa para desarrolladores, con tu cuenta de eBay o una nueva.",
+      },
+      keyset: {
+        title: "Generar un juego de claves de producción",
+        body: "Application Keys: ponle nombre a tu aplicación y crea el juego de claves Production (no Sandbox).",
+      },
+      activate: {
+        title: "Activar el juego de claves",
+        body: "eBay bloquea las claves de producción hasta resolver la cuestión de las notificaciones de eliminación de cuentas. Esta aplicación no guarda ningún dato de usuarios de eBay: solicita la exención.",
+      },
+      paste: { title: "Pegar el App ID y el Cert ID", body: "Los dos vienen del mismo juego de claves de producción." },
+    },
+    aliexpress: {
+      brings: "Precios de compra reales, ventas recientes y valoraciones de los productos de AliExpress: tu coste de aprovisionamiento sin teclear nada.",
+      setupTime: "15 min + aprobación (normalmente de 1 a 3 días laborables)",
+      join: {
+        title: "Unirse al programa de afiliados de AliExpress",
+        body: "Registro gratuito en AliExpress Portals. En tu área de afiliado, crea o copia un Tracking ID.",
+      },
+      app: {
+        title: "Crear una aplicación en Open Platform",
+        body: "Inicia sesión con la misma cuenta, abre la consola de aplicaciones y crea una aplicación de tipo afiliado. AliExpress suele aprobarla en 1 a 3 días laborables.",
+      },
+      paste: {
+        title: "Pegar las credenciales de la aplicación",
+        body: "La App Key y el App Secret aparecen en la consola cuando la aplicación está aprobada.",
+      },
+    },
+    googleAds: {
+      brings: "Volúmenes de búsqueda mensuales reales, competencia y CPC de Google: los únicos datos que permiten estimar ventas.",
+      cost: "Gratis, requiere acceso Basic",
+      setupTime: "20 min + aprobación del acceso Basic",
+      enable: {
+        title: "Activar la API de Google Ads",
+        body: "En un proyecto de Google Cloud, activa la API de Google Ads. El nivel de acceso del proyecto (Test, Explorer, Basic) aparece en su página de Google Ads API.",
+        link: "API de Google Ads",
+      },
+      basic: {
+        title: "Solicitar el acceso Basic",
+        body: "Keyword Planner exige Basic; Explorer no basta. Se solicita tras verificar la marca. Mientras no te lo concedan, rellena igualmente los campos: no habrá que cambiar nada después.",
+        link: "Página de Google Ads API del proyecto",
+      },
+      oauth: {
+        title: "Crear un ID de cliente OAuth",
+        body: "Credenciales > ID de cliente OAuth > Aplicación web, con https://developers.google.com/oauthplayground como URI de redirección autorizado.",
+        link: "Credenciales del proyecto",
+      },
+      refresh: {
+        title: "Generar el token de actualización",
+        body: "Engranaje > marca «Use your own OAuth credentials» y pega tu ID y tu secreto. Scope https://www.googleapis.com/auth/adwords, Authorize APIs y después «Exchange authorization code for tokens». Copia el Refresh token (1//…).",
+      },
+      account: {
+        title: "Cuenta y versión",
+        body: "El ID de la cuenta de Google Ads aparece en la parte superior de la interfaz de Google Ads. La versión es la más reciente de las notas de la versión.",
+      },
+    },
+    googleTrends: {
+      brings: "Forma exacta de la demanda de búsqueda (tendencia, estacionalidad) en cada país.",
+      cost: "Gratis, con solicitud",
+      apply: {
+        title: "Solicitar la API alfa",
+        body: "Google abre la API de Trends mediante solicitud. El conector aún no está programado para el formato de respuesta alfa.",
+        link: "API de Google Trends",
+      },
+      paste: { title: "Pegar la clave recibida", body: "Una vez aceptada la solicitud." },
+    },
+    metaAdLibrary: {
+      brings: "Anuncios activos y anunciantes del producto en Facebook e Instagram (UE): la competencia visible.",
+      cost: "Gratis, requiere identidad confirmada",
+      identity: {
+        title: "Confirmar tu identidad con Meta",
+        body: "Obligatorio para la API de la Biblioteca de anuncios.",
+        link: "Confirmación de identidad",
+      },
+      app: {
+        title: "Crear una aplicación de Meta for Developers",
+        body: "Después genera un token de acceso de usuario en el explorador de la Graph API.",
+      },
+      paste: { title: "Pegar la versión y el token", body: "Versión de la Graph API en formato vNN.0." },
+    },
+    tiktokCommercial: {
+      brings: "Anuncios mostrados en TikTok en la UE para el producto: anuncios y anunciantes.",
+      cost: "Gratis, acceso de investigación con solicitud",
+      apply: {
+        title: "Solicitar la Commercial Content API",
+        body: "Acceso concedido después de que TikTok revise la solicitud.",
+      },
+      paste: { title: "Pegar las credenciales de la aplicación", body: "Client key y client secret de la aplicación aprobada." },
+    },
+    metaMarketing: {
+      brings: "Coste publicitario estimado por Meta para la segmentación del producto.",
+      cost: "Gratis, requiere cuenta publicitaria",
+    },
+    tiktokBusiness: {
+      brings: "Alcance y coste estimados por TikTok para la segmentación del producto.",
+      cost: "Gratis, requiere cuenta de anunciante",
+    },
+  },
+};

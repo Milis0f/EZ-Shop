@@ -4,19 +4,12 @@ import { cn } from "@/lib/utils";
 
 /**
  * What the sources page shows for one source. It refines the provider state with the fields
- * already typed: a source with some values set but still not ready is « à réparer ».
+ * already typed: a source with some values set but still not ready "needs fixing" (labels in the connectors dictionary).
  * These are states, not verdicts: craie and brume, plus one ambre for what needs fixing.
  */
 export type SourceStatus = "ready" | "repair" | "not_configured" | "not_implemented";
 
 export const SOURCE_STATUS_ORDER: readonly SourceStatus[] = ["ready", "repair", "not_configured", "not_implemented"];
-
-export const SOURCE_STATUS_LABELS: Readonly<Record<SourceStatus, string>> = {
-  ready: "Prête",
-  repair: "À réparer",
-  not_configured: "Non branchée",
-  not_implemented: "À implémenter",
-};
 
 const DOT_TONE: Readonly<Record<SourceStatus, string>> = {
   ready: "bg-foreground",
@@ -42,8 +35,8 @@ export function StatusDot({ status, className }: StatusDotProps) {
   return <span aria-hidden className={cn("inline-block size-2 shrink-0 rounded-full", DOT_TONE[status], className)} />;
 }
 
-/** The status as a pill: dot plus label, same height as the other chips of a card. */
-export function StatusChip({ status }: { readonly status: SourceStatus }) {
+/** The status as a pill: dot plus label (in the active language), same height as the other chips of a card. */
+export function StatusChip({ status, label }: { readonly status: SourceStatus; readonly label: string }) {
   return (
     <span
       className={cn(
@@ -53,7 +46,7 @@ export function StatusChip({ status }: { readonly status: SourceStatus }) {
       )}
     >
       <StatusDot status={status} />
-      {SOURCE_STATUS_LABELS[status]}
+      {label}
     </span>
   );
 }

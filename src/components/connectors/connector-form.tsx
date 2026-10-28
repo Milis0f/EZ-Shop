@@ -4,9 +4,12 @@ import { ArrowUpRight, Check, CircleCheck, Copy, Eye, EyeOff, Lock } from "lucid
 import { startTransition, useActionState, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { saveConnectorConfig } from "@/app/connectors/actions";
 import { INITIAL_CONNECTOR_FORM_STATE } from "@/app/connectors/form-state";
-import { ENV_FIELDS, type EnvEditorAccess, type FieldState } from "@/config/connector-fields";
+import { envFields, type EnvEditorAccess, type FieldState } from "@/config/connector-fields";
 import type { GuideStep } from "@/config/connector-guides";
 import type { ProviderId } from "@/domain/provenance";
+import { useLocale, useMessages } from "@/i18n/client";
+import type { Messages } from "@/i18n/messages";
+import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 import { PendingButton } from "@/components/motion/pending-button";
 import { ConnectionTest } from "./connection-test";
@@ -26,15 +29,17 @@ interface ConnectorFormProps {
 const inputClass =
   "h-11 w-full rounded-pill border border-line bg-background px-4 text-sm text-foreground transition-colors duration-[var(--dur-fast)] placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 aria-invalid:border-dashed aria-invalid:border-foreground/50";
 
-/** Every variable of one connector. Submitted by hand so a failed save never wipes what was typed. */
+type FormMessages = Messages<"connectors">["form"];
+
 /** Guide steps with every field placed once: leftovers go to a final "values" step. */
-function placeFields(steps: readonly GuideStep[], fields: readonly FieldState[]): GuideStep[] {
+function placeFields(steps: readonly GuideStep[], fields: readonly FieldState[], leftoverStep: FormMessages["leftoverStep"]): GuideStep[] {
   const placed = new Set(steps.flatMap((s) => s.fields ?? []));
   const leftover = fields.map((f) => f.name).filter((n) => !placed.has(n));
-  return leftover.length > 0 ? [...steps, { title: "Saisir les valeurs", body: "Copie chaque valeur depuis la plateforme.", fields: leftover }] : [...steps];
+  return leftover.length > 0 ? [...steps, { ...leftoverStep, fields: leftover }] : [...steps];
 }
 
 function StepItem({ index, step, done, last, children }: { index: number; step: GuideStep; done: boolean; last: boolean; children?: ReactNode }) {
+  const m = useMessages("connectors").form;
   return (
     <li className="relative grid grid-cols-[1.75rem_1fr] gap-x-4">
       {!last && <span aria-hidden className="absolute top-8 bottom-[-1.25rem] left-[0.8125rem] w-px bg-line" />}
@@ -49,7 +54,7 @@ function StepItem({ index, step, done, last, children }: { index: number; step: 
       </span>
       <div className="min-w-0 pb-1">
         <h3 className="pt-1 text-sm font-medium">
-          <span className="sr-only">Étape {index} : </span>
+          <span className="sr-only">{t(m.stepPrefix, { index })}</span>
           {step.title}
         </h3>
         {step.body && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.body}</p>}
@@ -70,8 +75,11 @@ function StepItem({ index, step, done, last, children }: { index: number; step: 
   );
 }
 
+/** Every variable of one connector. Submitted by hand so a failed save never wipes what was typed. */
 export function ConnectorForm({ providerId, fields, editor, testable, steps = [], onDone, onCancel }: ConnectorFormProps) {
   const [state, dispatch, pending] = useActionState(saveConnectorConfig, INITIAL_CONNECTOR_FORM_STATE);
+  const m = useMessages("connectors").form;
+  const allSteps = placeFields(steps, fields, m.leftoverStep);
 
   useEffect(() => {
     if (state.status !== "saved" || !state.complete || testable) return;
@@ -93,7 +101,7 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
       {/* Remounted after each save: inputs and "remove" toggles start from the new state. */}
       <div key={state.savedAt ?? 0} className="modal-scroll min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <ol className="space-y-5">
-          {placeFields(steps, fields).map((step, i, all) => {
+          {allSteps.map((step, i, all) => {
             const own = (step.fields ?? []).flatMap((name) => fields.filter((f) => f.name === name));
             const done = own.length > 0 && own.every((f) => f.set || f.optional);
             return (
@@ -105,8 +113,8 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
           })}
           {testable && (
             <StepItem
-              index={placeFields(steps, fields).length + 1}
-              step={{ title: "Tester la connexion", body: "Enregistre d'abord, puis vérifie les valeurs auprès de la plateforme." }}
+              index={allSteps.length + 1}
+              step={m.testStep}
               done={false}
               last
             >
@@ -134,14 +142,14 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Lock className="size-3.5 shrink-0" aria-hidden />
-            Écrit dans .env.local, jamais renvoyé au navigateur.
+            {m.storageNote}
           </p>
           <div className="ml-auto flex gap-2">
             <button type="button" onClick={onCancel} className="interactive rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
-              {state.status === "saved" ? "Fermer" : "Annuler"}
+              {state.status === "saved" ? m.close : m.cancel}
             </button>
-            <PendingButton pending={pending} pendingLabel="Enregistrement" className="min-h-10 px-5 text-sm">
-              Enregistrer
+            <PendingButton pending={pending} pendingLabel={m.saving} className="min-h-10 px-5 text-sm">
+              {m.save}
             </PendingButton>
           </div>
         </div>
@@ -151,13 +159,14 @@ export function ConnectorForm({ providerId, fields, editor, testable, steps = []
 }
 
 function FieldStatus({ state, removing }: { state: FieldState; removing: boolean }) {
+  const m = useMessages("connectors").fieldState;
   const [label, tone] = removing
-    ? ["Sera retirée", "text-foreground"]
+    ? [m.removing, "text-foreground"]
     : state.set
-      ? ["Définie", "text-kind-observed"]
+      ? [m.set, "text-kind-observed"]
       : state.optional
-        ? ["Facultative", "text-muted-foreground"]
-        : ["À renseigner", "text-foreground"];
+        ? [m.optional, "text-muted-foreground"]
+        : [m.missing, "text-foreground"];
   return (
     <span className={cn("flex items-center gap-1.5 text-[11px] whitespace-nowrap", tone)}>
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
@@ -167,14 +176,15 @@ function FieldStatus({ state, removing }: { state: FieldState; removing: boolean
 }
 
 function Field({ state, error, autoFocus }: { state: FieldState; error?: string; autoFocus: boolean }) {
-  const spec = ENV_FIELDS[state.name];
+  const spec = envFields(useLocale())[state.name];
+  const m = useMessages("connectors").form;
   const [revealed, setRevealed] = useState(false);
   const [removing, setRemoving] = useState(false);
   if (!spec) return null;
 
   const id = `env-${state.name}`;
   const hintId = `${id}-hint`;
-  const placeholder = state.set && spec.secret ? "Déjà définie : laisser vide pour la conserver" : (spec.placeholder ?? "Coller la valeur");
+  const placeholder = state.set && spec.secret ? m.placeholderKeep : (spec.placeholder ?? m.placeholderPaste);
 
   return (
     <div>
@@ -208,7 +218,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
           <button
             type="button"
             onClick={() => setRevealed((v) => !v)}
-            aria-label={revealed ? "Masquer la valeur" : "Afficher la valeur"}
+            aria-label={revealed ? m.hideValue : m.showValue}
             aria-pressed={revealed}
             disabled={removing}
             className="interactive absolute inset-y-1.5 right-1.5 flex w-8 items-center justify-center rounded-pill text-muted-foreground hover:bg-surface-2 hover:text-foreground"
@@ -226,14 +236,14 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
             <>
               {" "}
               <a href={spec.helpUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">
-                Voir
+                {m.see}
               </a>
             </>
           )}
         </span>
         {state.set && (
           <button type="button" onClick={() => setRemoving((v) => !v)} className="shrink-0 underline-offset-2 hover:text-foreground hover:underline">
-            {removing ? "Conserver" : "Retirer"}
+            {removing ? m.keep : m.remove}
           </button>
         )}
       </div>
@@ -244,6 +254,7 @@ function Field({ state, error, autoFocus }: { state: FieldState; error?: string;
 /** Production or remote access: nothing is written, the exact lines to add are shown instead. */
 function ManualInstructions({ fields, reason, onClose }: { fields: readonly FieldState[]; reason: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const m = useMessages("connectors").form;
   const template = fields.map((f) => `${f.name}=`).join("\n");
   const copy = async () => {
     try {
@@ -264,12 +275,12 @@ function ManualInstructions({ fields, reason, onClose }: { fields: readonly Fiel
           className="interactive absolute top-2 right-2 inline-flex items-center gap-1 rounded-pill bg-surface-2 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
         >
           <Copy className="size-3" aria-hidden />
-          {copied ? "Copié" : "Copier"}
+          {copied ? m.copied : m.copy}
         </button>
       </div>
       <div className="flex justify-end">
         <button type="button" onClick={onClose} className="interactive rounded-pill px-3.5 py-2 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">
-          Fermer
+          {m.close}
         </button>
       </div>
     </div>

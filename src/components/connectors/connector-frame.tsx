@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useMessages } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "ez-connectors-seen";
@@ -54,9 +55,10 @@ export function ConnectorFrame({ id, ready, className, children }: ConnectorFram
 
 /** Shown only inside a fresh ConnectorFrame. */
 export function FreshNote() {
+  const m = useMessages("connectors");
   return (
     <span className="hidden items-center gap-1.5 text-xs text-kind-observed group-data-[fresh=true]/connector:inline-flex">
-      Branchée depuis ta dernière visite
+      {m.page.freshNote}
     </span>
   );
 }
