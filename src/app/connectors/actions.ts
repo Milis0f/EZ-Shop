@@ -27,7 +27,7 @@ export async function testConnectorConnection(providerId: string): Promise<Conne
 
   const meta = REAL_PROVIDER_METAS.find((m) => m.id === providerId);
   if (!meta) return { ok: false, message: m.unknownSource };
-  const steps = await checkConnector(meta.id);
+  const steps = await checkConnector(meta.id, locale);
   if (!steps) return { ok: false, message: m.testUnavailable };
   return { ok: true, steps, testedAt: new Date().toISOString() };
 }

@@ -82,7 +82,7 @@ export const en = {
   sources: {
     readyOf: "of {total} sources connected",
     configure: "Configure sources",
-    state: { ready: "Ready", not_configured: "Not configured", not_implemented: "To be implemented", mock: "Mock" },
+    state: { ready: "Ready", not_configured: "Not connected", not_implemented: "Not built yet", mock: "Mock" },
   },
   supplier: {
     chip: "{platform}, item {id}",
@@ -282,7 +282,7 @@ export const es: Shape = {
   sources: {
     readyOf: "de {total} fuentes conectadas",
     configure: "Configurar las fuentes",
-    state: { ready: "Lista", not_configured: "Sin configurar", not_implemented: "Por implementar", mock: "Simulada" },
+    state: { ready: "Lista", not_configured: "Sin conectar", not_implemented: "Por implementar", mock: "Simulada" },
   },
   supplier: {
     chip: "{platform}, artículo {id}",

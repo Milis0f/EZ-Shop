@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type { Locale } from "@/i18n/config";
+import { formatInt } from "@/i18n/format";
+import { t } from "@/i18n/translate";
+import { checkMessages, errorDetail } from "../check-messages";
 import { missingEnv, type ServerEnv } from "@/config/env";
 import type { CountryCode } from "@/domain/country";
 import type { SourceRef } from "@/domain/provenance";
@@ -84,14 +88,6 @@ export function describeEbayError(_status: number, body: string): ErrorDescripti
     return undefined;
   }
 }
-
-export const EBAY_ERROR_HINTS: Readonly<Record<string, string>> = {
-  invalid_client:
-    "App ID ou Cert ID refusé : utilise le jeu de clés « Production » (pas Sandbox) et vérifie qu'il est activé (notifications de suppression de compte configurées ou exemption demandée).",
-  invalid_scope: "Ce jeu de clés n'a pas accès aux API publiques (scope api_scope).",
-  ebay_1001: "Jeton d'application refusé : régénère-le en vérifiant les clés.",
-  ebay_1100: "Accès refusé à la Browse API pour cette application.",
-};
 
 const tokenSchema = z.object({ access_token: z.string().min(1), expires_in: z.number().optional() });
 /** The token with how long to keep it, derived from the `expires_in` the identity service returned. */
@@ -217,27 +213,25 @@ export class EbayBrowseProvider implements MarketplaceProvider, ConnectionTestab
     });
   }
 
-  async diagnose(): Promise<ConnectionCheckStep[]> {
+  async diagnose(_now: Date, locale: Locale): Promise<ConnectionCheckStep[]> {
+    const m = checkMessages(locale);
     const steps: ConnectionCheckStep[] = [];
-    if (this.status().state !== "ready") return [{ id: "token", label: "Jeton d'application", status: "skipped", detail: "App ID ou Cert ID manquant." }];
+    if (this.status().state !== "ready") return [{ id: "token", label: m.ebay.token, status: "skipped", detail: m.ebay.missing }];
     this.applicationToken.reset();
     const token = await this.getToken();
-    const hint = (message: string) => {
-      const reason = /\(([A-Za-z0-9_]+)\)$/.exec(message)?.[1];
-      return { detail: (reason && EBAY_ERROR_HINTS[reason]) ?? `Erreur renvoyée : ${message}`, ...(reason ? { items: [`Code eBay : ${reason}`] } : {}) };
-    };
+    const hint = (message: string) => errorDetail(locale, m.hints.ebay, "eBay", message, /\(([A-Za-z0-9_]+)\)$/.exec(message)?.[1]);
     if (!token.ok) {
       return [
-        { id: "token", label: "Jeton d'application", status: "error", ...hint(token.error.message) },
-        { id: "search", label: "Recherche sur eBay France", status: "skipped", detail: "Non testé : l'étape précédente a échoué." },
+        { id: "token", label: m.ebay.token, status: "error", ...hint(token.error.message) },
+        { id: "search", label: m.ebay.search, status: "skipped", detail: m.notTested },
       ];
     }
-    steps.push({ id: "token", label: "Jeton d'application", status: "ok", detail: "App ID et Cert ID acceptés par eBay." });
+    steps.push({ id: "token", label: m.ebay.token, status: "ok", detail: m.ebay.tokenOk });
     const result = await this.fetchListings({ terms: ["chaussettes"], country: "FR", language: "fr" }, true);
     steps.push(
       result.ok
-        ? { id: "search", label: "Recherche sur eBay France", status: "ok", detail: `Réponse reçue : ${result.data.total.toLocaleString("fr-FR")} annonces pour « chaussettes ».` }
-        : { id: "search", label: "Recherche sur eBay France", status: "error", ...hint(result.error.message) },
+        ? { id: "search", label: m.ebay.search, status: "ok", detail: t(m.ebay.ok, { count: formatInt(result.data.total, locale) }) }
+        : { id: "search", label: m.ebay.search, status: "error", ...hint(result.error.message) },
     );
     return steps;
   }

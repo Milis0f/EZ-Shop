@@ -1,3 +1,7 @@
+import type { Locale } from "@/i18n/config";
+import { formatInt } from "@/i18n/format";
+import { t } from "@/i18n/translate";
+import { checkMessages, errorDetail } from "../check-messages";
 import { createHmac } from "node:crypto";
 import { missingEnv, type ServerEnv } from "@/config/env";
 import type { SourceRef } from "@/domain/provenance";
@@ -57,15 +61,6 @@ export function signAliExpress(params: Readonly<Record<string, string>>, secret:
     .join("");
   return createHmac("sha256", secret).update(apiPath + base, "utf8").digest("hex").toUpperCase();
 }
-
-export const ALIEXPRESS_ERROR_HINTS: Readonly<Record<string, string>> = {
-  InvalidAppKey: "App Key inconnue : vérifie qu'elle vient de l'application validée dans la console AliExpress.",
-  IncompleteSignature: "Signature refusée : l'App Secret ne correspond pas à l'App Key.",
-  InvalidSignature: "Signature refusée : l'App Secret ne correspond pas à l'App Key.",
-  AppWhiteIpLimit: "L'application limite les adresses IP autorisées : ajoute la tienne dans la console AliExpress.",
-  InsufficientPermission: "L'application n'a pas accès aux API Affiliate : vérifie sa catégorie et sa validation.",
-  ApiCallLimit: "Limite d'appels atteinte : réessaie plus tard.",
-};
 
 const num = (v: unknown): number | null => {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(/[^\d.]/g, "")) : Number.NaN;
@@ -187,15 +182,16 @@ export class AliExpressProvider implements SourcingProvider, ConnectionTestable 
     return ok({ totalProducts: parsed.data.total, products: parsed.data.products, source });
   }
 
-  async diagnose(): Promise<ConnectionCheckStep[]> {
-    const label = "Recherche de produits";
-    if (this.status().state !== "ready") return [{ id: "query", label, status: "skipped", detail: "App Key ou App Secret manquant." }];
+  async diagnose(_now: Date, locale: Locale): Promise<ConnectionCheckStep[]> {
+    const m = checkMessages(locale);
+    const label = m.aliexpress.label;
+    if (this.status().state !== "ready") return [{ id: "query", label, status: "skipped", detail: m.aliexpress.missing }];
     const result = await this.fetchProducts({ terms: ["socks"], shipTo: "FR" }, true);
     if (!result.ok) {
       const reason = /\(([A-Za-z][\w.]*)\)$/.exec(result.error.message)?.[1];
-      return [{ id: "query", label, status: "error", detail: (reason && ALIEXPRESS_ERROR_HINTS[reason]) ?? `Erreur renvoyée : ${result.error.message}`, ...(reason ? { items: [`Code AliExpress : ${reason}`] } : {}) }];
+      return [{ id: "query", label, status: "error", ...errorDetail(locale, m.hints.aliexpress, "AliExpress", result.error.message, reason) }];
     }
-    const tracking = this.env.ALIEXPRESS_TRACKING_ID ? "" : " Sans Tracking ID, certaines applications ne reçoivent aucun produit.";
+    const tracking = this.env.ALIEXPRESS_TRACKING_ID ? "" : m.aliexpress.noTracking;
     return [
       {
         id: "query",
@@ -203,8 +199,8 @@ export class AliExpressProvider implements SourcingProvider, ConnectionTestable 
         status: result.data.products.length > 0 ? "ok" : "error",
         detail:
           result.data.products.length > 0
-            ? `Réponse reçue : ${result.data.totalProducts.toLocaleString("fr-FR")} produits pour « socks ».`
-            : `Réponse vide pour « socks ».${tracking}`,
+            ? t(m.aliexpress.ok, { count: formatInt(result.data.totalProducts, locale) })
+            : `${m.aliexpress.empty}${tracking}`,
       },
     ];
   }

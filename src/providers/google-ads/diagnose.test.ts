@@ -56,7 +56,7 @@ describe("GoogleAdsKeywordPlannerProvider.diagnose", () => {
 
   it("stops at OAuth with an explanation when the refresh token is rejected", async () => {
     stubFetch(() => json({ error: "invalid_grant", error_description: "Bad Request" }, 400));
-    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now);
+    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now, "fr");
     expect(steps.map((s) => [s.id, s.status])).toEqual([
       ["oauth", "error"],
       ["account", "skipped"],
@@ -71,7 +71,7 @@ describe("GoogleAdsKeywordPlannerProvider.diagnose", () => {
     stubFetch((url) =>
       url.startsWith("https://oauth2") ? json({ access_token: "ya29" }) : adsError("PERMISSION_DENIED", { authorizationError: "CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION" }),
     );
-    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now);
+    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now, "fr");
     expect(steps.map((s) => s.status)).toEqual(["ok", "error", "skipped"]);
     expect(steps[1].detail).toContain("accès « Test »");
   });
@@ -84,7 +84,7 @@ describe("GoogleAdsKeywordPlannerProvider.diagnose", () => {
       if (url.endsWith("/googleAds:search")) return json({ results: [{ languageConstant: { resourceName: "languageConstants/1002" } }] });
       return adsError("PERMISSION_DENIED", { authorizationError: "ACTION_NOT_PERMITTED" });
     });
-    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now);
+    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now, "fr");
     expect(steps.map((s) => s.status)).toEqual(["ok", "ok", "error"]);
     expect(steps[2].detail).toContain("niveau d'accès Basic");
     expect(steps[2].items).toEqual(["Code Google : ACTION_NOT_PERMITTED"]);
@@ -98,7 +98,7 @@ describe("GoogleAdsKeywordPlannerProvider.diagnose", () => {
       if (url.endsWith("/googleAds:search")) return json({ results: [{ languageConstant: { resourceName: "languageConstants/1002" } }] });
       return json({ results: [{ text: "chaussettes", keywordMetrics: { avgMonthlySearches: "8100" } }] });
     });
-    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now);
+    const steps = await new GoogleAdsKeywordPlannerProvider(env, 500).diagnose(now, "fr");
     expect(steps.map((s) => s.status)).toEqual(["ok", "ok", "ok"]);
     expect(steps[1].detail).toContain("EUR");
     expect(steps[2].detail).toMatch(/8\s?100 recherches/);
@@ -107,8 +107,14 @@ describe("GoogleAdsKeywordPlannerProvider.diagnose", () => {
   it("names the missing variables instead of calling Google", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    const steps = await new GoogleAdsKeywordPlannerProvider({ ...env, GOOGLE_ADS_CLIENT_ID: undefined }, 500).diagnose(now);
+    const steps = await new GoogleAdsKeywordPlannerProvider({ ...env, GOOGLE_ADS_CLIENT_ID: undefined }, 500).diagnose(now, "fr");
     expect(steps[0]).toMatchObject({ status: "skipped", detail: expect.stringContaining("GOOGLE_ADS_CLIENT_ID") });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("writes its steps in the requested language", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const steps = await new GoogleAdsKeywordPlannerProvider({ ...env, GOOGLE_ADS_CLIENT_ID: undefined }, 500).diagnose(now, "en");
+    expect(steps[0]).toMatchObject({ label: "OAuth connection", detail: expect.stringMatching(/^Missing variables: GOOGLE_ADS_CLIENT_ID/) });
   });
 });

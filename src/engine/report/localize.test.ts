@@ -28,7 +28,7 @@ describe("reason texts", () => {
     expect(reasonText(ALL[0]!, "fr")).toBe("Perte à ton prix : marge de -12 % après droits et livraison.");
     expect(reasonText(ALL[1]!, "fr")).toMatch(/^Prix sous le minimum pour ta marge de 60 % : vends au moins 33,00\s€ TTC, soit 27,50\s€ HT\.$/);
     expect(reasonText(ALL[3]!, "fr")).toBe("Intérêt en hausse (+12 % par an, d'après Wikipédia).");
-    expect(reasonText(ALL[4]!, "fr")).toBe("Pic en nov., déc.");
+    expect(reasonText(ALL[4]!, "fr")).toBe("Pic en novembre, décembre.");
     expect(reasonText(ALL[7]!, "fr")).toBe("1 recherche d'achat (prix, avis…) parmi 8.");
     expect(reasonText(ALL[14]!, "fr")).toBe("Signaux mitigés : point fort tendance historique, point faible coût publicitaire.");
     expect(reasonText(ALL[16]!, "fr")).toBe("Données insuffisantes : sources à connecter, Google Ads Keyword Planner, Banque mondiale.");
@@ -37,7 +37,7 @@ describe("reason texts", () => {
   it("renders every code in English and Spanish, with locale number formats", () => {
     expect(reasonText(ALL[0]!, "en")).toBe("Loss at your price: -12% margin after duties and shipping.");
     expect(reasonText(ALL[1]!, "en")).toBe("Price below the minimum for your 60% margin: sell for at least €33.00 incl. VAT, i.e. €27.50 excl. VAT.");
-    expect(reasonText(ALL[4]!, "en")).toBe("Peak in Nov, Dec.");
+    expect(reasonText(ALL[4]!, "en")).toBe("Peak in November, December.");
     expect(reasonText(ALL[14]!, "es")).toBe("Señales mixtas: punto fuerte tendencia histórica, punto débil coste publicitario.");
     expect(reasonText(ALL[16]!, "es")).toBe("Datos insuficientes: fuentes por conectar, Google Ads Keyword Planner, Banco Mundial.");
     for (const locale of LOCALES) {
@@ -59,6 +59,6 @@ describe("reason texts", () => {
     expect(sourceName("unknown-source", "en")).toBe("unknown-source");
     expect(criterionLabel({ id: "not_in_dictionary", label: "Libellé moteur" }, "en")).toBe("Libellé moteur");
     expect(interestLabel({ value: 1, label: "", direct: false, article: "Sock" }, "en")).toBe("monthly readers of the Wikipedia article “Sock”");
-    expect(interestLabel({ value: 1, label: "", direct: false, article: null }, "fr")).toBe("lecteurs par mois de l'article Wikipédia « la catégorie »");
+    expect(interestLabel({ value: 1, label: "", direct: false, article: null }, "fr")).toBe("lecteurs par mois de l'article Wikipédia de la catégorie");
   });
 });

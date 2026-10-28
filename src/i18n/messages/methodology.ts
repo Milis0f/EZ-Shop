@@ -462,7 +462,7 @@ export const es: Shape = {
   sections: {
     values: "Naturaleza de los valores",
     demand: "Demanda",
-    sales: "Ventas e ingresos",
+    sales: "Ventas y facturación",
     ads: "Costes publicitarios",
     score: "Puntuación de oportunidad",
     confidence: "Confianza y decisión",
@@ -482,7 +482,7 @@ export const es: Shape = {
   sales: {
     formula: "pedidos = demanda proyectada × cuota de demanda captada × tasa de conversión",
     body:
-      "Simulación Monte Carlo de {draws} iteraciones. Ambas tasas son hipótesis y se muestran en cada análisis. Sin un volumen absoluto de búsquedas no se estima ninguna venta. Los ingresos requieren un precio de venta introducido.",
+      "Simulación Monte Carlo de {draws} iteraciones. Ambas tasas son supuestos y se muestran en cada análisis. Sin un volumen absoluto de búsquedas no se estima ninguna venta. La facturación requiere un precio de venta introducido.",
   },
   ads: {
     formula: "CPA = CPC ÷ tasa de conversión; presupuesto de prueba = CPA × conversiones objetivo",
@@ -571,17 +571,17 @@ export const es: Shape = {
     traffic_capture_share: {
       label: "Cuota de demanda captada",
       description: "Parte de las búsquedas mensuales del país que se convierten en visitas a la tienda (pago + orgánico).",
-      rationale: "Hipótesis prudente para una tienda nueva sin notoriedad ni SEO. No observada.",
+      rationale: "Supuesto prudente para una tienda nueva sin notoriedad ni SEO. No observado.",
     },
     conversion_rate: {
       label: "Tasa de conversión de visita a pedido",
       description: "Proporción de visitas que terminan en un pedido.",
-      rationale: "Rango convencional para comercio electrónico generalista. No observada para este producto.",
+      rationale: "Rango convencional para comercio electrónico generalista. No observado para este producto.",
     },
     social_ctr: {
       label: "CTR de anuncios en redes sociales",
       description: "Tasa de clics utilizada para convertir un CPM de Meta/TikTok en CPC.",
-      rationale: "Rango convencional para campañas de conversión. No observada.",
+      rationale: "Rango convencional para campañas de conversión. No observado.",
     },
     test_target_conversions: {
       label: "Conversiones objetivo para una prueba",

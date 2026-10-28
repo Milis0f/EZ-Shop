@@ -138,7 +138,7 @@ export const es: Shape = {
     hide: "Ocultar los demás países",
     noLine: "Sin frase de la IA para: {countries}.",
   },
-  nextSteps: "Para ir más allá",
+  nextSteps: "Próximos pasos",
   footer: {
     text: "Redactado por {model} en tu ordenador, solo con los datos de este análisis. Cada número citado figura en los datos del análisis; la IA puede equivocarse sobre su sentido. {timing}",
     license: "Licencia {license}",

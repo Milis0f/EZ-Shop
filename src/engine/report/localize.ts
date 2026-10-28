@@ -30,6 +30,12 @@ export function monthLabel(month: number, locale: Locale): string {
 
 export const monthList = (months: readonly number[], locale: Locale): string => months.map((m) => monthLabel(m, locale)).join(", ");
 
+/** Full month name, 1 to 12: used inside sentences, where an abbreviation dot would clash with the full stop. */
+export const monthLongName = (month: number, locale: Locale): string =>
+  new Intl.DateTimeFormat(INTL_LOCALES[locale], { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, month - 1, 15)));
+
+const monthLongList = (months: readonly number[], locale: Locale): string => months.map((m) => monthLongName(m, locale)).join(", ");
+
 export function countryName(code: CountryCode, locale: Locale): string {
   if (locale === "fr") return COUNTRIES[code].nameFr;
   if (locale === "en") return COUNTRIES[code].nameEn;
@@ -46,6 +52,10 @@ const lookup = (table: Readonly<Record<string, string>>, id: string): string | u
 
 export const sourceName = (id: string, locale: Locale): string =>
   lookup(report(locale).sources, id) ?? lookup(SOURCE_LABELS, id) ?? id;
+
+/** Full display name of a connector (cards, source status, incidents); falls back to the short source name. */
+export const connectorName = (id: string, locale: Locale): string =>
+  lookup(messagesFor("connectors", locale).providerNames, id) ?? sourceName(id, locale);
 
 /** A criterion or confidence factor by id; an id the dictionary does not know keeps the engine label. */
 export const criterionLabel = (ref: LabelRef, locale: Locale): string => lookup(report(locale).criteria, ref.id) ?? ref.label;
@@ -80,7 +90,7 @@ export function reasonText(reason: Reason, locale: Locale): string {
       return t(m.trend, { direction, growth: roundPct(reason.annualGrowthPct, locale, true), wiki: reason.fromWikipedia ? m.trendFromWikipedia : "" });
     }
     case "seasonal_peak":
-      return sentence(t(m.peak, { months: monthList(reason.months, locale) }));
+      return sentence(t(m.peak, { months: monthLongList(reason.months, locale) }));
     case "steady_demand":
       return m.steadyDemand;
     case "no_related_searches":

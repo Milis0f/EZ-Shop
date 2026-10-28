@@ -14,6 +14,37 @@ describe("engineText", () => {
     expect(engineText("Prix de vente envisagé non renseigné.", "es")).toBe("Precio de venta previsto no indicado.");
   });
 
+  it("translates the margin panel sentences", () => {
+    expect(engineText("Prix fournisseur et livraison saisis par toi, droits non inclus (non calculables pour ce pays).", "en")).toBe(
+      "Supplier price and shipping as you entered them, duties not included (they can't be calculated for this country).",
+    );
+    expect(engineText("Prix de vente envisagé non renseigné.", "en")).toBe("Planned selling price not provided.");
+    expect(engineText("Marge visée non renseignée.", "en")).toBe("Target margin not provided.");
+    for (const text of [
+      "Prix fournisseur et livraison saisis par toi, droits non inclus (non calculables pour ce pays).",
+      "Prix de vente envisagé non renseigné.",
+      "Marge visée non renseignée.",
+    ]) {
+      expect(engineText(text, "es")).not.toBe(text);
+    }
+  });
+
+  it("translates wordings of earlier engine versions", () => {
+    expect(engineText("Prix de vente HT et coût de revient requis.", "en")).toBe("Selling price and landed cost required.");
+    expect(engineText("MyMemory: traduction vide", "en")).toBe("MyMemory: empty translation");
+    expect(engineText("MyMemory : traduction vide", "en")).toBe("MyMemory: empty translation");
+    expect(engineText("Donnée rapide la plus récente : 1 jour.", "en")).toBe("Most recent fast-moving data: 1 day old.");
+  });
+
+  it("names connectors in the locale", () => {
+    expect(engineText("Meta Marketing API — delivery estimate : connecteur non implémenté.", "es")).toBe(
+      "Meta Marketing API — estimaciones de difusión: conector aún no implementado.",
+    );
+    expect(engineText("TikTok API for Business — estimations : connecteur non implémenté.", "en")).toBe(
+      "TikTok API for Business — estimates: connector not implemented yet.",
+    );
+  });
+
   it("re-renders numbers, months, money and countries in the locale", () => {
     expect(engineText("-12,2 %/an", "en")).toBe("-12.2% a year");
     expect(engineText("+3,5 %/mois de nouvelles annonces", "es")).toBe("+3,5 % al mes de anuncios nuevos");

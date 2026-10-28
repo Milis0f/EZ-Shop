@@ -210,10 +210,10 @@ export const es: Shape = {
       negative: "Gastos de envío: el importe no puede ser negativo.",
     },
     landedCost: {
-      notNumber: "Coste total: introduce un número.",
-      tooLarge: "Coste total: {max} como máximo.",
-      notPositive: "Coste total: indica un importe superior a {zero}.",
-      withShipping: "Coste total: ya incluye el envío. Indica mejor el precio del proveedor y los gastos de envío.",
+      notNumber: "Coste puesto en destino: introduce un número.",
+      tooLarge: "Coste puesto en destino: {max} como máximo.",
+      notPositive: "Coste puesto en destino: indica un importe superior a {zero}.",
+      withShipping: "Coste puesto en destino: ya incluye el envío. Indica mejor el precio del proveedor y los gastos de envío.",
     },
     targetMargin: {
       notNumber: "Margen objetivo: introduce un número.",

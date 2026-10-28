@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type { Locale } from "@/i18n/config";
+import { formatInt } from "@/i18n/format";
+import { t } from "@/i18n/translate";
+import { checkMessages, errorDetail } from "../check-messages";
 import { missingEnv, type ServerEnv } from "@/config/env";
 import type { SourceRef } from "@/domain/provenance";
 import type { ProviderCacheRepository } from "@/server/repositories/types";
@@ -57,16 +61,6 @@ export function describeGoogleApiError(_status: number, body: string): ErrorDesc
     return undefined;
   }
 }
-
-export const YOUTUBE_ERROR_HINTS: Readonly<Record<string, string>> = {
-  API_KEY_INVALID: "Clé refusée par Google : vérifie qu'elle a été copiée en entier.",
-  keyInvalid: "Clé refusée par Google : vérifie qu'elle a été copiée en entier.",
-  SERVICE_DISABLED: "La YouTube Data API v3 n'est pas activée dans le projet Google Cloud de cette clé.",
-  accessNotConfigured: "La YouTube Data API v3 n'est pas activée dans le projet Google Cloud de cette clé.",
-  API_KEY_SERVICE_BLOCKED: "Cette clé est restreinte à d'autres API : ajoute la YouTube Data API v3 dans ses restrictions.",
-  quotaExceeded: "Quota du jour épuisé (10 000 unités) : il se recharge à minuit, heure du Pacifique.",
-  forbidden: "Accès refusé par Google pour cette clé.",
-};
 
 const searchSchema = z.object({
   pageInfo: z.object({ totalResults: z.number() }),
@@ -157,9 +151,10 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
     });
   }
 
-  async diagnose(now: Date): Promise<ConnectionCheckStep[]> {
-    const label = "Recherche de vidéos (France)";
-    if (this.status().state !== "ready") return [{ id: "search", label, status: "skipped", detail: "Clé API manquante." }];
+  async diagnose(now: Date, locale: Locale): Promise<ConnectionCheckStep[]> {
+    const m = checkMessages(locale);
+    const label = m.youtube.label;
+    if (this.status().state !== "ready") return [{ id: "search", label, status: "skipped", detail: m.youtube.missing }];
     const result = await this.fetchContent(
       {
         terms: ["chaussettes"],
@@ -171,8 +166,8 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
     );
     if (!result.ok) {
       const reason = /\(([A-Za-z_]+)\)$/.exec(result.error.message)?.[1];
-      return [{ id: "search", label, status: "error", detail: (reason && YOUTUBE_ERROR_HINTS[reason]) ?? `Erreur renvoyée : ${result.error.message}`, ...(reason ? { items: [`Code Google : ${reason}`] } : {}) }];
+      return [{ id: "search", label, status: "error", ...errorDetail(locale, m.hints.youtube, "Google", result.error.message, reason) }];
     }
-    return [{ id: "search", label, status: "ok", detail: `Réponse reçue : environ ${result.data.totalResults.toLocaleString("fr-FR")} vidéos sur 12 mois pour « chaussettes ».` }];
+    return [{ id: "search", label, status: "ok", detail: t(m.youtube.ok, { count: formatInt(result.data.totalResults, locale) }) }];
   }
 }

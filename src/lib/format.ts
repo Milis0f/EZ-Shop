@@ -4,24 +4,11 @@ import type { CompetitionLevel, CompetitionOutlook, TrendDirection } from "@/dom
 import type { SourceId } from "@/domain/provenance";
 import type { ConfidenceLevel, Decision } from "@/domain/scoring";
 import type { VerificationLevel } from "@/providers/contracts";
-import type { Locale } from "@/i18n/config";
-import * as i18n from "@/i18n/format";
 
 /**
- * Display formatting and vocabulary. The number and date helpers take an optional trailing locale
- * and default to "fr" (the output before i18n), so callers not yet translated keep printing what
- * they printed. Translated code passes the active locale, or uses "@/i18n/format" directly.
- * The label maps below are still French only: each area moves its labels into src/i18n/messages/.
+ * French vocabulary maps still used by the engine and the AI prompt. Number, money and date
+ * formatting lives in "@/i18n/format", where the locale is always an explicit argument.
  */
-
-export const formatInt = (v: number, locale: Locale = "fr"): string => i18n.formatInt(v, locale);
-/** Compact for large values, one decimal below 10 so small estimates are not rounded to zero. */
-export const formatCompact = (v: number, locale: Locale = "fr"): string => i18n.formatCompact(v, locale);
-export const formatDecimal = (v: number, locale: Locale = "fr"): string => i18n.formatDecimal(v, locale);
-export const formatPct = (v: number, signed = false, locale: Locale = "fr"): string => i18n.formatPct(v, locale, { signed });
-export const formatRatioPct = (v: number, locale: Locale = "fr"): string => i18n.formatRatioPct(v, locale);
-export const formatMoney = (v: number, currency = "EUR", locale: Locale = "fr"): string => i18n.formatMoney(v, locale, currency);
-export const formatDate = (iso: string, locale: Locale = "fr"): string => i18n.formatDate(iso, locale);
 
 export const KIND_LABELS: Record<ValueKind | "insufficient" | "mock", string> = {
   observed: "Donnée observée",

@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { connectorName } from "@/engine/report/localize";
 import { formatInt } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
 import { t } from "@/i18n/translate";
@@ -35,7 +36,7 @@ export async function ConnectorsSummary() {
           return (
             <li key={meta.id} className="grid grid-cols-[auto_1fr_auto] items-baseline gap-2.5">
               <span aria-hidden className={cn("size-1.5 translate-y-[-1px] rounded-full", ok ? "bg-kind-observed" : "bg-foreground/20")} />
-              <span className="min-w-0 leading-snug">{meta.name}</span>
+              <span className="min-w-0 leading-snug">{connectorName(meta.id, locale)}</span>
               <span className={cn("text-xs whitespace-nowrap", ok ? "text-foreground" : "text-muted-foreground")}>{m.state[status.state]}</span>
             </li>
           );

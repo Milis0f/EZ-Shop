@@ -6,7 +6,7 @@ import { collectSources } from "@/lib/collect-sources";
 import { advancedMessages, byId } from "@/components/data/labels";
 import { sourceName } from "@/engine/report/localize";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatInt } from "@/i18n/format";
+import { formatDate, formatInt, formatPeriodEnd } from "@/i18n/format";
 import { plural, t } from "@/i18n/translate";
 import { engineText } from "@/components/data/engine-text";
 
@@ -70,7 +70,11 @@ function SourcesTable({ sources, locale }: { sources: ReturnType<typeof collectS
                 )}
               </span>
             </TableCell>
-            <TableCell className="whitespace-nowrap">{s.period ? t(m.periodValue, { start: s.period.start, end: s.period.end }) : m.unspecified}</TableCell>
+            <TableCell className="whitespace-nowrap">{s.period
+                ? s.period.start === s.period.end
+                  ? formatPeriodEnd(s.period.start, locale)
+                  : t(m.periodValue, { start: formatPeriodEnd(s.period.start, locale), end: formatPeriodEnd(s.period.end, locale) })
+                : m.unspecified}</TableCell>
             <TableCell className="whitespace-nowrap">{formatDate(s.collectedAt, locale)}</TableCell>
             <TableCell className="max-w-[16rem] truncate text-xs text-muted-foreground">{s.queryRef ?? ""}</TableCell>
           </TableRow>

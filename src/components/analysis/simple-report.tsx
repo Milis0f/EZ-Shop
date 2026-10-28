@@ -8,6 +8,7 @@ import { ReasonPills } from "@/components/analysis/reason-pills";
 import { MissingSourcesPanel, SourceJournalPanel } from "@/components/analysis/source-journal";
 import { VERDICT_COLOR, VerdictOrb } from "@/components/analysis/verdict-orb";
 import { DemandChart } from "@/components/country/demand-chart";
+import { engineText } from "@/components/data/engine-text";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { AnimatedNumber } from "@/components/motion/animated-number";
 import { Reveal, RevealGroup } from "@/components/motion/reveal";
@@ -90,6 +91,7 @@ function hasPrices(e: UnitEconomics): boolean {
 
 function MarginTile({ label, datum, children, hint }: { label: string; datum: Datum<unknown> | undefined; children: ReactNode; hint?: string }) {
   const m = useMessages("report").margin;
+  const { locale } = useFormat();
   return (
     <div className="min-w-0 rounded-tile bg-surface-2 px-5 py-4">
       <p className="text-[13px] text-muted-foreground">{label}</p>
@@ -101,7 +103,7 @@ function MarginTile({ label, datum, children, hint }: { label: string; datum: Da
       ) : (
         <>
           <p className="hatch mt-2 inline-flex rounded-pill border border-kind-missing/70 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">{DATA_INSUFFICIENT}</p>
-          <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{datum && !isKnown(datum) ? datum.reason : m.notComputed}</p>
+          <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{datum && !isKnown(datum) ? engineText(datum.reason, locale) : m.notComputed}</p>
         </>
       )}
     </div>
@@ -125,7 +127,7 @@ function MarginPanel({ c, economics, world }: { c: CountryAnalysis; economics: U
         {t(m.intro, { country: world ? t(m.introCountry, { country: countryName(c.country, locale) }) : "" })}
       </p>
       <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
-        <MarginTile label={m.landedCost} datum={landed} hint={landed && isKnown(landed) ? landed.note : undefined}>
+        <MarginTile label={m.landedCost} datum={landed} hint={landed && isKnown(landed) && landed.note ? engineText(landed.note, locale) : undefined}>
           {landed && isKnown(landed) ? price(landed.value) : null}
         </MarginTile>
         <MarginTile
@@ -253,7 +255,7 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
             {p.machineTranslated}{" "}
             {machine
               .slice(0, 6)
-              .map((term) => `${term.term} (${languageName(term.language, f.locale).toLowerCase()})`)
+              .map((term) => `${term.term} (${f.locale === "en" ? languageName(term.language, f.locale) : languageName(term.language, f.locale).toLowerCase()})`)
               .join(", ")}
             {machine.length > 6 ? "…" : ""}
           </p>

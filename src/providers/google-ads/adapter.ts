@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type { Locale } from "@/i18n/config";
+import { formatInt } from "@/i18n/format";
+import { t } from "@/i18n/translate";
+import { checkMessages, errorDetail } from "../check-messages";
 import { missingEnv, type ServerEnv } from "@/config/env";
 import { getCountry, type LanguageCode } from "@/domain/country";
 import type { SourceRef } from "@/domain/provenance";
@@ -17,7 +21,7 @@ import {
 } from "../contracts";
 import { httpJson } from "../http";
 import { sharedResult, type SharedResult } from "../shared-result";
-import { describeAdsError, describeOAuthError, GOOGLE_ADS_ERROR_HINTS, reasonOf } from "./errors";
+import { describeAdsError, describeOAuthError, reasonOf } from "./errors";
 import { monthEnum, parseCurrency, parseHistoricalMetrics, parseLanguageConstant } from "./parse";
 
 /**
@@ -196,54 +200,50 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
    * (which also checks the Cloud project's access level), then one real Keyword Planner request.
    * Stops at the first failing step.
    */
-  async diagnose(now: Date): Promise<ConnectionCheckStep[]> {
+  async diagnose(now: Date, locale: Locale): Promise<ConnectionCheckStep[]> {
+    const m = checkMessages(locale);
+    const g = m.googleAds;
     const missing = missingEnv(this.env, REQUIRED_ENV);
     if (missing.length > 0) {
-      return [{ id: "oauth", label: "Connexion OAuth", status: "skipped", detail: `Variables manquantes : ${missing.join(", ")}.` }];
+      return [{ id: "oauth", label: g.oauth, status: "skipped", detail: t(g.missingVars, { list: missing.join(", ") }) }];
     }
     const steps: ConnectionCheckStep[] = [];
     const remaining = (ids: ReadonlyArray<[string, string]>) =>
-      ids.map(([id, label]): ConnectionCheckStep => ({ id, label, status: "skipped", detail: "Non testé : l'étape précédente a échoué." }));
-    const ACCOUNT: [string, string] = ["account", "Accès au compte Google Ads"];
-    const PLANNER: [string, string] = ["planner", "Requête Keyword Planner"];
+      ids.map(([id, label]): ConnectionCheckStep => ({ id, label, status: "skipped", detail: m.notTested }));
+    const ACCOUNT: [string, string] = ["account", g.account];
+    const PLANNER: [string, string] = ["planner", g.planner];
+    /** A failed step: the explanation of Google's code, else `override`, else the error itself. */
+    const failed = (id: string, label: string, message: string, code?: string, override?: string): ConnectionCheckStep => {
+      const reason = reasonOf(message);
+      const hints = override === undefined ? m.hints.googleAds : {};
+      const fallback = override ?? (code === "no_data" ? g.notFound : undefined);
+      return { id, label, status: "error", ...errorDetail(locale, hints, "Google", message, reason, fallback) };
+    };
 
     this.accessToken.reset();
     const token = await this.accessToken.get();
-    if (!token.ok) return [failedStep("oauth", "Connexion OAuth", token.error.message), ...remaining([ACCOUNT, PLANNER])];
-    steps.push({ id: "oauth", label: "Connexion OAuth", status: "ok", detail: "ID client, secret et jeton d'actualisation acceptés par Google." });
+    if (!token.ok) return [failed("oauth", g.oauth, token.error.message), ...remaining([ACCOUNT, PLANNER])];
+    steps.push({ id: "oauth", label: g.oauth, status: "ok", detail: g.oauthOk });
 
     this.currency.reset();
     const currency = await this.currency.get();
-    if (!currency.ok) return [...steps, failedStep(...ACCOUNT, currency.error.message, currency.error.code), ...remaining([PLANNER])];
-    steps.push({ id: ACCOUNT[0], label: ACCOUNT[1], status: "ok", detail: `Compte accessible, devise ${currency.data}.` });
+    if (!currency.ok) return [...steps, failed(...ACCOUNT, currency.error.message, currency.error.code), ...remaining([PLANNER])];
+    steps.push({ id: ACCOUNT[0], label: ACCOUNT[1], status: "ok", detail: t(g.accountOk, { currency: currency.data }) });
 
     const to = lastCompleteMonth(now);
     const metrics = await this.getKeywordMetrics({ terms: ["chaussettes"], country: "FR", language: "fr", from: addMonths(to, -11), to });
     if (!metrics.ok) {
       // The account answered, so a refusal here is almost always the access level: Explorer excludes Planning.
-      const accessHint = metrics.error.code === "unauthorized" ? PLANNER_ACCESS_HINT : undefined;
-      return [...steps, failedStep(...PLANNER, metrics.error.message, metrics.error.code, accessHint)];
+      const accessHint = metrics.error.code === "unauthorized" ? g.plannerAccess : undefined;
+      return [...steps, failed(...PLANNER, metrics.error.message, metrics.error.code, accessHint)];
     }
     const avg = metrics.data[0]?.avgMonthlySearches;
     steps.push({
       id: PLANNER[0],
       label: PLANNER[1],
       status: "ok",
-      detail:
-        typeof avg === "number"
-          ? `Réponse reçue : ${avg.toLocaleString("fr-FR")} recherches par mois en moyenne pour « chaussettes » en France.`
-          : "Réponse reçue, sans volume pour le terme de test.",
+      detail: typeof avg === "number" ? t(g.plannerOk, { count: formatInt(avg, locale) }) : g.plannerNoVolume,
     });
     return steps;
   }
-}
-
-const PLANNER_ACCESS_HINT =
-  "Compte accessible, mais Keyword Planner refusé : le projet Google Cloud du client OAuth n'a pas le niveau d'accès Basic. L'accès Explorer exclut les services de planification ; demande Basic (après vérification de la marque) sur la page Google Ads API de Google Cloud Console.";
-
-function failedStep(id: string, label: string, message: string, code?: string, override?: string): ConnectionCheckStep {
-  const reason = reasonOf(message);
-  const hint = override ?? (reason ? GOOGLE_ADS_ERROR_HINTS[reason] : undefined);
-  const fallback = code === "no_data" ? "Version de l'API ou ID de compte introuvable." : `Erreur renvoyée : ${message}`;
-  return { id, label, status: "error", detail: hint ?? fallback, ...(reason ? { items: [`Code Google : ${reason}`] } : {}) };
 }

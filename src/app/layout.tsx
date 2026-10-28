@@ -47,7 +47,11 @@ async function LocalizedShell({ children }: { children: ReactNode }) {
   const locale = await getLocale();
   return (
     <LocaleProvider locale={locale}>
-      <AppShell>{children}</AppShell>
+      {/* The server HTML states the language of the content too: crawlers and clients without
+          JavaScript never see the <html lang> fixed by the inline script. */}
+      <div lang={INTL_LOCALES[locale]} className="contents">
+        <AppShell>{children}</AppShell>
+      </div>
     </LocaleProvider>
   );
 }

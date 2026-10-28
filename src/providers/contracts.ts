@@ -1,3 +1,4 @@
+import type { Locale } from "@/i18n/config";
 import type { ProviderState } from "@/domain/analysis";
 import type { CountryCode, LanguageCode } from "@/domain/country";
 import type { AdActivity, AdPlatform, MonthlyPoint } from "@/domain/market";
@@ -58,7 +59,8 @@ export interface ProviderStatus {
 
 /** Connectors whose saved credentials can be tried against the real API from the settings form. */
 export interface ConnectionTestable {
-  diagnose(now: Date): Promise<ConnectionCheckStep[]>;
+  /** Steps written in `locale`: the person running the test reads them. */
+  diagnose(now: Date, locale: Locale): Promise<ConnectionCheckStep[]>;
 }
 
 /** One step of a live credentials check (settings form "Tester la connexion"). */

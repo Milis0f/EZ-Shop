@@ -11,39 +11,39 @@ import { applyEnvUpdates, updateEnvLocal } from "./env-file";
 describe("connector fields", () => {
   it("describes every variable a connector requires", () => {
     for (const meta of REAL_PROVIDER_METAS) {
-      expect(() => connectorFields(meta)).not.toThrow();
-      expect(connectorFields(meta).filter((f) => !f.optional).map((f) => f.name)).toEqual(meta.requiredEnv);
+      expect(() => connectorFields(meta, "fr")).not.toThrow();
+      expect(connectorFields(meta, "fr").filter((f) => !f.optional).map((f) => f.name)).toEqual(meta.requiredEnv);
     }
   });
 
   it("accepts real credential shapes and rejects what dotenv would alter", () => {
     const token = { pattern: undefined };
-    expect(validateEnvValue(token, "  1//0gAbC-d_e.f~g+h/i=  ")).toEqual({ ok: true, value: "1//0gAbC-d_e.f~g+h/i=" });
-    expect(validateEnvValue(token, "abc$HOME").ok).toBe(false);
-    expect(validateEnvValue(token, 'abc"def').ok).toBe(false);
-    expect(validateEnvValue(token, "abc #comment").ok).toBe(false);
-    expect(validateEnvValue(token, "line1\nline2").ok).toBe(false);
-    expect(validateEnvValue(token, "   ").ok).toBe(false);
+    expect(validateEnvValue(token, "  1//0gAbC-d_e.f~g+h/i=  ", "fr")).toEqual({ ok: true, value: "1//0gAbC-d_e.f~g+h/i=" });
+    expect(validateEnvValue(token, "abc$HOME", "fr").ok).toBe(false);
+    expect(validateEnvValue(token, 'abc"def', "fr").ok).toBe(false);
+    expect(validateEnvValue(token, "abc #comment", "fr").ok).toBe(false);
+    expect(validateEnvValue(token, "line1\nline2", "fr").ok).toBe(false);
+    expect(validateEnvValue(token, "   ", "fr").ok).toBe(false);
   });
 
   it("recognises the wrong credential pasted into a field", () => {
-    const cloudKey = validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "AIzaSyD-fake-cloud-api-key-000000000000");
+    const cloudKey = validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "AIzaSyD-fake-cloud-api-key-000000000000", "fr");
     expect(cloudKey).toMatchObject({ ok: false, error: expect.stringContaining("clé API Google Cloud") });
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "4/0AfakeAuthCode")).toMatchObject({ ok: false, error: expect.stringContaining("code d'autorisation") });
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "ya29.fakeAccess")).toMatchObject({ ok: false, error: expect.stringContaining("jeton d'accès") });
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "something-else").ok).toBe(false);
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "1//0gFakeRefreshToken").ok).toBe(true);
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "123-abc.apps.googleusercontent.com").ok).toBe(true);
-    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "123-abc").ok).toBe(false);
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "4/0AfakeAuthCode", "fr")).toMatchObject({ ok: false, error: expect.stringContaining("code d'autorisation") });
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "ya29.fakeAccess", "fr")).toMatchObject({ ok: false, error: expect.stringContaining("jeton d'accès") });
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "something-else", "fr").ok).toBe(false);
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_REFRESH_TOKEN, "1//0gFakeRefreshToken", "fr").ok).toBe(true);
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "123-abc.apps.googleusercontent.com", "fr").ok).toBe(true);
+    expect(validateEnvValue(ENV_FIELDS.GOOGLE_ADS_CLIENT_ID, "123-abc", "fr").ok).toBe(false);
   });
 
   it("checks identifier formats", () => {
     const customer = ENV_FIELDS.GOOGLE_ADS_CUSTOMER_ID;
-    expect(validateEnvValue(customer, "123-456-7890").ok).toBe(true);
-    expect(validateEnvValue(customer, "1234567890").ok).toBe(true);
-    expect(validateEnvValue(customer, "12-34").ok).toBe(false);
-    expect(validateEnvValue(ENV_FIELDS.META_GRAPH_API_VERSION, "v23.0").ok).toBe(true);
-    expect(validateEnvValue(ENV_FIELDS.META_GRAPH_API_VERSION, "23").ok).toBe(false);
+    expect(validateEnvValue(customer, "123-456-7890", "fr").ok).toBe(true);
+    expect(validateEnvValue(customer, "1234567890", "fr").ok).toBe(true);
+    expect(validateEnvValue(customer, "12-34", "fr").ok).toBe(false);
+    expect(validateEnvValue(ENV_FIELDS.META_GRAPH_API_VERSION, "v23.0", "fr").ok).toBe(true);
+    expect(validateEnvValue(ENV_FIELDS.META_GRAPH_API_VERSION, "23", "fr").ok).toBe(false);
   });
 });
 
@@ -75,7 +75,7 @@ describe("formatStep", () => {
     vi.stubEnv("GOOGLE_ADS_REFRESH_TOKEN", "not-a-refresh-token");
     vi.stubEnv("GOOGLE_ADS_CUSTOMER_ID", "");
     const meta = REAL_PROVIDER_METAS.find((m) => m.id === "google-ads-keyword-planner")!;
-    const step = formatStep(meta);
+    const step = formatStep(meta, "fr");
     expect(step.status).toBe("error");
     expect(step.items).toEqual([
       expect.stringContaining("ID client OAuth : C'est une clé API Google Cloud"),

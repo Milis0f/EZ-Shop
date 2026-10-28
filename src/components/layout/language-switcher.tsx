@@ -2,7 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useSyncExternalStore } from "react";
 import { viewTransition } from "@/components/motion/view-transition";
 import { SegmentedControl, type SegmentedOption } from "@/components/motion/segmented-control";
 import { useLocale, useMessages } from "@/i18n/client";
@@ -12,6 +12,29 @@ import { cn } from "@/lib/utils";
 
 /** A refresh that never lands must not hold the page frozen in a View Transition. */
 const REFRESH_TIMEOUT_MS = 2500;
+/** Past this, the refreshed tree is taken as lost and the page reloads in the chosen language. */
+const RELOAD_FALLBACK_MS = 12_000;
+
+/**
+ * The language being switched to, shared by every switcher instance (desktop pill and phone menu),
+ * so both show the same choice and the same pending state until the new tree arrives.
+ */
+let pending: Locale | null = null;
+let settlePending: (() => void) | null = null;
+let reloadTimer: number | undefined;
+const listeners = new Set<() => void>();
+
+function setPending(next: Locale | null) {
+  pending = next;
+  for (const listener of listeners) listener();
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
 
 const OPTIONS: readonly SegmentedOption<Locale>[] = LOCALES.map((locale) => ({
   value: locale,
@@ -30,25 +53,30 @@ const OPTIONS: readonly SegmentedOption<Locale>[] = LOCALES.map((locale) => ({
 function useSwitchLocale() {
   const router = useRouter();
   const locale = useLocale();
-  const [choice, setChoice] = useState<Locale | null>(null);
-  const settle = useRef<(() => void) | null>(null);
+  const choice = useSyncExternalStore(subscribe, () => pending, () => null);
 
   useEffect(() => {
-    if (locale === choice) {
-      settle.current?.();
-      settle.current = null;
+    if (choice !== null && locale === choice) {
+      window.clearTimeout(reloadTimer);
+      settlePending?.();
+      settlePending = null;
+      setPending(null);
     }
   }, [locale, choice]);
 
   const switchTo = (next: Locale) => {
     if (next === (choice ?? locale)) return;
-    setChoice(next);
+    setPending(next);
     document.cookie = localeCookie(next);
     document.documentElement.lang = INTL_LOCALES[next];
+    window.clearTimeout(reloadTimer);
+    reloadTimer = window.setTimeout(() => {
+      if (pending === next) window.location.reload();
+    }, RELOAD_FALLBACK_MS);
     const update = () =>
       new Promise<void>((resolve) => {
         const timer = window.setTimeout(resolve, REFRESH_TIMEOUT_MS);
-        settle.current = () => {
+        settlePending = () => {
           window.clearTimeout(timer);
           resolve();
         };
@@ -57,7 +85,7 @@ function useSwitchLocale() {
     void viewTransition(update).catch(() => undefined);
   };
 
-  return { value: choice ?? locale, switchTo };
+  return { value: choice ?? locale, pending: choice !== null && choice !== locale, switchTo };
 }
 
 /**
@@ -66,10 +94,10 @@ function useSwitchLocale() {
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
   const m = useMessages("shell");
-  const { value, switchTo } = useSwitchLocale();
+  const { value, pending, switchTo } = useSwitchLocale();
 
   return (
-    <div className={className}>
+    <div className={cn("transition-opacity duration-[var(--dur-fast)]", pending && "opacity-60", className)} aria-busy={pending || undefined}>
       <SegmentedControl
         options={OPTIONS}
         value={value}

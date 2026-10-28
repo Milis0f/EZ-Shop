@@ -593,7 +593,7 @@ describe("EbayBrowseProvider", () => {
     const provider = new EbayBrowseProvider(env, new MemoryCacheRepository(), 500);
 
     await provider.getListings(query("FR"));
-    const steps = await provider.diagnose();
+    const steps = await provider.diagnose(new Date(), "fr");
 
     expect(steps.map((step) => step.status)).toEqual(["ok", "ok"]);
     expect(countCalls(calls, isToken)).toBe(2);

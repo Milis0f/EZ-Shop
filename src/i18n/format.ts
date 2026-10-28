@@ -33,7 +33,7 @@ export function formatCompact(v: number, locale: Locale): string {
 }
 
 /** French and Spanish typography put a space before %, English does not. */
-const PERCENT_SUFFIX: Readonly<Record<Locale, string>> = { en: "%", fr: " %", es: " %" };
+export const PERCENT_SUFFIX: Readonly<Record<Locale, string>> = { en: "%", fr: " %", es: " %" };
 
 /** A value already in percent (12.5 -> "12.5%"). `signed` adds "+" to positive values. */
 export const formatPct = (v: number, locale: Locale, options: { signed?: boolean } = {}): string =>
@@ -51,6 +51,20 @@ export function formatMoney(v: number, locale: Locale, currency = "EUR"): string
 /** ISO timestamp as a medium date and a short time. */
 export const formatDate = (iso: string, locale: Locale): string =>
   new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+
+/**
+ * One end of a stored period ("2025", "2025-10" or "2025-10-24") as a date in the locale.
+ * Anything else is returned as stored.
+ */
+export function formatPeriodEnd(value: string, locale: Locale): string {
+  const match = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(value);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  if (!month) return year ?? value;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, day ? Number(day) : 1));
+  const options: Intl.DateTimeFormatOptions = day ? { dateStyle: "medium", timeZone: "UTC" } : { month: "short", year: "numeric", timeZone: "UTC" };
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], options).format(date);
+}
 
 /** The helpers above bound to one locale (returned by useFormat() on the client). */
 export function createFormatters(locale: Locale) {

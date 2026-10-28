@@ -87,7 +87,7 @@ export function assessConfidence(input: ConfidenceInputs): ConfidenceAssessment 
       id: "freshness",
       label: "Fraîcheur",
       value: round(freshness, 3),
-      explanation: ageDays === null ? "Aucune donnée récente de demande ou de concurrence." : `Donnée rapide la plus récente : ${Math.round(ageDays)} jours.`,
+      explanation: ageDays === null ? "Aucune donnée récente de demande ou de concurrence." : `Donnée rapide la plus récente : ${Math.round(ageDays)} ${Math.round(ageDays) === 1 ? "jour" : "jours"}.`,
     },
     { id: "source_quality", label: "Qualité des sources", value: round(quality, 3), explanation: "Fiabilité moyenne des sources utilisées (pondérée)." },
     {

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useFormat } from "@/i18n/client"
 import { cn } from "@/lib/utils"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
@@ -144,6 +145,7 @@ function ChartTooltipContent({
     "accessibilityLayer"
   >) {
   const { config } = useChart()
+  const format = useFormat()
 
   const tooltipLabel = React.useMemo(() => {
     if (hideLabel || !payload?.length) {
@@ -254,7 +256,7 @@ function ChartTooltipContent({
                       {item.value != null && (
                         <span className="font-medium text-foreground tabular-nums">
                           {typeof item.value === "number"
-                            ? item.value.toLocaleString()
+                            ? format.number(item.value)
                             : String(item.value)}
                         </span>
                       )}

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { FieldState } from "@/config/connector-fields";
 import { connectorGroups, connectorGuides } from "@/config/connector-guides";
 import type { ProviderState } from "@/domain/analysis";
+import { connectorName } from "@/engine/report/localize";
 import type { Locale } from "@/i18n/config";
 import { formatInt } from "@/i18n/format";
 import type { Messages } from "@/i18n/messages";
@@ -132,7 +133,7 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
 
   return (
     <>
-      <Summary statuses={rows.map((r) => ({ id: r.meta.id, name: r.meta.name, status: r.display }))} locale={locale} m={m} />
+      <Summary statuses={rows.map((r) => ({ id: r.meta.id, name: connectorName(r.meta.id, locale), status: r.display }))} locale={locale} m={m} />
 
       {connectorGroups(locale).map((group) => {
         const items = rows.filter((r) => guides[r.meta.id]?.group === group.id);
@@ -159,7 +160,7 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                           rel="noreferrer"
                           className="group/link inline-flex items-center gap-1 rounded-pill text-[17px] font-semibold tracking-tight underline-offset-4 hover:underline"
                         >
-                          {meta.name}
+                          {connectorName(meta.id, locale)}
                           <ArrowUpRight
                             className="size-4 text-muted-foreground transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5"
                             strokeWidth={1.5}
@@ -214,7 +215,7 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                       {fields.length > 0 && (
                         <ConnectorDialog
                           providerId={meta.id}
-                          name={meta.name}
+                          name={connectorName(meta.id, locale)}
                           docsUrl={meta.docsUrl}
                           accessLabel={m.access[meta.access]}
                           verification={meta.verification}

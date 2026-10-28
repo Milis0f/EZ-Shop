@@ -10,10 +10,9 @@ import type { JournalRow, JournalStatus } from "@/engine/report/source-journal";
 import type { LabelRef } from "@/engine/report/verdict";
 import { LICENCE_PENDING } from "@/engine/scoring/criteria";
 import { useFormat, useMessages } from "@/i18n/client";
-import { INTL_LOCALES, type Locale } from "@/i18n/config";
+import { DEFAULT_LOCALE, INTL_LOCALES, type Locale } from "@/i18n/config";
 import { messagesFor } from "@/i18n/messages";
 import { t } from "@/i18n/translate";
-import { SOURCE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const PROVIDERS: ReadonlySet<string> = new Set(PROVIDER_IDS);
@@ -36,7 +35,7 @@ const lower = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
  * Providers whose absence leaves score criteria DATA_INSUFFICIENT, heaviest first. A provider that was
  * used is left out (connecting it again would change nothing), and so are criteria disabled pending a licence check.
  */
-export function missingSources(c: CountryAnalysis, journal: readonly JournalRow[]): MissingSource[] {
+export function missingSources(c: CountryAnalysis, journal: readonly JournalRow[], locale: Locale = DEFAULT_LOCALE): MissingSource[] {
   const stateOf = (id: ProviderId): JournalStatus | undefined => {
     const rows = journal.filter((r) => r.providerId === id && r.countries.includes(c.country));
     return rows.find((r) => r.status === "used")?.status ?? rows[0]?.status;
@@ -55,10 +54,10 @@ export function missingSources(c: CountryAnalysis, journal: readonly JournalRow[
   return [...byProvider.entries()]
     .map(([providerId, { weight, criteria }]): MissingSource => {
       const status = stateOf(providerId);
-      return { providerId, name: SOURCE_LABELS[providerId] ?? providerId, weight, criteria, ...(status ? { status } : {}) };
+      return { providerId, name: sourceName(providerId, locale), weight, criteria, ...(status ? { status } : {}) };
     })
     .filter((s) => s.status !== "used")
-    .toSorted((a, b) => b.weight - a.weight || a.name.localeCompare(b.name, "fr"));
+    .toSorted((a, b) => b.weight - a.weight || a.name.localeCompare(b.name, INTL_LOCALES[locale]));
 }
 
 type ActionKey = "repair" | "connect";
@@ -72,9 +71,9 @@ const ACTION: Readonly<Record<JournalStatus, ActionKey | null>> = {
 
 /** « Pour obtenir un vrai verdict »: the sources to connect, by the score weight they would cover. */
 export function MissingSourcesPanel({ country, journal, className }: { country: CountryAnalysis; journal: readonly JournalRow[]; className?: string }) {
-  const sources = missingSources(country, journal).slice(0, 5);
-  const m = useMessages("report").missing;
   const { locale } = useFormat();
+  const sources = missingSources(country, journal, locale).slice(0, 5);
+  const m = useMessages("report").missing;
   return (
     <section aria-labelledby="missing-sources-title" className={cn("panel p-6 sm:p-[26px]", className)}>
       <h2 id="missing-sources-title" className="text-[17px] font-semibold">
@@ -89,7 +88,7 @@ export function MissingSourcesPanel({ country, journal, className }: { country: 
             {sources.map((s) => {
               const key = s.status ? ACTION[s.status] : "connect";
               const action = key ? m[key] : null;
-              const name = sourceName(s.providerId, locale);
+              const name = s.name;
               return (
                 <li key={s.providerId} className="flex items-center justify-between gap-3 rounded-tile bg-surface-2 py-3 pr-3 pl-[18px] text-sm">
                   <span className="min-w-0">
@@ -135,8 +134,10 @@ function countriesText(codes: readonly CountryCode[], total: number, locale: Loc
 /** « Journal des sources », collapsed by default: every provider and what it gave, from the stored analysis only. */
 export function SourceJournalPanel({ rows, countryCount, className }: { rows: readonly JournalRow[]; countryCount: number; className?: string }) {
   const m = useMessages("report").journal;
+  const issues = useMessages("analysisAdvanced").provenance.issues;
   const f = useFormat();
   if (rows.length === 0) return null;
+  const issueLabel = (code: string): string => (Object.prototype.hasOwnProperty.call(issues, code) ? issues[code as keyof typeof issues] : code);
   const day = new Intl.DateTimeFormat(INTL_LOCALES[f.locale], { dateStyle: "long" });
   const used = new Set(rows.filter((r) => r.status === "used").map((r) => r.providerId)).size;
   const failed = new Set(rows.filter((r) => r.status === "failed").map((r) => r.providerId)).size;
@@ -169,7 +170,7 @@ export function SourceJournalPanel({ rows, countryCount, className }: { rows: re
               </span>
               <span className="text-xs text-muted-foreground">
                 {m[STATUS_KEY[r.status]]}
-                {r.errorCode ? ` (${r.errorCode})` : ""}, {countriesText(r.countries, countryCount, f.locale)}
+                {r.errorCode ? ` (${lower(issueLabel(r.errorCode))})` : ""}, {countriesText(r.countries, countryCount, f.locale)}
                 {r.collectedAt ? t(m.collectedOn, { date: day.format(new Date(r.collectedAt)) }) : ""}
               </span>
             </li>

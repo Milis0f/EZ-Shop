@@ -41,12 +41,12 @@ export function parseMyMemory(payload: unknown): ProviderResult<{ text: string; 
   const parsed = schema.safeParse(payload);
   if (!parsed.success) return fail("invalid_response", "MyMemory: unexpected response shape");
   const { responseStatus, quotaFinished, responseData } = parsed.data;
-  if (quotaFinished || /MYMEMORY WARNING/i.test(responseData.translatedText)) return fail("rate_limited", "MyMemory: quota du jour atteint", true);
+  if (quotaFinished || /MYMEMORY WARNING/i.test(responseData.translatedText)) return fail("rate_limited", "MyMemory : quota du jour atteint", true);
   if (Number(responseStatus) !== 200) return fail("upstream_error", `MyMemory: status ${String(responseStatus)}`);
   const text = responseData.translatedText.trim();
   const match = Number(responseData.match ?? 0);
-  if (!text) return fail("no_data", "MyMemory: traduction vide");
-  if (match < MIN_MATCH) return fail("no_data", `MyMemory: traduction trop incertaine (${match})`);
+  if (!text) return fail("no_data", "MyMemory : traduction vide");
+  if (match < MIN_MATCH) return fail("no_data", `MyMemory : traduction trop incertaine (${match})`);
   return ok({ text, match });
 }
 

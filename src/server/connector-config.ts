@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { getEnv } from "@/config/env";
 import { connectorFields, type EnvEditorAccess, type FieldState } from "@/config/connector-fields";
+import { DEFAULT_LOCALE } from "@/i18n/config";
 import type { ProviderMeta } from "@/providers/contracts";
 
 const currentValue = (name: string): string | undefined => {
@@ -10,7 +11,8 @@ const currentValue = (name: string): string | undefined => {
 };
 
 export function fieldStates(meta: Pick<ProviderMeta, "id" | "requiredEnv">): FieldState[] {
-  return connectorFields(meta).map((f) => {
+  // Only names, optionality and secrecy are read here: they do not depend on the language.
+  return connectorFields(meta, DEFAULT_LOCALE).map((f) => {
     const value = currentValue(f.name);
     return { name: f.name, optional: f.optional, set: value !== undefined, ...(value !== undefined && !f.secret ? { value } : {}) };
   });

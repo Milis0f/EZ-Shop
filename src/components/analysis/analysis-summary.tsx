@@ -6,7 +6,7 @@ import { advancedMessages } from "@/components/data/labels";
 import { countryName } from "@/engine/report/localize";
 import { verdictFor } from "@/engine/report/verdict";
 import type { Locale } from "@/i18n/config";
-import { formatInt } from "@/i18n/format";
+import { formatInt, PERCENT_SUFFIX } from "@/i18n/format";
 import { plural } from "@/i18n/translate";
 import { VerdictChip } from "./verdict-chip";
 import { sortByScore } from "./country-ranking";
@@ -60,7 +60,7 @@ export function AnalysisSummary({ countries, locale }: { countries: readonly Cou
         ) : (
           <span>
             <AnimatedNumber value={Math.round(avgConfidence)} format="int" />
-            <span className="text-base text-muted-foreground">{locale === "en" ? "%" : " %"}</span>
+            <span className="text-base text-muted-foreground">{PERCENT_SUFFIX[locale]}</span>
           </span>
         )}
       </Tile>

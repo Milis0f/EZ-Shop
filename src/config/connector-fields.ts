@@ -162,8 +162,8 @@ export interface FieldState {
 /** Whether this request may write .env.local (see getEnvEditorAccess). */
 export type EnvEditorAccess = { readonly enabled: true } | { readonly enabled: false; readonly reason: string };
 
-/** The connector's variables, described in `locale` (French by default, for callers not yet translated). */
-export function connectorFields(meta: Pick<ProviderMeta, "id" | "requiredEnv">, locale: Locale = "fr"): ConnectorField[] {
+/** The connector's variables, described in `locale` (the active locale). */
+export function connectorFields(meta: Pick<ProviderMeta, "id" | "requiredEnv">, locale: Locale): ConnectorField[] {
   const specs = envFields(locale);
   const names = [...meta.requiredEnv.map((name) => ({ name, optional: false })), ...(OPTIONAL_ENV[meta.id] ?? []).map((name) => ({ name, optional: true }))];
   return names.map(({ name, optional }) => {
@@ -183,7 +183,7 @@ export const MAX_VALUE_LENGTH = 4096;
 export function validateEnvValue(
   field: Pick<EnvFieldSpec, "pattern" | "patternHint" | "rejects">,
   raw: string,
-  locale: Locale = "fr",
+  locale: Locale,
 ): { ok: true; value: string } | { ok: false; error: string } {
   const m = messagesFor("connectors", locale).validation;
   const value = raw.trim();

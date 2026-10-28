@@ -1,7 +1,8 @@
 import { COUNTRIES, type CountryCode } from "@/domain/country";
 import { ORIGIN_COUNTRIES } from "@/domain/origin";
 import { MONTH_LABELS_FR } from "@/domain/time";
-import { countryName } from "@/engine/report/localize";
+import { PROVIDER_IDS } from "@/domain/provenance";
+import { connectorName, countryName, sourceName } from "@/engine/report/localize";
 import type { Locale } from "@/i18n/config";
 import { formatDecimal, formatMoney, formatNumber } from "@/i18n/format";
 import { messagesFor } from "@/i18n/messages";
@@ -29,6 +30,43 @@ const MONEY: Readonly<Record<string, string>> = { eur: "EUR", eurLimit: "EUR", g
 /** Params that are themselves engine text. */
 const NESTED = new Set(["reason", "label"]);
 
+/**
+ * French wordings of earlier engine versions, still stored in saved analyses, mapped to the key of
+ * the current wording. Add the old text here whenever an engine sentence is reworded.
+ */
+const LEGACY: ReadonlyArray<readonly [EngineKey, string]> = [
+  ["economicsInputs", "Prix de vente HT et coût de revient requis."],
+  // The singular of a counted sentence, written by the engine since it agrees with its count.
+  ["freshnessOne", "Donnée rapide la plus récente : {count} jour."],
+  ["translationEmpty", "MyMemory: traduction vide"],
+  ["translationQuota", "MyMemory: quota du jour atteint"],
+  ["translationUncertain", "MyMemory: traduction trop incertaine ({match})"],
+];
+
+/** Connector names as the engine stored them (French display names and older registry labels). */
+const LEGACY_SOURCE_NAMES: Readonly<Record<string, string>> = {
+  "Meta Marketing API — delivery estimate": "meta-marketing-api",
+};
+
+type SourceNaming = (id: string, locale: Locale) => string;
+
+let sourceIds: ReadonlyMap<string, readonly [string, SourceNaming]> | null = null;
+
+/** The provider a stored French name refers to, and whether it was the short or the full name. */
+function sourceIdOf(name: string): readonly [string, SourceNaming] | undefined {
+  if (!sourceIds) {
+    const map = new Map<string, readonly [string, SourceNaming]>();
+    for (const [legacy, id] of Object.entries(LEGACY_SOURCE_NAMES)) map.set(legacy, [id, connectorName]);
+    for (const id of PROVIDER_IDS) {
+      map.set(connectorName(id, "fr"), [id, connectorName]);
+      // The short name wins when both are the same text ("Google Trends", "Eurostat").
+      map.set(sourceName(id, "fr"), [id, sourceName]);
+    }
+    sourceIds = map;
+  }
+  return sourceIds.get(name);
+}
+
 const NUMBER_RE = "([+\\-−]?\\d[\\d \\u00a0\\u202f]*(?:[.,]\\d+)?)";
 
 const normalize = (s: string): string => s.replace(/[  ]/g, " ").trim();
@@ -46,11 +84,11 @@ let patterns: readonly Pattern[] | null = null;
 function getPatterns(): readonly Pattern[] {
   if (patterns) return patterns;
   const fr = engineMessages("fr");
-  patterns = (Object.keys(fr) as EngineKey[])
-    .filter((key) => !key.endsWith("One"))
-    .map((key) => {
+  const current = (Object.keys(fr) as EngineKey[]).filter((key) => !key.endsWith("One")).map((key) => [key, fr[key]] as const);
+  patterns = [...current, ...LEGACY]
+    .map(([key, text]) => {
       const names: string[] = [];
-      const source = normalize(fr[key])
+      const source = normalize(text)
         .split(/(\{\w+\})/g)
         .map((part) => {
           const name = /^\{(\w+)\}$/.exec(part)?.[1];
@@ -94,6 +132,10 @@ function renderParam(name: string, raw: string, locale: Locale): string {
   if (name === "country") {
     const code = FR_COUNTRY.get(raw);
     return code ? countryName(code, locale) : raw;
+  }
+  if (name === "source") {
+    const found = sourceIdOf(raw);
+    return found ? found[1](found[0], locale) : raw;
   }
   if (name === "origin") {
     const code = FR_ORIGIN.get(raw);

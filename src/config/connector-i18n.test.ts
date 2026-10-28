@@ -29,18 +29,18 @@ describe("connector texts by language", () => {
     });
   }
 
-  it("reports validation problems in the requested language, French by default", () => {
+  it("reports validation problems in the requested language", () => {
     const token = envFields("en").GOOGLE_ADS_REFRESH_TOKEN;
     expect(token).toBeDefined();
     expect(validateEnvValue(token!, "   ", "en")).toEqual({ ok: false, error: "Empty value." });
     expect(validateEnvValue(token!, "   ", "es")).toEqual({ ok: false, error: "Valor vacío." });
-    expect(validateEnvValue(token!, "   ")).toEqual({ ok: false, error: "Valeur vide." });
+    expect(validateEnvValue(token!, "   ", "fr")).toEqual({ ok: false, error: "Valeur vide." });
     expect(validateEnvValue(token!, "4/0Afake", "en")).toMatchObject({ ok: false, error: expect.stringContaining("authorisation code") });
   });
 
   it("describes a connector's fields in the requested language", () => {
     const meta = { id: "youtube-data", requiredEnv: ["YOUTUBE_API_KEY"] } as const;
     expect(connectorFields(meta, "en")[0]?.label).toBe("Google Cloud API key");
-    expect(connectorFields(meta)[0]?.label).toBe("Clé API Google Cloud");
+    expect(connectorFields(meta, "fr")[0]?.label).toBe("Clé API Google Cloud");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createFormatters, formatCompact, formatDate, formatInt, formatMoney, formatNumber, formatPct, formatRatioPct } from "./format";
+import { createFormatters, formatCompact, formatDate, formatInt, formatMoney, formatNumber, formatPct, formatPeriodEnd, formatRatioPct } from "./format";
 
 /** Intl uses non-breaking spaces in French; normalise them to compare readable strings. */
 const plain = (s: string) => s.replace(/[  ]/g, " ");
@@ -49,5 +49,14 @@ describe("format helpers per locale", () => {
     expect(f.locale).toBe("es");
     expect(f.pct(5)).toBe(formatPct(5, "es"));
     expect(f.money(20)).toBe(formatMoney(20, "es"));
+  });
+});
+
+describe("formatPeriodEnd", () => {
+  it("formats stored period ends as dates in the locale", () => {
+    expect(formatPeriodEnd("2025", "en")).toBe("2025");
+    expect(formatPeriodEnd("2026-10-24", "en")).toBe("24 Oct 2026");
+    expect(formatPeriodEnd("2026-10", "fr")).toMatch(/oct\.? 2026/);
+    expect(formatPeriodEnd("last-12-months", "es")).toBe("last-12-months");
   });
 });

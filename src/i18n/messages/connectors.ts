@@ -6,6 +6,28 @@ import type { DeepStringShape } from "./types";
  * (src/config/connector-guides.ts). Variable names and URLs are never translated.
  */
 export const en = {
+  /** Display name of each connector, by provider id (the registry's meta.name is an internal label). */
+  providerNames: {
+    "google-trends": "Google Trends API (alpha)",
+    "google-ads-keyword-planner": "Google Ads API — Keyword Planner",
+    "meta-ad-library": "Meta Ad Library API",
+    "tiktok-commercial-content": "TikTok Commercial Content API",
+    "meta-marketing-api": "Meta Marketing API — delivery estimates",
+    "tiktok-business-api": "TikTok API for Business — estimates",
+    "world-bank": "World Bank Indicators",
+    "eurostat": "Eurostat",
+    "oecd": "OECD Data (SDMX)",
+    "google-autocomplete": "Google Autocomplete",
+    "wikimedia": "Wikipedia — article page views",
+    "youtube-data": "YouTube Data API",
+    "ebay-browse": "eBay Browse API",
+    "aliexpress-affiliate": "AliExpress Affiliate API",
+    "uk-trade-tariff": "UK and EU customs tariff (Trade Tariff)",
+    "usitc-hts": "US customs tariff (USITC HTS)",
+    "vat-rates": "VAT rates",
+    "ecb-fx": "ECB reference exchange rates",
+    "mymemory": "Machine translation (MyMemory)",
+  },
   page: {
     title: "Data sources",
     intro:
@@ -89,6 +111,99 @@ export const en = {
     run: "Test",
     launchFailed: "The test couldn't be started. Check that the server is running.",
     step: { ok: "Passed", error: "Failed", skipped: "Not tested" },
+  },
+  /** Steps of the live connection test (server/connector-check.ts and each adapter's diagnose()). */
+  check: {
+    format: "Value format",
+    formatOk: "Every value has the expected format.",
+    formatError: "Values to fix:",
+    missingValue: "{label}: missing.",
+    problem: "{label}: {error}",
+    notTested: "Not tested: the previous step failed.",
+    errorReturned: "Error returned: {message}",
+    code: "{provider} code: {reason}",
+    youtube: {
+      label: "Video search (France)",
+      missing: "API key missing.",
+      ok: "Response received: about {count} videos over 12 months for “chaussettes”.",
+    },
+    aliexpress: {
+      label: "Product search",
+      missing: "App Key or App Secret missing.",
+      ok: "Response received: {count} products for “socks”.",
+      empty: "Empty response for “socks”.",
+      noTracking: " Without a Tracking ID, some apps receive no products.",
+    },
+    ebay: {
+      token: "Application token",
+      search: "Search on eBay France",
+      missing: "App ID or Cert ID missing.",
+      tokenOk: "App ID and Cert ID accepted by eBay.",
+      ok: "Response received: {count} listings for “chaussettes”.",
+    },
+    googleAds: {
+      oauth: "OAuth connection",
+      account: "Access to the Google Ads account",
+      planner: "Keyword Planner request",
+      missingVars: "Missing variables: {list}.",
+      oauthOk: "Client ID, secret and refresh token accepted by Google.",
+      accountOk: "Account reachable, currency {currency}.",
+      plannerOk: "Response received: {count} searches a month on average for “chaussettes” in France.",
+      plannerNoVolume: "Response received, with no volume for the test term.",
+      notFound: "API version or account ID not found.",
+      plannerAccess:
+        "Account reachable, but Keyword Planner refused: the Google Cloud project of the OAuth client doesn't have Basic access. Explorer access excludes planning services; request Basic (after brand verification) on the Google Ads API page of Google Cloud Console.",
+    },
+    hints: {
+      youtube: {
+        API_KEY_INVALID: "Key refused by Google: check that it was copied in full.",
+        keyInvalid: "Key refused by Google: check that it was copied in full.",
+        SERVICE_DISABLED: "YouTube Data API v3 isn't enabled in this key's Google Cloud project.",
+        accessNotConfigured: "YouTube Data API v3 isn't enabled in this key's Google Cloud project.",
+        API_KEY_SERVICE_BLOCKED: "This key is restricted to other APIs: add YouTube Data API v3 to its restrictions.",
+        quotaExceeded: "Daily quota used up (10,000 units): it resets at midnight Pacific time.",
+        forbidden: "Google refused access for this key.",
+      },
+      aliexpress: {
+        InvalidAppKey: "Unknown App Key: check that it comes from the approved app in the AliExpress console.",
+        IncompleteSignature: "Signature refused: the App Secret doesn't match the App Key.",
+        InvalidSignature: "Signature refused: the App Secret doesn't match the App Key.",
+        AppWhiteIpLimit: "The app restricts allowed IP addresses: add yours in the AliExpress console.",
+        InsufficientPermission: "The app has no access to the Affiliate APIs: check its category and approval.",
+        ApiCallLimit: "Call limit reached: try again later.",
+      },
+      ebay: {
+        invalid_client:
+          "App ID or Cert ID refused: use the “Production” keyset (not Sandbox) and check that it's enabled (account deletion notifications set up or exemption requested).",
+        invalid_scope: "This keyset has no access to the public APIs (api_scope scope).",
+        ebay_1001: "Application token refused: generate it again after checking the keys.",
+        ebay_1100: "Access to the Browse API refused for this app.",
+      },
+      googleAds: {
+        invalid_grant:
+          "Refresh token refused: wrong value, revoked or expired, or created with another client ID. If the OAuth consent screen is in “Testing” mode, Google invalidates it after 7 days.",
+        invalid_client: "Client ID or client secret refused: check that they come from the same OAuth credential.",
+        unauthorized_client:
+          "This refresh token was generated with a different OAuth client from the saved client ID. In OAuth Playground, tick “Use your own OAuth credentials” and paste your client ID and secret before authorising, then generate the token again.",
+        CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION:
+          "The Google Cloud project of the OAuth client has “Test” access: it can only query test accounts. Request Explorer, then Basic access on the Google Ads API page of Google Cloud Console (Keyword Planner requires Basic).",
+        ACTION_NOT_PERMITTED:
+          "Action refused for the access level of the Google Cloud project. With Test access only test accounts respond; Keyword Planner requires Basic access.",
+        USER_PERMISSION_DENIED:
+          "The connected Google account has no access to this Ads account. If access goes through a manager account, enter its ID.",
+        NOT_ADS_USER: "The connected Google account isn't linked to any Google Ads account.",
+        CUSTOMER_NOT_FOUND: "Google Ads account ID not found.",
+        INVALID_CUSTOMER_ID: "Invalid Google Ads account ID.",
+        CUSTOMER_NOT_ENABLED: "Google Ads account disabled or not set up yet.",
+        OAUTH_TOKEN_INVALID: "OAuth token refused by Google Ads: generate the refresh token again.",
+        OAUTH_TOKEN_EXPIRED: "OAuth token expired: generate the refresh token again.",
+        GOOGLE_ACCOUNT_COOKIE_INVALID: "Invalid Google session: generate the refresh token again.",
+        RESOURCE_EXHAUSTED: "Google Ads API quota reached: try again later.",
+        RESOURCE_TEMPORARILY_EXHAUSTED: "Google Ads API quota reached: try again later.",
+        UNAUTHENTICATED: "Authentication refused by Google Ads: generate the refresh token again.",
+        PERMISSION_DENIED: "Google Ads refused access.",
+      },
+    },
   },
   actions: {
     tooManyTests: "Too many tests in a row. Try again in {seconds} s.",
@@ -239,7 +354,7 @@ export const en = {
       brings: "Wikipedia audience for the product's category: trend and seasonality when Google gives none.",
       contact: {
         title: "Add a contact (recommended)",
-        body: "Without a contact, Wikimedia limits requests to 10 per minute: a “Whole world” analysis may then miss countries. With an email or a web address, the limit rises to 200 per minute.",
+        body: "Without a contact, Wikimedia limits requests to 10 per minute: a “Worldwide” analysis may then miss countries. With an email or a web address, the limit rises to 200 per minute.",
         link: "Wikimedia rules",
       },
     },
@@ -372,6 +487,28 @@ export const en = {
 type Shape = DeepStringShape<typeof en>;
 
 export const fr: Shape = {
+  /** Display name of each connector, by provider id (the registry's meta.name is an internal label). */
+  providerNames: {
+    "google-trends": "Google Trends API (alpha)",
+    "google-ads-keyword-planner": "Google Ads API — Keyword Planner",
+    "meta-ad-library": "Meta Ad Library API",
+    "tiktok-commercial-content": "TikTok Commercial Content API",
+    "meta-marketing-api": "Meta Marketing API — estimations de diffusion",
+    "tiktok-business-api": "TikTok API for Business — estimations",
+    "world-bank": "World Bank Indicators",
+    "eurostat": "Eurostat",
+    "oecd": "OECD Data (SDMX)",
+    "google-autocomplete": "Google Autocomplete",
+    "wikimedia": "Wikipédia — audiences des articles",
+    "youtube-data": "YouTube Data API",
+    "ebay-browse": "eBay Browse API",
+    "aliexpress-affiliate": "AliExpress Affiliate API",
+    "uk-trade-tariff": "Tarif douanier UK et UE (Trade Tariff)",
+    "usitc-hts": "Tarif douanier des États-Unis (USITC HTS)",
+    "vat-rates": "Taux de TVA",
+    "ecb-fx": "Taux de change de référence BCE",
+    "mymemory": "Traduction automatique (MyMemory)",
+  },
   page: {
     title: "Sources de données",
     intro:
@@ -453,6 +590,98 @@ export const fr: Shape = {
     run: "Tester",
     launchFailed: "Le test n'a pas pu être lancé. Vérifie que le serveur tourne.",
     step: { ok: "Réussi", error: "Échec", skipped: "Non testé" },
+  },
+  check: {
+    format: "Format des valeurs",
+    formatOk: "Toutes les valeurs ont le format attendu.",
+    formatError: "Valeurs à corriger :",
+    missingValue: "{label} : manquante.",
+    problem: "{label} : {error}",
+    notTested: "Non testé : l'étape précédente a échoué.",
+    errorReturned: "Erreur renvoyée : {message}",
+    code: "Code {provider} : {reason}",
+    youtube: {
+      label: "Recherche de vidéos (France)",
+      missing: "Clé API manquante.",
+      ok: "Réponse reçue : environ {count} vidéos sur 12 mois pour « chaussettes ».",
+    },
+    aliexpress: {
+      label: "Recherche de produits",
+      missing: "App Key ou App Secret manquant.",
+      ok: "Réponse reçue : {count} produits pour « socks ».",
+      empty: "Réponse vide pour « socks ».",
+      noTracking: " Sans Tracking ID, certaines applications ne reçoivent aucun produit.",
+    },
+    ebay: {
+      token: "Jeton d'application",
+      search: "Recherche sur eBay France",
+      missing: "App ID ou Cert ID manquant.",
+      tokenOk: "App ID et Cert ID acceptés par eBay.",
+      ok: "Réponse reçue : {count} annonces pour « chaussettes ».",
+    },
+    googleAds: {
+      oauth: "Connexion OAuth",
+      account: "Accès au compte Google Ads",
+      planner: "Requête Keyword Planner",
+      missingVars: "Variables manquantes : {list}.",
+      oauthOk: "ID client, secret et jeton d'actualisation acceptés par Google.",
+      accountOk: "Compte accessible, devise {currency}.",
+      plannerOk: "Réponse reçue : {count} recherches par mois en moyenne pour « chaussettes » en France.",
+      plannerNoVolume: "Réponse reçue, sans volume pour le terme de test.",
+      notFound: "Version de l'API ou ID de compte introuvable.",
+      plannerAccess:
+        "Compte accessible, mais Keyword Planner refusé : le projet Google Cloud du client OAuth n'a pas le niveau d'accès Basic. L'accès Explorer exclut les services de planification ; demande Basic (après vérification de la marque) sur la page Google Ads API de Google Cloud Console.",
+    },
+    hints: {
+      youtube: {
+        API_KEY_INVALID: "Clé refusée par Google : vérifie qu'elle a été copiée en entier.",
+        keyInvalid: "Clé refusée par Google : vérifie qu'elle a été copiée en entier.",
+        SERVICE_DISABLED: "La YouTube Data API v3 n'est pas activée dans le projet Google Cloud de cette clé.",
+        accessNotConfigured: "La YouTube Data API v3 n'est pas activée dans le projet Google Cloud de cette clé.",
+        API_KEY_SERVICE_BLOCKED: "Cette clé est restreinte à d'autres API : ajoute la YouTube Data API v3 dans ses restrictions.",
+        quotaExceeded: "Quota du jour épuisé (10 000 unités) : il se recharge à minuit, heure du Pacifique.",
+        forbidden: "Accès refusé par Google pour cette clé.",
+      },
+      aliexpress: {
+        InvalidAppKey: "App Key inconnue : vérifie qu'elle vient de l'application validée dans la console AliExpress.",
+        IncompleteSignature: "Signature refusée : l'App Secret ne correspond pas à l'App Key.",
+        InvalidSignature: "Signature refusée : l'App Secret ne correspond pas à l'App Key.",
+        AppWhiteIpLimit: "L'application limite les adresses IP autorisées : ajoute la tienne dans la console AliExpress.",
+        InsufficientPermission: "L'application n'a pas accès aux API Affiliate : vérifie sa catégorie et sa validation.",
+        ApiCallLimit: "Limite d'appels atteinte : réessaie plus tard.",
+      },
+      ebay: {
+        invalid_client:
+          "App ID ou Cert ID refusé : utilise le jeu de clés « Production » (pas Sandbox) et vérifie qu'il est activé (notifications de suppression de compte configurées ou exemption demandée).",
+        invalid_scope: "Ce jeu de clés n'a pas accès aux API publiques (scope api_scope).",
+        ebay_1001: "Jeton d'application refusé : régénère-le en vérifiant les clés.",
+        ebay_1100: "Accès refusé à la Browse API pour cette application.",
+      },
+      googleAds: {
+        invalid_grant:
+          "Jeton d'actualisation refusé : valeur incorrecte, révoquée ou expirée, ou créée avec un autre ID client. Si l'écran de consentement OAuth est en mode « Test », Google l'invalide après 7 jours.",
+        invalid_client: "ID client ou secret client refusé : vérifie qu'ils viennent du même identifiant OAuth.",
+        unauthorized_client:
+          "Ce jeton d'actualisation a été généré avec un autre client OAuth que l'ID client enregistré. Dans OAuth Playground, coche « Use your own OAuth credentials » et colle ton ID et secret client avant d'autoriser, puis régénère le jeton.",
+        CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION:
+          "Le projet Google Cloud du client OAuth est en accès « Test » : il ne peut interroger que des comptes de test. Demande l'accès Explorer puis Basic sur la page Google Ads API de Google Cloud Console (Keyword Planner exige Basic).",
+        ACTION_NOT_PERMITTED:
+          "Action refusée pour le niveau d'accès du projet Google Cloud. En accès Test, seuls les comptes de test répondent ; Keyword Planner exige l'accès Basic.",
+        USER_PERMISSION_DENIED:
+          "Le compte Google connecté n'a pas accès à ce compte Ads. Si l'accès passe par un compte administrateur, renseigne son ID.",
+        NOT_ADS_USER: "Le compte Google connecté n'est associé à aucun compte Google Ads.",
+        CUSTOMER_NOT_FOUND: "ID de compte Google Ads introuvable.",
+        INVALID_CUSTOMER_ID: "ID de compte Google Ads invalide.",
+        CUSTOMER_NOT_ENABLED: "Compte Google Ads désactivé ou pas encore finalisé.",
+        OAUTH_TOKEN_INVALID: "Jeton OAuth refusé par Google Ads : régénère le jeton d'actualisation.",
+        OAUTH_TOKEN_EXPIRED: "Jeton OAuth expiré : régénère le jeton d'actualisation.",
+        GOOGLE_ACCOUNT_COOKIE_INVALID: "Session Google invalide : régénère le jeton d'actualisation.",
+        RESOURCE_EXHAUSTED: "Quota de l'API Google Ads atteint : réessaie plus tard.",
+        RESOURCE_TEMPORARILY_EXHAUSTED: "Quota de l'API Google Ads atteint : réessaie plus tard.",
+        UNAUTHENTICATED: "Authentification refusée par Google Ads : régénère le jeton d'actualisation.",
+        PERMISSION_DENIED: "Accès refusé par Google Ads.",
+      },
+    },
   },
   actions: {
     tooManyTests: "Trop de tests d'affilée. Réessaie dans {seconds} s.",
@@ -734,6 +963,28 @@ export const fr: Shape = {
 };
 
 export const es: Shape = {
+  /** Display name of each connector, by provider id (the registry's meta.name is an internal label). */
+  providerNames: {
+    "google-trends": "Google Trends API (alpha)",
+    "google-ads-keyword-planner": "Google Ads API — Keyword Planner",
+    "meta-ad-library": "Meta Ad Library API",
+    "tiktok-commercial-content": "TikTok Commercial Content API",
+    "meta-marketing-api": "Meta Marketing API — estimaciones de difusión",
+    "tiktok-business-api": "TikTok API for Business — estimaciones",
+    "world-bank": "World Bank Indicators",
+    "eurostat": "Eurostat",
+    "oecd": "OECD Data (SDMX)",
+    "google-autocomplete": "Google Autocomplete",
+    "wikimedia": "Wikipedia — audiencias de los artículos",
+    "youtube-data": "YouTube Data API",
+    "ebay-browse": "eBay Browse API",
+    "aliexpress-affiliate": "AliExpress Affiliate API",
+    "uk-trade-tariff": "Arancel del Reino Unido y la UE (Trade Tariff)",
+    "usitc-hts": "Arancel de Estados Unidos (USITC HTS)",
+    "vat-rates": "Tipos de IVA",
+    "ecb-fx": "Tipos de cambio de referencia del BCE",
+    "mymemory": "Traducción automática (MyMemory)",
+  },
   page: {
     title: "Fuentes de datos",
     intro:
@@ -760,7 +1011,7 @@ export const es: Shape = {
   fieldState: { set: "Definida", optional: "Opcional", missing: "Por rellenar", removing: "Se quitará" },
   access: { open: "Abierta, sin cuenta", account: "Requiere cuenta", approval: "Solicitud y aprobación" },
   verification: {
-    live_verified: "Verificado en real",
+    live_verified: "Verificado con llamadas reales",
     documented_unverified: "Escrito según la documentación, sin verificar",
     not_implemented: "Solo el contrato",
   },
@@ -815,6 +1066,98 @@ export const es: Shape = {
     run: "Probar",
     launchFailed: "No se pudo iniciar la prueba. Comprueba que el servidor está en marcha.",
     step: { ok: "Superada", error: "Fallida", skipped: "Sin probar" },
+  },
+  check: {
+    format: "Formato de los valores",
+    formatOk: "Todos los valores tienen el formato esperado.",
+    formatError: "Valores por corregir:",
+    missingValue: "{label}: falta.",
+    problem: "{label}: {error}",
+    notTested: "Sin probar: el paso anterior falló.",
+    errorReturned: "Error devuelto: {message}",
+    code: "Código de {provider}: {reason}",
+    youtube: {
+      label: "Búsqueda de vídeos (Francia)",
+      missing: "Falta la clave de API.",
+      ok: "Respuesta recibida: unos {count} vídeos en 12 meses para «chaussettes».",
+    },
+    aliexpress: {
+      label: "Búsqueda de productos",
+      missing: "Falta la App Key o el App Secret.",
+      ok: "Respuesta recibida: {count} productos para «socks».",
+      empty: "Respuesta vacía para «socks».",
+      noTracking: " Sin Tracking ID, algunas aplicaciones no reciben ningún producto.",
+    },
+    ebay: {
+      token: "Token de aplicación",
+      search: "Búsqueda en eBay Francia",
+      missing: "Falta el App ID o el Cert ID.",
+      tokenOk: "eBay aceptó el App ID y el Cert ID.",
+      ok: "Respuesta recibida: {count} anuncios para «chaussettes».",
+    },
+    googleAds: {
+      oauth: "Conexión OAuth",
+      account: "Acceso a la cuenta de Google Ads",
+      planner: "Consulta a Keyword Planner",
+      missingVars: "Faltan variables: {list}.",
+      oauthOk: "Google aceptó el ID de cliente, el secreto y el token de actualización.",
+      accountOk: "Cuenta accesible, moneda {currency}.",
+      plannerOk: "Respuesta recibida: {count} búsquedas al mes de media para «chaussettes» en Francia.",
+      plannerNoVolume: "Respuesta recibida, sin volumen para el término de prueba.",
+      notFound: "No se encontró la versión de la API o el ID de cuenta.",
+      plannerAccess:
+        "Cuenta accesible, pero Keyword Planner rechazado: el proyecto de Google Cloud del cliente OAuth no tiene el nivel de acceso Basic. El acceso Explorer excluye los servicios de planificación; solicita Basic (tras verificar la marca) en la página Google Ads API de Google Cloud Console.",
+    },
+    hints: {
+      youtube: {
+        API_KEY_INVALID: "Google rechazó la clave: comprueba que se copió entera.",
+        keyInvalid: "Google rechazó la clave: comprueba que se copió entera.",
+        SERVICE_DISABLED: "La YouTube Data API v3 no está activada en el proyecto de Google Cloud de esta clave.",
+        accessNotConfigured: "La YouTube Data API v3 no está activada en el proyecto de Google Cloud de esta clave.",
+        API_KEY_SERVICE_BLOCKED: "Esta clave está restringida a otras API: añade la YouTube Data API v3 a sus restricciones.",
+        quotaExceeded: "Cuota diaria agotada (10.000 unidades): se recarga a medianoche, hora del Pacífico.",
+        forbidden: "Google denegó el acceso para esta clave.",
+      },
+      aliexpress: {
+        InvalidAppKey: "App Key desconocida: comprueba que viene de la aplicación aprobada en la consola de AliExpress.",
+        IncompleteSignature: "Firma rechazada: el App Secret no corresponde a la App Key.",
+        InvalidSignature: "Firma rechazada: el App Secret no corresponde a la App Key.",
+        AppWhiteIpLimit: "La aplicación limita las direcciones IP autorizadas: añade la tuya en la consola de AliExpress.",
+        InsufficientPermission: "La aplicación no tiene acceso a las API Affiliate: comprueba su categoría y su aprobación.",
+        ApiCallLimit: "Límite de llamadas alcanzado: vuelve a intentarlo más tarde.",
+      },
+      ebay: {
+        invalid_client:
+          "App ID o Cert ID rechazado: usa el conjunto de claves «Production» (no Sandbox) y comprueba que está activado (notificaciones de eliminación de cuenta configuradas o exención solicitada).",
+        invalid_scope: "Este conjunto de claves no tiene acceso a las API públicas (scope api_scope).",
+        ebay_1001: "Token de aplicación rechazado: vuelve a generarlo comprobando las claves.",
+        ebay_1100: "Acceso a la Browse API denegado para esta aplicación.",
+      },
+      googleAds: {
+        invalid_grant:
+          "Token de actualización rechazado: valor incorrecto, revocado o caducado, o creado con otro ID de cliente. Si la pantalla de consentimiento OAuth está en modo «Testing», Google lo invalida a los 7 días.",
+        invalid_client: "ID de cliente o secreto de cliente rechazado: comprueba que vienen de la misma credencial OAuth.",
+        unauthorized_client:
+          "Este token de actualización se generó con un cliente OAuth distinto del ID de cliente guardado. En OAuth Playground, marca «Use your own OAuth credentials» y pega tu ID y secreto de cliente antes de autorizar; luego vuelve a generar el token.",
+        CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION:
+          "El proyecto de Google Cloud del cliente OAuth tiene acceso «Test»: solo puede consultar cuentas de prueba. Solicita el acceso Explorer y luego Basic en la página Google Ads API de Google Cloud Console (Keyword Planner requiere Basic).",
+        ACTION_NOT_PERMITTED:
+          "Acción denegada para el nivel de acceso del proyecto de Google Cloud. Con acceso Test solo responden las cuentas de prueba; Keyword Planner requiere el acceso Basic.",
+        USER_PERMISSION_DENIED:
+          "La cuenta de Google conectada no tiene acceso a esta cuenta de Ads. Si el acceso pasa por una cuenta de administrador, indica su ID.",
+        NOT_ADS_USER: "La cuenta de Google conectada no está vinculada a ninguna cuenta de Google Ads.",
+        CUSTOMER_NOT_FOUND: "No se encontró el ID de cuenta de Google Ads.",
+        INVALID_CUSTOMER_ID: "ID de cuenta de Google Ads no válido.",
+        CUSTOMER_NOT_ENABLED: "Cuenta de Google Ads desactivada o aún sin completar.",
+        OAUTH_TOKEN_INVALID: "Google Ads rechazó el token OAuth: vuelve a generar el token de actualización.",
+        OAUTH_TOKEN_EXPIRED: "Token OAuth caducado: vuelve a generar el token de actualización.",
+        GOOGLE_ACCOUNT_COOKIE_INVALID: "Sesión de Google no válida: vuelve a generar el token de actualización.",
+        RESOURCE_EXHAUSTED: "Cuota de la API de Google Ads alcanzada: vuelve a intentarlo más tarde.",
+        RESOURCE_TEMPORARILY_EXHAUSTED: "Cuota de la API de Google Ads alcanzada: vuelve a intentarlo más tarde.",
+        UNAUTHENTICATED: "Google Ads rechazó la autenticación: vuelve a generar el token de actualización.",
+        PERMISSION_DENIED: "Google Ads denegó el acceso.",
+      },
+    },
   },
   actions: {
     tooManyTests: "Demasiadas pruebas seguidas. Vuelve a intentarlo en {seconds} s.",
@@ -969,8 +1312,8 @@ export const es: Shape = {
         link: "Normas de Wikimedia",
       },
     },
-    ukTradeTariff: { brings: "Código aduanero del producto y aranceles de importación en el Reino Unido y la UE según el país de origen." },
-    usitcHts: { brings: "Aranceles de importación en Estados Unidos para el código aduanero del producto." },
+    ukTradeTariff: { brings: "Código arancelario del producto y aranceles de importación en el Reino Unido y la UE según el país de origen." },
+    usitcHts: { brings: "Aranceles de importación en Estados Unidos para el código arancelario del producto." },
     vatRates: { brings: "Tipo de IVA de cada país, para comparar precios mostrados con impuestos." },
     ecbFx: { brings: "Tipos de cambio oficiales para convertir precios extranjeros a euros." },
     mymemory: { brings: "Traduce el nombre del producto al idioma de cada país, para analizar todo el mundo a partir de un solo nombre." },
