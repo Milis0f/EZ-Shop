@@ -1,88 +1,16 @@
 # EZ-Shop
 
-**Recherche produit avant lancement, pour l'e-commerce et le dropshipping.**
+**Pre-launch product research for e-commerce and dropshipping, country by country, with real data only and a local AI.**
 
-Tu tapes le nom d'un produit (ou tu colles le lien de sa fiche Temu, AliExpress, Alibaba ou 1688) et EZ-Shop
-te dit, pays par pays, si le produit vaut la peine d'être envisagé : **OUI**, **NON** ou **À SURVEILLER**, avec
-ses raisons.
+Give EZ-Shop a product name or a supplier link (Temu, AliExpress, Alibaba, 1688). For each target country it tells you
+**YES, NO or WATCH** (« OUI / NON / À SURVEILLER » in the app), with the reason, the blocking factors and a confidence
+score, before you spend anything on stock or ads.
 
-EZ-Shop n'utilise que des données externes réelles : sources publiques ouvertes et API que tu branches avec tes
-propres clés. Il ne lit jamais tes ventes, ta boutique, ton Pixel ou ton historique publicitaire. Quand une
-estimation honnête est impossible, l'application affiche `DATA_INSUFFICIENT` avec la raison, plutôt qu'un chiffre
-inventé.
+![Report for « casquette » (cap): verdict orb, confidence ring and the local AI reading](docs/screenshots/report-casquette.png)
 
-![Rapport « casquette » : verdict À SURVEILLER, confiance 9 %, lecture par l'IA locale](docs/screenshots/report-casquette.png)
+## Quick start
 
-## Ce que fait EZ-Shop
-
-- **Un verdict par pays** (OUI / NON / À SURVEILLER), une ligne de raison et les facteurs bloquants. Le disque du
-  verdict est entouré d'un anneau qui se remplit jusqu'à la confiance réelle.
-- **Analyse au niveau pays uniquement** : France ou « Monde entier » (18 pays : Europe, Royaume-Uni, États-Unis,
-  Canada, Australie). Jamais de région, de ville ni de code postal.
-- **Chaque valeur dit ce qu'elle est** : donnée observée, hypothèse, calcul dérivé ou estimation, avec ses sources et
-  sa période. Le score d'opportunité (sur 100) et la confiance sont toujours séparés.
-- **Liens fournisseurs reconnus hors ligne** : la plateforme et l'identifiant de l'article sont lus dans l'adresse.
-  Aucune page fournisseur n'est téléchargée.
-- **« Ta marge »** à partir de tes prix (prix fournisseur, livraison, prix de vente envisagé, marge visée), droits de
-  douane compris quand ils sont calculables.
-- **« Pour obtenir un vrai verdict »** : les sources à brancher, classées par le poids du score qu'elles couvriraient.
-- **Journal des sources** : ce que chaque source a donné, a raté ou n'a pas pu donner, pour chaque analyse.
-- **Mode simple** (le verdict et l'essentiel) et **mode avancé** (score détaillé, critères, hypothèses, provenance).
-- **Une IA locale** qui reformule l'analyse en français simple (voir plus bas).
-
-<table>
-  <tr>
-    <td><img src="docs/screenshots/home-supplier-link.png" alt="Accueil avec un lien AliExpress reconnu et le tiroir Prix et livraison ouvert"></td>
-    <td><img src="docs/screenshots/report-18-countries.png" alt="Rapport sur 18 pays, classement pays par pays"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/country-page.png" alt="Page pays France, chaque indicateur avec sa nature ou DATA_INSUFFICIENT"></td>
-    <td><img src="docs/screenshots/sources.png" alt="Page Sources de données avec l'état de chaque connecteur"></td>
-  </tr>
-</table>
-
-## L'IA locale
-
-EZ-Shop intègre un modèle de langage ouvert, **Qwen3.5-9B** (licence Apache-2.0, quantification Q4_K_M), qui tourne
-**entièrement sur la carte graphique de ton ordinateur** grâce à
-[node-llama-cpp](https://github.com/withcatai/node-llama-cpp). L'intégration dans l'application (fiche de faits,
-garde-fou des nombres, cache, interface) a été écrite par l'auteur du projet.
-
-Ce qu'elle fait :
-
-- elle **reformule** l'analyse déjà enregistrée en quelques phrases claires, pays par pays ;
-- elle **propose des prochaines étapes** (quelle source brancher, quel prix saisir) ;
-- elle décrit en une phrase ce qu'est probablement le produit, présenté comme une hypothèse.
-
-Ce qu'elle ne fait pas :
-
-- elle **ne produit aucune donnée** et ne collecte rien : elle lit seulement ce que l'analyse contient ;
-- **chaque nombre qu'elle écrit est vérifié** contre l'analyse. Une réponse qui contient un nombre absent de
-  l'analyse est refusée et n'est pas affichée ;
-- **aucun cloud, aucune clé d'API** : ni le produit, ni l'analyse, ni la réponse ne quittent ta machine.
-
-Le texte écrit par l'IA est toujours placé dans une **mini aura** (un cadre au halo monochrome) avec le badge
-« IA locale », pour qu'il ne soit jamais confondu avec les données.
-
-![Lecture de l'IA locale dans son aura](docs/screenshots/ai-reading.jpg)
-
-Limites connues : le garde-fou ne lit que les chiffres (une quantité écrite en toutes lettres passe sans contrôle),
-il vérifie qu'un nombre existe dans l'analyse mais pas qu'il est attribué au bon pays, et l'IA peut se tromper sur le
-sens d'une donnée. La lecture sert à comprendre plus vite, pas à décider à ta place. L'IA est facultative : sans
-le modèle, ou avec `LOCAL_AI_ENABLED=false`, l'analyse fonctionne normalement.
-
-## Stack technique
-
-- Next.js 16 (App Router, Turbopack), React 19, TypeScript strict
-- Tailwind CSS 4, composants shadcn/ui (Radix), Recharts
-- Zod pour la validation, Drizzle ORM
-- Base de données embarquée PGlite (Postgres en WASM), ou Postgres / Supabase via `DATABASE_URL`
-- node-llama-cpp 3.22.2 pour l'IA locale (binaires précompilés Vulkan, CUDA, Metal ou CPU)
-- Vitest pour les tests, ESLint
-
-## Démarrage rapide
-
-Prérequis : Node.js 22.12 ou plus récent et npm. Le détail est dans [docs/INSTALL.md](docs/INSTALL.md).
+Requirements: **Node.js 22.12+** and npm. Windows, macOS or Linux.
 
 ```bash
 git clone https://github.com/Milis0f/EZ-Shop.git
@@ -92,48 +20,82 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Ouvre http://localhost:3000. Aucun serveur de base de données, aucun Docker et aucune clé ne sont nécessaires pour
-une première analyse : la base PGlite est créée dans `.data/pglite` au premier lancement, et les sources ouvertes
-(Banque mondiale, Eurostat, OCDE, Wikipédia, Google Autocomplete, tarifs douaniers, TVA, taux de change BCE,
-traduction) répondent sans compte. Pour l'IA locale, télécharge le modèle (environ 5,7 Go) comme indiqué dans
-[docs/INSTALL.md](docs/INSTALL.md#4-télécharger-le-modèle-de-lia-locale).
+Open http://localhost:3000. No database server, no Docker and no API key are needed for a first analysis: a local
+PGlite database is created in `.data/pglite`, and the open sources (World Bank, Eurostat, OECD, Wikipedia, Google
+Autocomplete, customs tariffs, VAT, ECB exchange rates) answer without an account.
 
-## Documentation
+### Optional: enable the local AI
 
-- [Installation](docs/INSTALL.md) : prérequis, variables d'environnement, base de données, modèle d'IA, tests,
-  dépannage.
-- [Tutoriel](docs/TUTORIAL.md) : ta première analyse pas à pas, lire le verdict, brancher des sources, FAQ.
-- [Architecture](docs/ARCHITECTURE.md) : dossiers, flux de données, provenance, score, pipeline de l'IA locale.
-- La page **Méthode** de l'application détaille les formules, les poids du score et la règle du verdict.
+Download the model (about 5.7 GB) into `.data/models/`:
 
-![Page Méthode](docs/screenshots/method.png)
+```bash
+pip install -U huggingface_hub
+hf download unsloth/Qwen3.5-9B-GGUF Qwen3.5-9B-Q4_K_M.gguf --local-dir .data/models
+```
 
-## État du projet et limites
+SHA-256: `03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8`. A GPU with about 8 GB of VRAM is
+recommended (Vulkan, CUDA or Metal through prebuilt binaries; CPU works, slowly). Set `LOCAL_AI_MODEL_PATH` to use
+another location, or `LOCAL_AI_ENABLED=false` to turn the AI off. Without the model, everything else works.
 
-EZ-Shop est un outil local en version 0.1 (V1 « données réelles uniquement »). Il est pensé pour tourner sur ta
-machine, pas pour être exposé sur Internet : il n'y a pas d'authentification, et la protection des routes d'API se
-limite à une vérification d'origine et à une limite de débit.
+### Other commands
 
-Ce qu'il faut savoir avant de l'utiliser :
+```bash
+npm run build && npm start   # production
+npm test                     # unit tests
+npm run typecheck && npm run lint
+```
 
-- **Sans source à clé, la plupart des verdicts restent « À SURVEILLER »**, avec une confiance faible. C'est voulu :
-  les volumes de recherche, les coûts par clic et la concurrence publicitaire viennent de Google Ads Keyword
-  Planner, Google Trends, Meta Ad Library ou TikTok, qui demandent un compte ou une candidature.
-- Les connecteurs Google Ads, Meta Ad Library, TikTok Commercial Content, YouTube, eBay et AliExpress sont écrits
-  d'après la documentation officielle mais **n'ont pas encore été vérifiés avec de vraies clés**. Google Trends
-  (API alpha), Meta Marketing et TikTok Business ne sont pas encore codés.
-- Les statistiques dérivées d'eBay (prix médian) et de YouTube (vues médianes) sont désactivées tant que leurs
-  licences n'ont pas été vérifiées : seules les annonces et vidéos observées sont montrées.
-- Les audiences Wikipédia et les suggestions Google sont des **signaux indirects**, jamais des volumes de recherche.
-- Le chiffre d'affaires est calculé dans une seule devise (EUR).
-- Les analyses tournent dans la requête (une analyse « Monde entier » prend environ 15 secondes), sans file de
-  tâches en arrière-plan.
-- Les lectures de l'IA sont gardées en mémoire : un redémarrage du serveur les régénère.
+## What it does
+
+- **A verdict per country**: YES, NO or WATCH, with one line of reason and the blocking factors (e.g. a loss at
+  your selling price). Missing data gives « WATCH, insufficient data », never an optimistic guess.
+- **Real data only**: every value carries its source and its kind (observed, assumption, derived, estimate). When a
+  value is missing or unreliable, the app shows `DATA_INSUFFICIENT` with the reason. No number is ever invented.
+- **Your own numbers**: supplier price, shipping, planned selling price and target margin give your landed cost
+  (duties included), your margin at your price and the minimum price for your target margin.
+- **Supplier links recognised offline**: the app reads the platform and product id from the URL and never scrapes
+  supplier pages.
+- **Simple and expert modes**: the simple mode leads with the verdict; the expert mode shows the score out of 100,
+  its criteria, confidence, sources, limits and a per-provider source journal.
+- **Country level only**, 18 countries supported.
+- **OLED design**: true black, dark only, very round, with motion that answers your actions and respects reduced
+  motion settings.
+
+## The local AI
+
+EZ-Shop runs an AI model **entirely on your own computer**: Qwen3.5-9B (open model, Apache-2.0), loaded on your GPU
+through [node-llama-cpp](https://github.com/withcatai/node-llama-cpp), inside the app. No cloud, no API key, no data
+leaves your machine.
+
+On each analysis it writes, in French, a short summary, one line per country, up to three concrete next steps, and a
+hypothesis about what the product is. It only rewords the stored analysis: **every number it cites is checked
+against the analysis data**, and a reading that cites a number not found there is discarded and never shown. It never
+produces data. Everything the AI wrote is marked by a small animated « aura », so you always know what comes from the
+AI and what comes from the data.
+
+<img src="docs/screenshots/home-supplier-link.png" alt="Home: an AliExpress link recognised and the price drawer open" width="720">
+
+## Connecting more sources
+
+Search volumes, CPC and ad competition come from sources that need an account (Google Ads Keyword Planner, Meta Ad
+Library, TikTok, YouTube, eBay, AliExpress). Add their keys to `.env.local` (see `.env.example`) or from the
+**Sources de données** page of the app. Without them, most verdicts stay « WATCH » with low confidence, by design.
+
+## Stack
+
+Next.js 16, React 19, TypeScript (strict), Tailwind CSS 4, shadcn/ui, Zod, Drizzle ORM with PGlite (or PostgreSQL
+via `DATABASE_URL`), node-llama-cpp, Vitest.
+
+## Status and limits
+
+Version 0.1, meant to run locally (no authentication: do not expose it on the internet). Some keyed connectors are
+written from the official docs but not yet tested with real keys. Derived eBay and YouTube statistics are disabled
+until their licence terms are checked. Wikipedia readers and Google suggestions are indirect signals, never search
+volumes. The interface is in French.
+
+Detailed guides (in French): [installation](docs/INSTALL.md), [tutorial](docs/TUTORIAL.md),
+[architecture](docs/ARCHITECTURE.md).
 
 ## Licence
 
-Le code est publié sous licence [GNU AGPL-3.0](LICENSE). Tu peux l'utiliser, le modifier et le redistribuer, à
-condition que toute version modifiée, y compris proposée en ligne, reste publiée sous la même licence.
-
-Le modèle Qwen3.5-9B n'est pas inclus dans ce dépôt : il se télécharge à part et reste soumis à sa propre licence
-(Apache-2.0).
+[GNU AGPL-3.0](LICENSE). The Qwen3.5-9B model is not included and stays under its own licence (Apache-2.0).

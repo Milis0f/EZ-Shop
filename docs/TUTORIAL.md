@@ -11,7 +11,6 @@ Sur l'accueil, la grande capsule accepte deux choses :
 - **un nom de produit**, par exemple « casquette » ;
 - **le lien de la fiche fournisseur** : Temu, AliExpress, Alibaba.com ou 1688.
 
-![Accueil avec un lien AliExpress reconnu et le tiroir Prix et livraison ouvert](screenshots/home-supplier-link.png)
 
 Quand tu colles un lien, EZ-Shop le lit **sans rien télécharger** : il reconnaît la plateforme et l'identifiant de
 l'article (par exemple « AliExpress, article 1005006… ») et te propose un nom par défaut. Tu peux taper un nom plus
@@ -61,7 +60,6 @@ Clique sur **Analyser**.
 
 ## Lire le rapport
 
-![Rapport « casquette » en mode simple](screenshots/report-casquette.png)
 
 ### Le verdict et l'anneau de confiance
 
@@ -82,7 +80,6 @@ OUI demande des volumes de recherche réels. Le tableau complet est sur la page 
 Avec « Monde entier », le disque montre le verdict d'un pays (indiqué juste en dessous, avec le pays le plus
 prometteur), et le tableau **Pays par pays** classe les 18 pays.
 
-![Rapport sur 18 pays](screenshots/report-18-countries.png)
 
 ### Les raisons
 
@@ -97,7 +94,6 @@ Si l'IA locale est installée, un cadre avec le badge **IA locale** et un halo d
 verdict. Pendant que le modèle écrit, le halo tourne et un compteur de secondes s'affiche ; la première lecture peut
 prendre une minute, le temps que le modèle se charge.
 
-![Lecture de l'IA locale](screenshots/ai-reading.jpg)
 
 La lecture contient un résumé, une phrase par pays, une hypothèse sur ce qu'est le produit et des pistes
 « Pour aller plus loin ». Tout ce texte est une **reformulation** de l'analyse : chaque nombre cité a été vérifié
@@ -145,20 +141,17 @@ Dans le tableau **Pays par pays**, choisis un pays pour ouvrir sa page : demande
 intérêt et intention d'achat, potentiel commercial, coûts publicitaires, marché eBay, taxes à l'import, concurrence,
 détail du score, confiance, contexte du pays et provenance des données.
 
-![Page pays France](screenshots/country-page.png)
 
 Chaque indicateur porte sa nature. Survole une valeur pour voir sa méthode, ses sources et sa période. Les
 `DATA_INSUFFICIENT` sont nombreux tant que les sources à clé ne sont pas branchées, et chacun donne sa raison.
 
 Sur téléphone, toutes les pages s'empilent sur une colonne :
 
-<img src="screenshots/phone-report.png" alt="Rapport en mode simple sur un téléphone" width="260">
 
 ## Brancher des sources
 
 La page **Sources de données** montre l'état de chaque connecteur et son guide pas à pas.
 
-![Page Sources de données](screenshots/sources.png)
 
 Pour chaque source à clé : ouvre **Configurer**, suis les étapes, colle les valeurs, puis utilise le test de
 connexion quand il est proposé. En développement sur `localhost`, les valeurs sont écrites dans `.env.local` et
