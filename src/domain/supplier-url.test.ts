@@ -116,13 +116,21 @@ describe("parseSupplierUrl invalid input", () => {
   });
 
   it.each([
+    ["http://", "malformed"],
+    ["javascript:alert(1)", "not_web"],
+    ["ftp://fr.aliexpress.com/item/1005006294811234.html", "not_web"],
+  ] as const)("gives %s the reason code %s", (input, reason) => {
+    expect(parseSupplierUrl(input)).toMatchObject({ kind: "invalid", reason });
+  });
+
+  it.each([
     "https://fr.aliexpress.com/store/1102345678",
     "https://www.temu.com/fr/channel/best-sellers.html",
     "https://www.alibaba.com/showroom/baseball-cap.html",
     "https://detail.1688.com/offer/notanid.html",
   ])("rejects a supplier address that is not a product page: %s", (input) => {
     const result = parseSupplierUrl(input);
-    expect(result.kind).toBe("invalid");
+    expect(result).toMatchObject({ kind: "invalid", reason: "not_product" });
     if (result.kind === "invalid") expect(result.message).toMatch(/\S/);
   });
 });

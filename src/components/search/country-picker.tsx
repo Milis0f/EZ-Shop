@@ -3,12 +3,15 @@
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY_SELECTION, type CountryCode } from "@/domain/country";
+import { useFormat, useLocale, useMessages } from "@/i18n/client";
+import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
+import { countryName } from "./display-names";
 
-const PRESETS: ReadonlyArray<{ readonly label: string; readonly codes: readonly CountryCode[] }> = [
-  { label: "Sélection conseillée", codes: DEFAULT_COUNTRY_SELECTION },
-  { label: "Union européenne", codes: COUNTRY_CODES.filter((c) => COUNTRIES[c].isEU) },
-  { label: "Tous", codes: COUNTRY_CODES },
+const PRESETS: ReadonlyArray<{ readonly key: "recommended" | "eu" | "all"; readonly codes: readonly CountryCode[] }> = [
+  { key: "recommended", codes: DEFAULT_COUNTRY_SELECTION },
+  { key: "eu", codes: COUNTRY_CODES.filter((c) => COUNTRIES[c].isEU) },
+  { key: "all", codes: COUNTRY_CODES },
 ];
 
 const sameSet = (a: ReadonlySet<CountryCode>, b: readonly CountryCode[]) => a.size === b.length && b.every((c) => a.has(c));
@@ -19,6 +22,9 @@ const sameSet = (a: ReadonlySet<CountryCode>, b: readonly CountryCode[]) => a.si
  */
 export function CountryPicker({ error }: { error?: string }) {
   const [selected, setSelected] = useState<ReadonlySet<CountryCode>>(() => new Set(DEFAULT_COUNTRY_SELECTION));
+  const locale = useLocale();
+  const m = useMessages("home").countries;
+  const f = useFormat();
 
   const toggle = (code: CountryCode) =>
     setSelected((prev) => {
@@ -31,13 +37,13 @@ export function CountryPicker({ error }: { error?: string }) {
   return (
     <fieldset aria-describedby="countries-count">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
-        <legend className="text-sm font-medium">Pays à comparer</legend>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sélections rapides">
+        <legend className="text-sm font-medium">{m.legend}</legend>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={m.presets}>
           {PRESETS.map((p) => {
             const active = sameSet(selected, p.codes);
             return (
               <button
-                key={p.label}
+                key={p.key}
                 type="button"
                 aria-pressed={active}
                 onClick={() => setSelected(new Set(p.codes))}
@@ -46,7 +52,7 @@ export function CountryPicker({ error }: { error?: string }) {
                   active ? "border-foreground/30 bg-surface-2 text-foreground" : "border-line text-muted-foreground hover:border-foreground/20 hover:text-foreground",
                 )}
               >
-                {p.label}
+                {m[p.key]}
               </button>
             );
           })}
@@ -56,7 +62,7 @@ export function CountryPicker({ error }: { error?: string }) {
             disabled={selected.size === 0}
             className="interactive rounded-pill px-3.5 py-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40"
           >
-            Effacer
+            {m.clear}
           </button>
         </div>
       </div>
@@ -84,14 +90,14 @@ export function CountryPicker({ error }: { error?: string }) {
                 {checked && <Check className="animate-check size-3" strokeWidth={3} />}
               </span>
               <span className="w-6 shrink-0 text-xs font-medium text-muted-foreground tabular">{code}</span>
-              <span className="truncate">{COUNTRIES[code].nameFr}</span>
+              <span className="truncate">{countryName(code, locale)}</span>
             </label>
           );
         })}
       </div>
 
       <p id="countries-count" aria-live="polite" className={cn("mt-3 text-xs", selected.size === 0 ? "text-foreground" : "text-muted-foreground")}>
-        {selected.size === 0 ? "Aucun pays sélectionné : choisis-en au moins un." : `${selected.size} pays sur ${COUNTRY_CODES.length}`}
+        {selected.size === 0 ? m.none : t(m.count, { selected: f.int(selected.size), total: f.int(COUNTRY_CODES.length) })}
       </p>
       {error && <p role="alert" className="mt-3 flex items-start gap-3 rounded-tile border border-line bg-surface px-4 py-3 text-sm"><span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--verdict-non)]" />{error}</p>}
     </fieldset>

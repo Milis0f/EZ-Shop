@@ -3,19 +3,22 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ConfidenceMeter, ScoreMeter } from "@/components/analysis/meters";
 import { CountryTag } from "@/components/data/country-tag";
-import { COUNTRIES } from "@/domain/country";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatInt } from "@/i18n/format";
+import { getLocale, getMessages } from "@/i18n/server";
+import { plural } from "@/i18n/translate";
 import { listRecentAnalyses } from "@/server/services";
+import { countryName } from "./display-names";
 
 /** The last analyses as round tiles: product, date, best country with its score and confidence. */
 export async function RecentAnalyses() {
   await connection();
-  const analyses = await listRecentAnalyses(12);
+  const [analyses, locale] = await Promise.all([listRecentAnalyses(12), getLocale()]);
+  const m = await getMessages("home", locale).then((home) => home.recent);
 
   if (analyses.length === 0) {
     return (
       <p className="rounded-tile border border-dashed border-foreground/15 px-6 py-10 text-center text-sm text-muted-foreground">
-        Aucune analyse pour l&apos;instant. La première apparaîtra ici.
+        {m.empty}
       </p>
     );
   }
@@ -32,9 +35,9 @@ export async function RecentAnalyses() {
               <span className="min-w-0">
                 <span className="block truncate font-medium">{a.productName}</span>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  {formatDate(a.createdAt)}, {a.countryCount} pays
-                  {a.dataMode === "mock" && <span className="ml-2">analyse fictive ancienne</span>}
-                  {a.status === "failed" && <span className="ml-2 text-foreground">échec</span>}
+                  {plural(locale, a.countryCount, m.countries, { date: formatDate(a.createdAt, locale), count: formatInt(a.countryCount, locale) })}
+                  {a.dataMode === "mock" && <span className="ml-2">{m.oldMock}</span>}
+                  {a.status === "failed" && <span className="ml-2 text-foreground">{m.failed}</span>}
                 </span>
               </span>
               <ChevronRight
@@ -47,7 +50,7 @@ export async function RecentAnalyses() {
               <span className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
                 <span className="flex min-w-0 items-center">
                   <CountryTag code={a.topCountry.code} />
-                  <span className="truncate">{COUNTRIES[a.topCountry.code].nameFr}</span>
+                  <span className="truncate">{countryName(a.topCountry.code, locale)}</span>
                 </span>
                 <span className="flex items-center gap-4">
                   <ScoreMeter value={a.topCountry.score} />
@@ -55,7 +58,7 @@ export async function RecentAnalyses() {
                 </span>
               </span>
             ) : (
-              <span className="mt-auto text-sm text-muted-foreground">Aucun pays noté</span>
+              <span className="mt-auto text-sm text-muted-foreground">{m.noCountry}</span>
             )}
           </Link>
         </li>

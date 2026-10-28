@@ -3,6 +3,9 @@
 import { redirect } from "next/navigation";
 import { LANGUAGE_CODES, type LanguageCode } from "@/domain/country";
 import type { AnalysisInputRaw } from "@/domain/schemas";
+import { formatInt } from "@/i18n/format";
+import { getLocale, getMessages } from "@/i18n/server";
+import { t } from "@/i18n/translate";
 import { AnalysisValidationError } from "@/server/pipeline/run-analysis";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { createAnalysis } from "@/server/services";
@@ -35,12 +38,14 @@ function parseExtraTerms(text: string): { terms: Array<{ language: LanguageCode;
 }
 
 export async function submitAnalysis(_prev: SearchFormState, formData: FormData): Promise<SearchFormState> {
+  const locale = await getLocale();
+  const m = (await getMessages("home", locale)).action;
   const limit = checkRateLimit("analysis:form", ANALYSIS_RATE_LIMIT.limit, ANALYSIS_RATE_LIMIT.windowMs);
-  if (!limit.allowed) return { error: `Trop d'analyses. Réessaie dans ${limit.retryAfterSeconds} s.` };
+  if (!limit.allowed) return { error: t(m.rateLimited, { seconds: formatInt(limit.retryAfterSeconds, locale) }) };
 
   const { terms, invalid } = parseExtraTerms(String(formData.get("extraTerms") ?? ""));
   if (invalid.length > 0) {
-    return { fieldErrors: { extraTerms: `Format attendu « de: terme1, terme2 ». Lignes invalides : ${invalid.join(" | ")}` } };
+    return { fieldErrors: { extraTerms: t(m.extraTermsFormat, { lines: invalid.join(" | ") }) } };
   }
 
   // `dataMode` is passed as posted: the schema refuses anything but live data, with its own message.
@@ -70,7 +75,7 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
   } catch (error: unknown) {
     if (error instanceof AnalysisValidationError) return searchFormStateFrom(error.issues);
     console.error("[submitAnalysis]", error);
-    return { error: "L'analyse a échoué. Consulte les logs serveur." };
+    return { error: m.failed };
   }
   redirect(`/analyses/${id}?created=1`);
 }

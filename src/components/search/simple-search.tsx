@@ -8,22 +8,18 @@ import { Expand } from "@/components/motion/expand";
 import { PendingButton } from "@/components/motion/pending-button";
 import { SegmentedControl } from "@/components/motion/segmented-control";
 import { COUNTRY_CODES } from "@/domain/country";
+import { useFormat, useLocale, useMessages } from "@/i18n/client";
+import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
+import { countryName, inputLanguageFor } from "./display-names";
 import { controlClass, DETAIL_FIELDS, InlineAlert, PriceFields, ProductFields, useDetailValues } from "./product-details";
 import { isAddressLike, readSupplierInput, resolveProductName } from "./supplier-input";
 import { SupplierLinkChip } from "./supplier-link-chip";
 
-const SCOPES = [
-  { value: "FR", label: "France" },
-  { value: "world", label: "Monde entier" },
-] as const;
-
-type Scope = (typeof SCOPES)[number]["value"];
+type Scope = "FR" | "world";
 
 const COUNTRIES_BY_SCOPE: Readonly<Record<Scope, readonly string[]>> = { FR: ["FR"], world: COUNTRY_CODES };
 
-const PLACEHOLDER_WIDE = "Nom du produit ou lien de la fiche";
-const PLACEHOLDER_NARROW = "Produit ou lien de la fiche";
 const WIDE_QUERY = "(min-width: 640px)";
 
 function subscribeWide(onChange: () => void): () => void {
@@ -32,10 +28,9 @@ function subscribeWide(onChange: () => void): () => void {
   return () => query.removeEventListener("change", onChange);
 }
 
-/** The long placeholder only where it fits; phones get the short one so it never runs out of the capsule. */
-function usePlaceholder(): string {
-  const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE_QUERY).matches, () => true);
-  return wide ? PLACEHOLDER_WIDE : PLACEHOLDER_NARROW;
+/** Whether the long placeholder fits; phones get the short one so it never runs out of the capsule. */
+function useWide(): boolean {
+  return useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE_QUERY).matches, () => true);
 }
 
 const DETAIL_ERROR_FIELDS: ReadonlySet<string> = new Set<string>([...DETAIL_FIELDS, "economics"]);
@@ -51,9 +46,17 @@ export function SimpleSearch() {
   const [scope, setScope] = useState<Scope>("FR");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const details = useDetailValues();
-  const placeholder = usePlaceholder();
+  const locale = useLocale();
+  const m = useMessages("home").simple;
+  const f = useFormat();
+  const placeholder = useWide() ? m.placeholderWide : m.placeholderNarrow;
+  const scopes = [
+    { value: "FR", label: countryName("FR", locale) },
+    { value: "world", label: m.scopeWorld },
+  ] as const;
+  const worldCount = f.int(COUNTRY_CODES.length);
 
-  const input = readSupplierInput(capsule);
+  const input = readSupplierInput(capsule, locale);
   const asUrl = input.kind === "product" || input.kind === "guidance" || isAddressLike(capsule);
   const productName = asUrl ? resolveProductName(typedName, input) : capsule.trim();
   const errors = state.fieldErrors ?? {};
@@ -69,14 +72,14 @@ export function SimpleSearch() {
   }
 
   const submit = (className: string) => (
-    <PendingButton pending={pending} disabled={blocked} pendingLabel="Analyse en cours" className={className}>
-      Analyser
+    <PendingButton pending={pending} disabled={blocked} pendingLabel={m.pending} className={className}>
+      {m.submit}
     </PendingButton>
   );
 
   return (
     <form action={action} className="mx-auto w-full max-w-3xl pt-[8vh] pb-6 text-center sm:pt-[12vh]" aria-busy={pending}>
-      <input type="hidden" name="inputLanguage" value="fr" />
+      <input type="hidden" name="inputLanguage" value={inputLanguageFor(locale)} />
       <input type="hidden" name="productName" value={productName} />
       {asUrl && <input type="hidden" name="supplierUrl" value={capsule.trim()} />}
       {COUNTRIES_BY_SCOPE[scope].map((c) => (
@@ -84,7 +87,7 @@ export function SimpleSearch() {
       ))}
 
       <label htmlFor="simple-product" className="text-[0.9375rem] text-muted-foreground">
-        Quel produit veux-tu vérifier&nbsp;?
+        {m.prompt}
       </label>
 
       <div
@@ -119,7 +122,7 @@ export function SimpleSearch() {
       {asUrl && input.kind !== "guidance" && (
         <div className="animate-slide-down mx-auto mt-2 max-w-sm">
           <label htmlFor="simple-name" className="sr-only">
-            Nom du produit
+            {m.nameLabel}
           </label>
           <input
             id="simple-name"
@@ -127,20 +130,20 @@ export function SimpleSearch() {
             maxLength={80}
             autoComplete="off"
             required={input.kind !== "product"}
-            placeholder={input.kind === "product" ? input.defaultName : "Nom du produit"}
+            placeholder={input.kind === "product" ? input.defaultName : m.nameLabel}
             value={typedName}
             onChange={(e) => setTypedName(e.target.value)}
             aria-invalid={Boolean(errors.productName) || undefined}
             className={cn(controlClass, "text-center")}
           />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {input.kind === "product" ? "Nom facultatif : sans nom, celui-ci est utilisé." : "Donne un nom au produit pour cette adresse."}
+            {input.kind === "product" ? m.nameOptional : m.nameRequired}
           </p>
         </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-        <SegmentedControl options={SCOPES} value={scope} onChange={setScope} aria-label="Où chercher" disabled={pending} />
+        <SegmentedControl options={scopes} value={scope} onChange={setScope} aria-label={m.scopeLabel} disabled={pending} />
         <button
           type="button"
           aria-expanded={detailsOpen}
@@ -152,7 +155,7 @@ export function SimpleSearch() {
             detailsOpen || details.filled > 0 ? "border-foreground/25 text-foreground" : "border-foreground/15 text-muted-foreground hover:text-foreground",
           )}
         >
-          Prix et livraison
+          {m.detailsToggle}
           {details.filled > 0 && <span className="tabular text-muted-foreground">{details.filled}</span>}
           <ChevronDown
             aria-hidden
@@ -163,13 +166,13 @@ export function SimpleSearch() {
       </div>
 
       <p className="mt-3 text-[0.8125rem] text-muted-foreground">
-        {scope === "world" ? `${COUNTRY_CODES.length} pays : Europe, Royaume-Uni, États-Unis, Canada, Australie.` : "Analyse du marché français."}
+        {scope === "world" ? t(m.hintWorld, { count: worldCount }) : m.hintFrance}
       </p>
 
       <Expand id="simple-details" open={detailsOpen} innerClassName="pt-6">
         <div className="panel space-y-8 p-5 text-left sm:p-8">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Tout est facultatif. Ce que tu saisis est montré comme saisi par toi dans le rapport, à côté des données observées.
+            {m.detailsIntro}
           </p>
           <PriceFields idPrefix="simple" values={details.values} onChange={details.set} errors={errors} />
           <div className="border-t border-line pt-8">
@@ -179,7 +182,7 @@ export function SimpleSearch() {
       </Expand>
 
       <div aria-live="polite" className="mt-4 min-h-5 text-sm text-muted-foreground">
-        {pending ? (scope === "world" ? `Traduction et collecte dans ${COUNTRY_CODES.length} pays, environ 15 secondes.` : "Collecte des données, quelques secondes.") : ""}
+        {pending ? (scope === "world" ? t(m.pendingWorld, { count: worldCount }) : m.pendingFrance) : ""}
       </div>
 
       <div className="mx-auto max-w-xl space-y-2">

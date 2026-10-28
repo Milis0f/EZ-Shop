@@ -7,11 +7,18 @@
 
 export type SupplierPlatform = "aliexpress" | "temu" | "alibaba" | "1688";
 
+/** Why an address is refused: views translate this code (home messages, `supplier.*`). */
+export type SupplierUrlIssue = "malformed" | "not_web" | "not_product";
+
+/**
+ * `message` is the French guidance, kept for the server-side schema (src/domain/schemas.ts) until the
+ * server messages are translated; localized views use `kind`, `reason` and `platform` instead.
+ */
 export type SupplierUrl =
   | { kind: "product"; platform: SupplierPlatform; productId: string; canonicalUrl: string }
   | { kind: "short_link"; message: string }
   | { kind: "not_a_supplier_url" }
-  | { kind: "invalid"; message: string };
+  | { kind: "invalid"; reason: SupplierUrlIssue; platform?: SupplierPlatform; message: string };
 
 const SHORT_LINK_MESSAGE = "Lien court : ouvre-le et colle l'adresse finale de la fiche produit.";
 const MALFORMED_MESSAGE = "Adresse invalide : colle l'adresse complète de la fiche produit.";
@@ -66,8 +73,8 @@ function looksLikeUrlAttempt(text: string, scheme: string): boolean {
 
 function parseAbsoluteUrl(text: string): SupplierUrl {
   const url = toUrl(text);
-  if (!url) return { kind: "invalid", message: MALFORMED_MESSAGE };
-  if (url.protocol !== "http:" && url.protocol !== "https:") return { kind: "invalid", message: NOT_WEB_MESSAGE };
+  if (!url) return { kind: "invalid", reason: "malformed", message: MALFORMED_MESSAGE };
+  if (url.protocol !== "http:" && url.protocol !== "https:") return { kind: "invalid", reason: "not_web", message: NOT_WEB_MESSAGE };
   return classify(url);
 }
 
@@ -95,6 +102,8 @@ function classify(url: URL): SupplierUrl {
   return (
     productFrom(match.platform, url) ?? {
       kind: "invalid",
+      reason: "not_product",
+      platform: match.platform,
       message: `Ce lien ${match.label} ne mène pas à une fiche produit : colle l'adresse de la fiche.`,
     }
   );

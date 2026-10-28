@@ -3,7 +3,9 @@
 import { ChevronDown } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { ORIGIN_COUNTRIES } from "@/domain/origin";
+import { useLocale, useMessages } from "@/i18n/client";
 import { cn } from "@/lib/utils";
+import { originName } from "./display-names";
 
 /** Pill control shared by both forms: ardoise fill, hairline, a craie focus ring that is always visible. */
 export const controlClass =
@@ -37,13 +39,14 @@ interface FieldProps {
 
 /** Label, control and a one-line help in brume, tied together for assistive tech. */
 export function Field({ id, label, help, typed = false, children }: FieldProps) {
+  const m = useMessages("home").details;
   return (
     <div className="min-w-0">
       <div className="flex items-baseline justify-between gap-3 px-1">
         <label htmlFor={id} className="text-sm font-medium">
           {label}
         </label>
-        {typed && <span className="animate-slide-down text-xs text-muted-foreground">saisi par toi</span>}
+        {typed && <span className="animate-slide-down text-xs text-muted-foreground">{m.typed}</span>}
       </div>
       <div className="mt-2">{children}</div>
       <p id={`${id}-help`} className="mt-1.5 px-1 text-xs leading-relaxed text-muted-foreground">
@@ -67,19 +70,8 @@ export function InlineAlert({ id, children, className }: { readonly id?: string;
   );
 }
 
-interface AmountSpec {
-  readonly field: Exclude<DetailField, "category" | "originCountry" | "hsCode">;
-  readonly label: string;
-  readonly help: string;
-  readonly placeholder: string;
-}
-
-const AMOUNTS: readonly AmountSpec[] = [
-  { field: "supplierPrice", label: "Prix fournisseur (€)", help: "Prix unitaire payé au fournisseur, sans la livraison.", placeholder: "ex. 4,20" },
-  { field: "shippingCost", label: "Frais de livraison (€)", help: "Par unité, jusqu'au client.", placeholder: "ex. 2,50" },
-  { field: "sellingPrice", label: "Prix de vente envisagé (€)", help: "Sans prix, la marge se calcule au prix observé sur le marché.", placeholder: "ex. 24,90" },
-  { field: "targetMarginPct", label: "Marge visée (%)", help: "Entre 1 et 95 %, pour comparer au résultat.", placeholder: "ex. 40" },
-];
+/** Amount fields in display order; their label, help and placeholder are in the home messages (`details`). */
+const AMOUNTS = ["supplierPrice", "shippingCost", "sellingPrice", "targetMarginPct"] as const;
 
 interface DetailFieldsProps {
   readonly idPrefix: string;
@@ -92,21 +84,22 @@ const grid = "grid gap-x-5 gap-y-6 min-[900px]:grid-cols-2";
 
 /** Supplier price, shipping, selling price and target margin: amounts the owner types, never inferred. */
 export function PriceFields({ idPrefix, values, onChange, errors }: DetailFieldsProps) {
+  const m = useMessages("home").details;
   return (
     <div className="space-y-4">
       <div className={grid}>
-        {AMOUNTS.map((a) => {
-          const id = `${idPrefix}-${a.field}`;
+        {AMOUNTS.map((field) => {
+          const id = `${idPrefix}-${field}`;
           return (
-            <Field key={a.field} id={id} label={a.label} help={a.help} typed={values[a.field].trim() !== ""}>
+            <Field key={field} id={id} label={m[field].label} help={m[field].help} typed={values[field].trim() !== ""}>
               <input
                 id={id}
-                name={a.field}
+                name={field}
                 inputMode="decimal"
                 autoComplete="off"
-                placeholder={a.placeholder}
-                value={values[a.field]}
-                onChange={(e) => onChange(a.field, e.target.value)}
+                placeholder={m[field].placeholder}
+                value={values[field]}
+                onChange={(e) => onChange(field, e.target.value)}
                 aria-describedby={`${id}-help`}
                 aria-invalid={Boolean(errors.economics) || undefined}
                 className={cn(controlClass, "tabular")}
@@ -123,16 +116,18 @@ export function PriceFields({ idPrefix, values, onChange, errors }: DetailFields
 /** Category, origin country and customs code. */
 export function ProductFields({ idPrefix, values, onChange, errors }: DetailFieldsProps) {
   const id = (field: DetailField) => `${idPrefix}-${field}`;
+  const locale = useLocale();
+  const m = useMessages("home").details;
   return (
     <div className="space-y-4">
       <div className={grid}>
-        <Field id={id("category")} label="Catégorie" help="Telle que tu la nommes, jamais devinée." typed={values.category.trim() !== ""}>
+        <Field id={id("category")} label={m.category.label} help={m.category.help} typed={values.category.trim() !== ""}>
           <input
             id={id("category")}
             name="category"
             maxLength={60}
             autoComplete="off"
-            placeholder="ex. accessoires d'hiver"
+            placeholder={m.category.placeholder}
             value={values.category}
             onChange={(e) => onChange("category", e.target.value)}
             aria-describedby={`${id("category")}-help`}
@@ -140,7 +135,7 @@ export function ProductFields({ idPrefix, values, onChange, errors }: DetailFiel
             className={controlClass}
           />
         </Field>
-        <Field id={id("originCountry")} label="Pays d'origine" help="D'où part le colis : fixe les droits de douane de chaque pays.">
+        <Field id={id("originCountry")} label={m.originCountry.label} help={m.originCountry.help}>
           <div className="relative">
           <select
             id={id("originCountry")}
@@ -151,10 +146,10 @@ export function ProductFields({ idPrefix, values, onChange, errors }: DetailFiel
             aria-invalid={Boolean(errors.originCountry) || undefined}
             className={cn(controlClass, "appearance-none pr-10", values.originCountry === "" && "text-muted-foreground")}
           >
-            <option value="">Non précisé</option>
+            <option value="">{m.originCountry.none}</option>
             {ORIGIN_COUNTRIES.map((o) => (
               <option key={o.code} value={o.code}>
-                {o.nameFr}
+                {originName(o.code, locale)}
               </option>
             ))}
           </select>
@@ -163,8 +158,8 @@ export function ProductFields({ idPrefix, values, onChange, errors }: DetailFiel
         </Field>
         <Field
           id={id("hsCode")}
-          label="Code douanier SH"
-          help="4 à 10 chiffres. Sans code, il est cherché dans le tarif douanier."
+          label={m.hsCode.label}
+          help={m.hsCode.help}
           typed={values.hsCode.trim() !== ""}
         >
           <input
@@ -172,7 +167,7 @@ export function ProductFields({ idPrefix, values, onChange, errors }: DetailFiel
             name="hsCode"
             inputMode="numeric"
             autoComplete="off"
-            placeholder="ex. 6115 95"
+            placeholder={m.hsCode.placeholder}
             value={values.hsCode}
             onChange={(e) => onChange("hsCode", e.target.value)}
             aria-describedby={`${id("hsCode")}-help`}

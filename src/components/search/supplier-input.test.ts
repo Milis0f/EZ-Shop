@@ -5,28 +5,39 @@ const ALIEXPRESS = "https://fr.aliexpress.com/item/1005006123456789.html?spm=a2g
 
 describe("supplierChipLabel", () => {
   it("shortens a long product id", () => {
-    expect(supplierChipLabel("aliexpress", "1005006123456789")).toBe("AliExpress, article 1005006…");
+    expect(supplierChipLabel("aliexpress", "1005006123456789", "fr")).toBe("AliExpress, article 1005006…");
   });
 
   it("keeps a short id whole", () => {
-    expect(supplierChipLabel("1688", "61234567")).toBe("1688, article 61234567");
+    expect(supplierChipLabel("1688", "61234567", "fr")).toBe("1688, article 61234567");
+  });
+});
+
+describe("localized labels", () => {
+  it("follows the interface language", () => {
+    expect(supplierChipLabel("aliexpress", "1005006123456789", "en")).toBe("AliExpress, item 1005006…");
+    expect(defaultProductName("temu", "601099512345678", "es")).toBe("Producto Temu 601099512345678");
+    expect(readSupplierInput("https://www.temu.com/fr", "en")).toEqual({
+      kind: "guidance",
+      message: "This Temu link doesn't lead to a product page: paste the address of the product page.",
+    });
   });
 });
 
 describe("defaultProductName", () => {
   it("names the product after its platform and full id", () => {
-    expect(defaultProductName("temu", "601099512345678")).toBe("Produit Temu 601099512345678");
+    expect(defaultProductName("temu", "601099512345678", "fr")).toBe("Produit Temu 601099512345678");
   });
 });
 
 describe("readSupplierInput", () => {
   it("reads blank text as empty and prose as a name", () => {
-    expect(readSupplierInput("   ")).toEqual({ kind: "empty" });
-    expect(readSupplierInput("chaussettes chauffantes")).toEqual({ kind: "name" });
+    expect(readSupplierInput("   ", "fr")).toEqual({ kind: "empty" });
+    expect(readSupplierInput("chaussettes chauffantes", "fr")).toEqual({ kind: "name" });
   });
 
   it("recognises a product page offline", () => {
-    expect(readSupplierInput(ALIEXPRESS)).toEqual({
+    expect(readSupplierInput(ALIEXPRESS, "fr")).toEqual({
       kind: "product",
       productId: "1005006123456789",
       chipLabel: "AliExpress, article 1005006…",
@@ -35,12 +46,12 @@ describe("readSupplierInput", () => {
   });
 
   it("gives the French guidance for a short link", () => {
-    const input = readSupplierInput("https://s.click.aliexpress.com/e/_abc");
+    const input = readSupplierInput("https://s.click.aliexpress.com/e/_abc", "fr");
     expect(input).toEqual({ kind: "guidance", message: "Lien court : ouvre-le et colle l'adresse finale de la fiche produit." });
   });
 
   it("gives the parser message for a supplier page that is not a product", () => {
-    expect(readSupplierInput("https://www.temu.com/fr").kind).toBe("guidance");
+    expect(readSupplierInput("https://www.temu.com/fr", "fr").kind).toBe("guidance");
   });
 });
 
@@ -55,7 +66,7 @@ describe("isAddressLike", () => {
 });
 
 describe("resolveProductName", () => {
-  const product = readSupplierInput(ALIEXPRESS);
+  const product = readSupplierInput(ALIEXPRESS, "fr");
 
   it("prefers the name the owner typed", () => {
     expect(resolveProductName("  Lampe lune ", product)).toBe("Lampe lune");
@@ -66,6 +77,6 @@ describe("resolveProductName", () => {
   });
 
   it("leaves the name empty otherwise, so the form asks for it", () => {
-    expect(resolveProductName("", readSupplierInput("https://s.click.aliexpress.com/e/_abc"))).toBe("");
+    expect(resolveProductName("", readSupplierInput("https://s.click.aliexpress.com/e/_abc", "fr"))).toBe("");
   });
 });

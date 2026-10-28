@@ -5,9 +5,12 @@ import { useActionState, useState, type ReactNode } from "react";
 import { submitAnalysis } from "@/app/actions";
 import { INITIAL_SEARCH_STATE } from "@/app/search-form-state";
 import { PendingButton } from "@/components/motion/pending-button";
-import { LANGUAGE_CODES, LANGUAGE_LABELS_FR } from "@/domain/country";
+import { LANGUAGE_CODES } from "@/domain/country";
+import { useLocale, useMessages } from "@/i18n/client";
+import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 import { CountryPicker } from "./country-picker";
+import { inputLanguageFor, languageName } from "./display-names";
 import { controlClass, Field, InlineAlert, PriceFields, ProductFields, useDetailValues } from "./product-details";
 import { readSupplierInput, resolveProductName } from "./supplier-input";
 import { SupplierLinkChip } from "./supplier-link-chip";
@@ -24,26 +27,28 @@ function Group({ title, children }: { readonly title: string; readonly children:
 /** The advanced form: the same fields as the simple mode, plus translations and the full country choice. */
 export function SearchForm() {
   const [state, action, pending] = useActionState(submitAnalysis, INITIAL_SEARCH_STATE);
+  const locale = useLocale();
+  const m = useMessages("home").form;
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [language, setLanguage] = useState("fr");
+  const [language, setLanguage] = useState<string>(() => inputLanguageFor(locale));
   const [extraTerms, setExtraTerms] = useState("");
   const details = useDetailValues();
   const errors = state.fieldErrors ?? {};
 
-  const link = readSupplierInput(url);
+  const link = readSupplierInput(url, locale);
   const productName = resolveProductName(name, link);
 
   return (
     <form action={action} className="space-y-5" aria-busy={pending}>
       <input type="hidden" name="productName" value={productName} />
 
-      <Group title="Produit">
+      <Group title={m.groupProduct}>
         <div className="grid gap-x-5 gap-y-6 min-[900px]:grid-cols-[1fr_12rem]">
           <Field
             id="productName"
-            label="Nom du produit"
-            help={link.kind === "product" ? `Facultatif avec ce lien : sans nom, « ${link.defaultName} ».` : "Le terme cherché, tel qu'un client le taperait."}
+            label={m.nameLabel}
+            help={link.kind === "product" ? t(m.nameHelpWithLink, { name: link.defaultName }) : m.nameHelp}
             typed={false}
           >
             <input
@@ -52,7 +57,7 @@ export function SearchForm() {
               minLength={2}
               maxLength={80}
               autoComplete="off"
-              placeholder={link.kind === "product" ? link.defaultName : "ex. chaussettes chauffantes"}
+              placeholder={link.kind === "product" ? link.defaultName : m.namePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               aria-describedby="productName-help"
@@ -60,7 +65,7 @@ export function SearchForm() {
               className={cn(controlClass, "h-12 text-base")}
             />
           </Field>
-          <Field id="inputLanguage" label="Langue du nom" help="Pour traduire vers chaque pays.">
+          <Field id="inputLanguage" label={m.languageLabel} help={m.languageHelp}>
             <div className="relative">
               <select
                 id="inputLanguage"
@@ -72,7 +77,7 @@ export function SearchForm() {
               >
                 {LANGUAGE_CODES.map((code) => (
                   <option key={code} value={code}>
-                    {LANGUAGE_LABELS_FR[code]}
+                    {languageName(code, locale)}
                   </option>
                 ))}
               </select>
@@ -82,7 +87,7 @@ export function SearchForm() {
         </div>
         {errors.productName && <InlineAlert>{errors.productName}</InlineAlert>}
 
-        <Field id="supplierUrl" label="Lien de la fiche fournisseur" help="Temu, AliExpress, Alibaba ou 1688, reconnu sans rien télécharger.">
+        <Field id="supplierUrl" label={m.supplierLabel} help={m.supplierHelp}>
           <input
             id="supplierUrl"
             name="supplierUrl"
@@ -104,14 +109,14 @@ export function SearchForm() {
 
         <Field
           id="extraTerms"
-          label="Traductions et synonymes"
-          help="Une ligne par langue. Sans terme dans la langue d'un pays, le nom saisi est utilisé tel quel et le pays est signalé."
+          label={m.extraLabel}
+          help={m.extraHelp}
         >
           <textarea
             id="extraTerms"
             name="extraTerms"
             rows={3}
-            placeholder={"de: beheizbare Socken\nen: heated socks"}
+            placeholder={m.extraPlaceholder}
             value={extraTerms}
             onChange={(e) => setExtraTerms(e.target.value)}
             aria-describedby="extraTerms-help"
@@ -122,24 +127,24 @@ export function SearchForm() {
         {errors.extraTerms && <InlineAlert>{errors.extraTerms}</InlineAlert>}
       </Group>
 
-      <Group title="Où chercher">
+      <Group title={m.groupWhere}>
         <CountryPicker error={errors.countries} />
       </Group>
 
-      <Group title="Prix et livraison">
+      <Group title={m.groupPrices}>
         <PriceFields idPrefix="advanced" values={details.values} onChange={details.set} errors={errors} />
       </Group>
 
-      <Group title="Catégorie et douane">
+      <Group title={m.groupCustoms}>
         <ProductFields idPrefix="advanced" values={details.values} onChange={details.set} errors={errors} />
       </Group>
 
       <div className="flex flex-wrap items-center gap-4 px-1 pt-2">
-        <PendingButton pending={pending} disabled={link.kind === "guidance"} pendingLabel="Analyse en cours" className="h-12 px-8">
-          Lancer l&apos;analyse
+        <PendingButton pending={pending} disabled={link.kind === "guidance"} pendingLabel={m.pending} className="h-12 px-8">
+          {m.submit}
         </PendingButton>
         <p aria-live="polite" className="text-sm text-muted-foreground">
-          {pending ? "Collecte des sources et simulation, pays par pays." : ""}
+          {pending ? m.pendingHint : ""}
         </p>
       </div>
       {state.error && <InlineAlert>{state.error}</InlineAlert>}

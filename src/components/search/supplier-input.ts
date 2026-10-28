@@ -1,4 +1,7 @@
-import { parseSupplierUrl, type SupplierPlatform } from "@/domain/supplier-url";
+import { parseSupplierUrl, type SupplierPlatform, type SupplierUrl } from "@/domain/supplier-url";
+import type { Locale } from "@/i18n/config";
+import { messagesFor } from "@/i18n/messages";
+import { t } from "@/i18n/translate";
 
 /** Display names of the supplier platforms, as the owner knows them. */
 export const PLATFORM_LABELS: Readonly<Record<SupplierPlatform, string>> = {
@@ -19,22 +22,36 @@ export type SupplierInput =
   | { readonly kind: "name" }
   /** A recognised product page: posted as `supplierUrl`, the name defaults to `defaultName`. */
   | { readonly kind: "product"; readonly chipLabel: string; readonly defaultName: string; readonly productId: string }
-  /** An address that cannot be used as is (short link, not a product page, not web): its French guidance. */
+  /** An address that cannot be used as is (short link, not a product page, not web): its guidance, localized. */
   | { readonly kind: "guidance"; readonly message: string };
 
-/** « AliExpress, article 1005006… »: the platform and the start of a long product id. */
-export function supplierChipLabel(platform: SupplierPlatform, productId: string): string {
+/** « AliExpress, item 1005006… »: the platform and the start of a long product id. */
+export function supplierChipLabel(platform: SupplierPlatform, productId: string, locale: Locale): string {
   const id = productId.length > CHIP_ID_DIGITS + 3 ? `${productId.slice(0, CHIP_ID_DIGITS)}…` : productId;
-  return `${PLATFORM_LABELS[platform]}, article ${id}`;
+  return t(messagesFor("home", locale).supplier.chip, { platform: PLATFORM_LABELS[platform], id });
 }
 
-/** « Produit AliExpress 1005006… » in full, used as the product name until the owner types one. */
-export function defaultProductName(platform: SupplierPlatform, productId: string): string {
-  return `Produit ${PLATFORM_LABELS[platform]} ${productId}`.slice(0, PRODUCT_NAME_MAX);
+/** « AliExpress product 1005006… » in full, used as the product name until the owner types one. */
+export function defaultProductName(platform: SupplierPlatform, productId: string, locale: Locale): string {
+  return t(messagesFor("home", locale).supplier.defaultName, { platform: PLATFORM_LABELS[platform], id: productId }).slice(0, PRODUCT_NAME_MAX);
+}
+
+/** The guidance for an address that cannot be used, from the parser's reason code. */
+function guidanceFor(parsed: Extract<SupplierUrl, { kind: "short_link" | "invalid" }>, locale: Locale): string {
+  const m = messagesFor("home", locale).supplier;
+  if (parsed.kind === "short_link") return m.shortLink;
+  switch (parsed.reason) {
+    case "malformed":
+      return m.malformed;
+    case "not_web":
+      return m.notWeb;
+    case "not_product":
+      return t(m.notProduct, { platform: parsed.platform ? PLATFORM_LABELS[parsed.platform] : "" });
+  }
 }
 
 /** Reads a typed value offline (nothing is fetched): a name, a supplier product page or an unusable address. */
-export function readSupplierInput(value: string): SupplierInput {
+export function readSupplierInput(value: string, locale: Locale): SupplierInput {
   if (value.trim() === "") return { kind: "empty" };
   const parsed = parseSupplierUrl(value);
   switch (parsed.kind) {
@@ -44,12 +61,12 @@ export function readSupplierInput(value: string): SupplierInput {
       return {
         kind: "product",
         productId: parsed.productId,
-        chipLabel: supplierChipLabel(parsed.platform, parsed.productId),
-        defaultName: defaultProductName(parsed.platform, parsed.productId),
+        chipLabel: supplierChipLabel(parsed.platform, parsed.productId, locale),
+        defaultName: defaultProductName(parsed.platform, parsed.productId, locale),
       };
     case "short_link":
     case "invalid":
-      return { kind: "guidance", message: parsed.message };
+      return { kind: "guidance", message: guidanceFor(parsed, locale) };
   }
 }
 
