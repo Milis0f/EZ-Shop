@@ -1,7 +1,9 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
-import { formatCompact, formatDecimal, formatInt, formatMoney, formatPct } from "@/lib/format";
+import { useLocale } from "@/i18n/client";
+import type { Locale } from "@/i18n/config";
+import { formatCompact, formatDecimal, formatInt, formatMoney, formatPct } from "@/i18n/format";
 import { cn } from "@/lib/utils";
 import { motionDuration, motionEasing } from "./motion-tokens";
 import { prefersReducedMotion } from "./use-reduced-motion";
@@ -17,20 +19,21 @@ interface AnimatedNumberProps {
   readonly className?: string;
 }
 
-function formatter(format: NumberFormat, currency: string): (v: number) => string {
+/** Digits and separators follow the active locale (same output as before in French). */
+function formatter(format: NumberFormat, currency: string, locale: Locale): (v: number) => string {
   switch (format) {
     case "int":
-      return (v) => formatInt(Math.round(v));
+      return (v) => formatInt(Math.round(v), locale);
     case "decimal":
-      return formatDecimal;
+      return (v) => formatDecimal(v, locale);
     case "compact":
-      return formatCompact;
+      return (v) => formatCompact(v, locale);
     case "percent":
-      return (v) => formatPct(v);
+      return (v) => formatPct(v, locale);
     case "percentSigned":
-      return (v) => formatPct(v, true);
+      return (v) => formatPct(v, locale, { signed: true });
     case "money":
-      return (v) => formatMoney(v, currency);
+      return (v) => formatMoney(v, locale, currency);
   }
 }
 
@@ -45,7 +48,8 @@ function formatter(format: NumberFormat, currency: string): (v: number) => strin
  */
 export function AnimatedNumber({ value, format, currency = "EUR", duration, className }: AnimatedNumberProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  const final = formatter(format, currency)(value);
+  const locale = useLocale();
+  const final = formatter(format, currency, locale)(value);
 
   useLayoutEffect(() => {
     const node = ref.current;
@@ -54,7 +58,7 @@ export function AnimatedNumber({ value, format, currency = "EUR", duration, clas
     if (node.textContent !== final) node.textContent = final;
     if (prefersReducedMotion() || !Number.isFinite(value) || value === 0) return;
 
-    const display = formatter(format, currency);
+    const display = formatter(format, currency, locale);
     const total = duration ?? motionDuration("slow") * 2;
     const ease = motionEasing("out");
     let frame = 0;
@@ -122,7 +126,7 @@ export function AnimatedNumber({ value, format, currency = "EUR", duration, clas
       window.removeEventListener("beforeprint", showFinal);
       showFinal();
     };
-  }, [value, format, currency, duration, final]);
+  }, [value, format, currency, locale, duration, final]);
 
   return (
     <span className={cn("tabular-nums", className)}>

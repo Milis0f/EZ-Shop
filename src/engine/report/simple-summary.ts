@@ -9,20 +9,27 @@ import { verdictFor, type VerdictValue } from "./verdict";
 
 export interface InterestFigure {
   readonly value: number;
-  /** What the number counts, for the label under it. */
+  /** What the number counts, in French (AI fact sheet); screens use interestLabel(figure, locale). */
   readonly label: string;
   readonly direct: boolean;
+  /** Wikipedia article whose readers are counted, when the figure is a Wikipedia audience and the article is known. */
+  readonly article: string | null;
 }
 
 /** Searches per month when Keyword Planner answered, else monthly Wikipedia readers of the category (labelled as such). */
 export function interestPerMonth(c: CountryAnalysis): InterestFigure | null {
-  if (isKnown(c.demand.avgMonthlySearches)) return { value: c.demand.avgMonthlySearches.value, label: "recherches Google par mois", direct: true };
+  if (isKnown(c.demand.avgMonthlySearches)) return { value: c.demand.avgMonthlySearches.value, label: "recherches Google par mois", direct: true, article: null };
   const history = c.demand.history;
   if (isKnown(history) && history.value.basis === "topic_interest") {
     const last = history.value.series.slice(-12);
     if (last.length === 0) return null;
-    const article = c.signals && isKnown(c.signals.topicInterest) ? c.signals.topicInterest.value.article : "la catégorie";
-    return { value: Math.round(last.reduce((s, p) => s + p.value, 0) / last.length), label: `lecteurs par mois de l'article Wikipédia « ${article} »`, direct: false };
+    const article = c.signals && isKnown(c.signals.topicInterest) ? c.signals.topicInterest.value.article : null;
+    return {
+      value: Math.round(last.reduce((s, p) => s + p.value, 0) / last.length),
+      label: `lecteurs par mois de l'article Wikipédia « ${article ?? "la catégorie"} »`,
+      direct: false,
+      article,
+    };
   }
   return null;
 }

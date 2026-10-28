@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { AnalysisResult, CountryAnalysis } from "@/domain/analysis";
 import { sourceJournal } from "@/engine/report/source-journal";
 import { verdictFor, type Verdict } from "@/engine/report/verdict";
+import { LocaleProvider } from "@/i18n/client";
+import type { Locale } from "@/i18n/config";
 import { mockStoredAnalysis } from "@/test/stored-analysis";
 import { verdictReasons } from "./reason-pills";
 import { SimpleReport } from "./simple-report";
@@ -29,7 +31,9 @@ function preV1(analysis: AnalysisResult, dropSignals: boolean): AnalysisResult {
   return copy;
 }
 
-const render = (analysis: AnalysisResult) => renderToStaticMarkup(createElement(SimpleReport, { analysis }));
+const render = (analysis: AnalysisResult, locale: Locale = "fr") =>
+  // eslint-disable-next-line react/no-children-prop -- a .ts test has no JSX.
+  renderToStaticMarkup(createElement(LocaleProvider, { locale, children: createElement(SimpleReport, { analysis }) }));
 
 describe("SimpleReport", () => {
   it("renders a pre-V1 analysis", async () => {
@@ -48,19 +52,40 @@ describe("SimpleReport", () => {
     }
   });
 
+  it("renders in English and Spanish without the French copy", async () => {
+    const analysis = preV1(await mockStoredAnalysis(["FR", "DE"]), false);
+    const en = render(analysis, "en");
+    expect(en).toContain("Confidence");
+    expect(en).toContain("Country by country");
+    expect(en).toContain("Your margin");
+    expect(en).toContain("DATA_INSUFFICIENT");
+    expect(en).not.toMatch(/Pays par pays|Ta marge|Confiance|Nouvelle analyse/);
+    const es = render(analysis, "es");
+    expect(es).toContain("País por país");
+    expect(es).toContain("Tu margen");
+    expect(es).not.toMatch(/Pays par pays|Ta marge|Confiance /);
+  });
+
   it("puts the blocking factors first, in the verdict colour", () => {
+    const loss = { code: "loss_at_planned_price", marginPct: -12, dutyIncluded: false } as const;
+    const below = { code: "below_target_margin", targetMarginPct: 60, exVatEur: 27.5, inclVatEur: null } as const;
     const blocking = [
-      { id: "loss_at_planned_price", message: "Perte à ton prix." },
-      { id: "below_target_margin", message: "Prix sous le minimum." },
+      { id: "loss_at_planned_price", cause: loss, message: "" },
+      { id: "below_target_margin", cause: below, message: "" },
     ] as const;
-    const verdict: Verdict = { value: "non", label: "NON", reason: blocking[0].message, blocking, supporting: ["Pic en mai."], method: "verdict_v1" };
-    expect(verdictReasons(verdict)).toEqual([
-      { text: "Perte à ton prix.", decisive: true },
-      { text: "Prix sous le minimum.", decisive: true },
-      { text: "Pic en mai.", decisive: false },
+    const peak = { code: "seasonal_peak", months: [5] } as const;
+    const verdict: Verdict = { value: "non", label: "NON", cause: loss, reason: "", blocking, signals: [peak], supporting: [], method: "verdict_v1" };
+    expect(verdictReasons(verdict, "fr").map(({ code, decisive }) => ({ code, decisive }))).toEqual([
+      { code: "loss_at_planned_price", decisive: true },
+      { code: "below_target_margin", decisive: true },
+      { code: "seasonal_peak", decisive: false },
     ]);
-    expect(verdictReasons({ ...verdict, value: "surveiller", label: "À SURVEILLER", reason: "Signaux mitigés.", blocking: [] })[0]).toEqual({
-      text: "Signaux mitigés.",
+    expect(verdictReasons(verdict, "fr")[2]!.text).toBe("Pic en mai.");
+    expect(verdictReasons(verdict, "en")[2]!.text).toBe("Peak in May.");
+    const mixed = { code: "mixed_signals", best: null, worst: null } as const;
+    expect(verdictReasons({ ...verdict, value: "surveiller", label: "À SURVEILLER", cause: mixed, blocking: [] }, "es")[0]).toEqual({
+      code: "mixed_signals",
+      text: "Señales mixtas.",
       decisive: true,
     });
   });

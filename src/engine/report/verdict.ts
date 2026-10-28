@@ -1,68 +1,91 @@
 import type { CountryAnalysis } from "@/domain/analysis";
 import { isKnown } from "@/domain/datum";
+import type { TrendDirection } from "@/domain/market";
 import type { CriterionResult, Decision } from "@/domain/scoring";
-import { MONTH_LABELS_FR } from "@/domain/time";
 import { SOURCE_LABELS } from "@/lib/format";
+import { reasonText, verdictWord } from "./localize";
 
 /**
  * Verdict rule `verdict_v1`: a presentation of the existing decision plus blocking factors computed only
  * from real inputs. Score, weights and thresholds are unchanged. A missing margin is never blocking.
+ * Reasons are codes with their raw parameters; ./localize renders them in the active locale.
  */
 
 export type VerdictValue = "oui" | "non" | "surveiller";
 export type VerdictLabel = "OUI" | "NON" | "À SURVEILLER";
 
+/** A criterion or confidence factor named in a reason: its id (translated at display) and its engine label (fallback). */
+export interface LabelRef {
+  readonly id: string;
+  readonly label: string;
+}
+
+export type Reason =
+  | { readonly code: "loss_at_planned_price"; readonly marginPct: number; readonly dutyIncluded: boolean }
+  | { readonly code: "below_target_margin"; readonly targetMarginPct: number; readonly exVatEur: number; readonly inclVatEur: number | null }
+  | { readonly code: "no_demand_data" }
+  | { readonly code: "interest_trend"; readonly direction: TrendDirection; readonly annualGrowthPct: number; readonly fromWikipedia: boolean }
+  | { readonly code: "seasonal_peak"; readonly months: readonly number[] }
+  | { readonly code: "steady_demand" }
+  | { readonly code: "no_related_searches" }
+  | { readonly code: "buying_searches"; readonly count: number; readonly total: number }
+  | { readonly code: "marketplace_searches"; readonly count: number; readonly first: string }
+  | { readonly code: "margin_at_price"; readonly marginPct: number }
+  | { readonly code: "strongest_signals"; readonly criteria: readonly LabelRef[] }
+  | { readonly code: "above_thresholds" }
+  | { readonly code: "weakest_criteria"; readonly criteria: readonly LabelRef[] }
+  | { readonly code: "below_threshold" }
+  | { readonly code: "mixed_signals"; readonly best: LabelRef | null; readonly worst: LabelRef | null }
+  | { readonly code: "low_confidence"; readonly factor: LabelRef | null }
+  | { readonly code: "insufficient_data"; readonly sources: readonly string[] };
+
+export type ReasonCode = Reason["code"];
+
 export interface BlockingFactor {
   readonly id: "loss_at_planned_price" | "below_target_margin" | "no_demand_data";
+  readonly cause: Reason;
+  /** French text of `cause`, for callers not translated yet (the AI fact sheet). */
   readonly message: string;
 }
 
 export interface Verdict {
   readonly value: VerdictValue;
+  /** French verdict word; screens use verdictWord(value, locale). */
   readonly label: VerdictLabel;
+  /** Decisive reason: the first blocking factor, else the reason of the decision. */
+  readonly cause: Reason;
+  /** French text of `cause`. */
   readonly reason: string;
   readonly blocking: readonly BlockingFactor[];
+  /** Supporting signals, as codes. */
+  readonly signals: readonly Reason[];
+  /** French text of `signals`. */
   readonly supporting: readonly string[];
   readonly method: "verdict_v1";
 }
 
-const LABELS: Readonly<Record<VerdictValue, VerdictLabel>> = { oui: "OUI", non: "NON", surveiller: "À SURVEILLER" };
-
-const pct = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v)} %`;
-const months = (list: readonly number[]) => list.map((m) => MONTH_LABELS_FR[m - 1]).join(", ");
-/** Unit prices keep their cents: a minimum price rounded up or down would be a different price. */
-const unitPrice = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-/** Ends a sentence once: abbreviated month labels already end with a full stop. */
-const sentence = (text: string) => (text.endsWith(".") ? text : `${text}.`);
-const lower = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
+const fr = (reason: Reason) => reasonText(reason, "fr");
 
 /** Blocking factors, each only from real inputs and data. */
 export function blockingFactors(c: CountryAnalysis): BlockingFactor[] {
-  const factors: BlockingFactor[] = [];
+  const causes: { id: BlockingFactor["id"]; cause: Reason }[] = [];
   const margin = c.signals?.marginAtPlannedPrice;
   const minimum = c.signals?.minPriceForTargetMargin;
   if (margin && isKnown(margin) && margin.value < 0) {
-    factors.push({ id: "loss_at_planned_price", message: `Perte à ton prix : marge de ${Math.round(margin.value)} % ${costBasis(c)}.` });
+    causes.push({ id: "loss_at_planned_price", cause: { code: "loss_at_planned_price", marginPct: margin.value, dutyIncluded: dutyIncluded(c) } });
   }
   if (margin && isKnown(margin) && minimum && isKnown(minimum) && margin.value < minimum.value.targetMarginPct) {
     const { exVatEur, inclVatEur, targetMarginPct } = minimum.value;
-    const incl = inclVatEur === null ? "" : `${unitPrice.format(inclVatEur)} TTC, soit `;
-    factors.push({
-      id: "below_target_margin",
-      message: `Prix sous le minimum pour ta marge de ${targetMarginPct} % : vends au moins ${incl}${unitPrice.format(exVatEur)} HT.`,
-    });
+    causes.push({ id: "below_target_margin", cause: { code: "below_target_margin", targetMarginPct, exVatEur, inclVatEur } });
   }
-  if (!hasDemandData(c)) {
-    factors.push({ id: "no_demand_data", message: "Aucune donnée de demande nationale pour ce pays : toutes les sources ont échoué." });
-  }
-  return factors;
+  if (!hasDemandData(c)) causes.push({ id: "no_demand_data", cause: { code: "no_demand_data" } });
+  return causes.map(({ id, cause }) => ({ id, cause, message: fr(cause) }));
 }
 
 /** What the landed cost holds, as `landedUnitCost` builds it: duties only when they could be computed. */
-function costBasis(c: CountryAnalysis): string {
+function dutyIncluded(c: CountryAnalysis): boolean {
   const taxes = c.signals?.taxes;
-  const dutyIncluded = taxes !== undefined && isKnown(taxes) && taxes.value.dutyPerUnitEur !== null;
-  return dutyIncluded ? "après droits et livraison" : "livraison comprise, droits non inclus";
+  return taxes !== undefined && isKnown(taxes) && taxes.value.dutyPerUnitEur !== null;
 }
 
 function hasDemandData(c: CountryAnalysis): boolean {
@@ -74,54 +97,57 @@ function hasDemandData(c: CountryAnalysis): boolean {
   );
 }
 
-/** Plain-language signals from the data that exists; nothing estimated here. */
-export function supportingSignals(c: CountryAnalysis): string[] {
-  const reasons: string[] = [];
+/** Plain-language signals from the data that exists, as codes; nothing estimated here. */
+export function supportingReasons(c: CountryAnalysis): Reason[] {
+  const reasons: Reason[] = [];
   const { trend, seasonality } = c.demand;
-  const fromWiki = isKnown(c.demand.history) && c.demand.history.value.basis === "topic_interest";
+  const fromWikipedia = isKnown(c.demand.history) && c.demand.history.value.basis === "topic_interest";
   if (isKnown(trend)) {
-    const t = trend.value;
-    const word = t.direction === "rising" ? "en hausse" : t.direction === "declining" ? "en baisse" : "stable";
-    reasons.push(`Intérêt ${word} (${pct(t.annualGrowthPct)} par an${fromWiki ? ", d'après Wikipédia" : ""}).`);
+    reasons.push({ code: "interest_trend", direction: trend.value.direction, annualGrowthPct: trend.value.annualGrowthPct, fromWikipedia });
   }
   if (isKnown(seasonality)) {
-    reasons.push(seasonality.value.isSeasonal ? sentence(`Pic en ${months(seasonality.value.peakMonths)}`) : "Demande régulière toute l'année.");
+    reasons.push(seasonality.value.isSeasonal ? { code: "seasonal_peak", months: seasonality.value.peakMonths } : { code: "steady_demand" });
   }
   const s = c.signals;
   if (s && isKnown(s.searchSuggestions)) {
     const g = s.searchSuggestions.value;
-    if (g.suggestions.length === 0) reasons.push("Aucune recherche associée : peu de gens tapent ce nom.");
-    else if (g.intent.length > 0) reasons.push(`${g.intent.length} recherche${g.intent.length > 1 ? "s" : ""} d'achat (prix, avis…) parmi ${g.suggestions.length}.`);
-    else if (g.marketplaces.length > 0) reasons.push(`Déjà cherché sur ${g.marketplaces.length > 1 ? "des marketplaces" : "une marketplace"} (${g.marketplaces[0]}).`);
+    const firstMarketplace = g.marketplaces[0];
+    if (g.suggestions.length === 0) reasons.push({ code: "no_related_searches" });
+    else if (g.intent.length > 0) reasons.push({ code: "buying_searches", count: g.intent.length, total: g.suggestions.length });
+    else if (firstMarketplace !== undefined) reasons.push({ code: "marketplace_searches", count: g.marketplaces.length, first: firstMarketplace });
   }
-  if (s?.marginAtPlannedPrice && isKnown(s.marginAtPlannedPrice)) reasons.push(`Marge à ton prix : ${Math.round(s.marginAtPlannedPrice.value)} %.`);
+  if (s?.marginAtPlannedPrice && isKnown(s.marginAtPlannedPrice)) reasons.push({ code: "margin_at_price", marginPct: s.marginAtPlannedPrice.value });
   return reasons.slice(0, 4);
 }
+
+/** French text of the supporting signals. */
+export const supportingSignals = (c: CountryAnalysis): string[] => supportingReasons(c).map(fr);
 
 /** Scored criteria, strongest first. */
 function rankedCriteria(c: CountryAnalysis): CriterionResult[] {
   return c.scoring.criteria.filter((r) => r.status === "scored" && r.normalized !== undefined).toSorted((a, b) => b.normalized! - a.normalized!);
 }
 
-function decisionReason(c: CountryAnalysis, decision: Decision): string {
+const ref = (r: { readonly id: string; readonly label: string }): LabelRef => ({ id: r.id, label: r.label });
+
+function decisionReason(c: CountryAnalysis, decision: Decision): Reason {
   const ranked = rankedCriteria(c);
-  const best = ranked.slice(0, 2).map((r) => lower(r.label));
-  const worst = ranked.toReversed().slice(0, 2).map((r) => lower(r.label));
+  const best = ranked.slice(0, 2).map(ref);
+  const worst = ranked.toReversed().slice(0, 2).map(ref);
   switch (decision) {
     case "prioritize":
-      return best.length > 0 ? `Signaux les plus forts : ${best.join(", ")}.` : "Score et confiance au-dessus des seuils.";
+      return best.length > 0 ? { code: "strongest_signals", criteria: best } : { code: "above_thresholds" };
     case "avoid":
-      return worst.length > 0 ? `Critères les plus faibles : ${worst.join(", ")}.` : "Score sous le seuil.";
+      return worst.length > 0 ? { code: "weakest_criteria", criteria: worst } : { code: "below_threshold" };
     case "test_carefully":
-      return ranked.length >= 2 ? `Signaux mitigés : point fort ${best[0]}, point faible ${worst[0]}.` : "Signaux mitigés.";
+      return { code: "mixed_signals", best: ranked.length >= 2 ? (best[0] ?? null) : null, worst: ranked.length >= 2 ? (worst[0] ?? null) : null };
     case "exploratory_only": {
       const weakest = c.scoring.confidence.factors.toSorted((a, b) => a.value - b.value)[0];
-      return weakest ? `Confiance trop faible : ${lower(weakest.label)}.` : "Confiance trop faible.";
+      return { code: "low_confidence", factor: weakest ? ref(weakest) : null };
     }
     case "insufficient_data": {
-      const labels: Readonly<Record<string, string>> = SOURCE_LABELS;
-      const sources = [...new Set(c.dataGaps.flatMap((g) => (labels[g] ? [labels[g]] : [])))].slice(0, 3);
-      return sources.length > 0 ? `Données insuffisantes : sources à connecter, ${sources.join(", ")}.` : "Données insuffisantes pour un score.";
+      const known = (g: string) => Object.prototype.hasOwnProperty.call(SOURCE_LABELS, g);
+      return { code: "insufficient_data", sources: [...new Set(c.dataGaps.filter(known))].slice(0, 3) };
     }
   }
 }
@@ -136,8 +162,17 @@ const DECISION_VALUE: Readonly<Record<Decision, VerdictValue>> = {
 
 export function verdictFor(c: CountryAnalysis): Verdict {
   const blocking = blockingFactors(c);
-  const supporting = supportingSignals(c);
-  if (blocking.length > 0) return { value: "non", label: LABELS.non, reason: blocking[0]!.message, blocking, supporting, method: "verdict_v1" };
-  const value = DECISION_VALUE[c.scoring.decision];
-  return { value, label: LABELS[value], reason: decisionReason(c, c.scoring.decision), blocking, supporting, method: "verdict_v1" };
+  const signals = supportingReasons(c);
+  const value: VerdictValue = blocking.length > 0 ? "non" : DECISION_VALUE[c.scoring.decision];
+  const cause = blocking[0]?.cause ?? decisionReason(c, c.scoring.decision);
+  return {
+    value,
+    label: verdictWord(value, "fr") as VerdictLabel,
+    cause,
+    reason: fr(cause),
+    blocking,
+    signals,
+    supporting: signals.map(fr),
+    method: "verdict_v1",
+  };
 }

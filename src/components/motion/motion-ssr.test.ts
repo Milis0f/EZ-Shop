@@ -2,6 +2,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/i18n/client";
 import { AnimatedNumber } from "./animated-number";
 import { Expand } from "./expand";
 import { PendingButton } from "./pending-button";
@@ -63,8 +64,14 @@ describe("AnimatedNumber on the server", () => {
   it("shows the final value, in tabular figures, visible and spoken", () => {
     const markup = html(createElement(AnimatedNumber, { value: 1234, format: "int" }));
     expect(markup).toContain('class="tabular-nums"');
-    const finals = markup.match(/>1\s?234</g) ?? [];
+    // No LocaleProvider: the default locale (English) groups with a comma.
+    const finals = markup.match(/>1,234</g) ?? [];
     expect(finals).toHaveLength(2);
+  });
+
+  it("formats in the active locale", () => {
+    const markup = html(createElement(LocaleProvider, { locale: "fr", children: createElement(AnimatedNumber, { value: 1234, format: "int" }) }));
+    expect(markup.match(/>1\s234</g) ?? []).toHaveLength(2);
   });
 });
 

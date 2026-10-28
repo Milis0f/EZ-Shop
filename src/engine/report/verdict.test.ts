@@ -104,7 +104,13 @@ describe("verdict_v1 — blocking factors", () => {
     const c = country({ economics: { currency: "EUR", sellingPrice: 30, supplierPrice: 8, shippingCost: 3, targetMarginPct: 60 } });
     const v = verdictFor(withDecision(c, "prioritize"));
     expect(v.value).toBe("non");
-    expect(v.blocking).toEqual([{ id: "below_target_margin", message: expect.stringMatching(/33,00\s€/) }]);
+    expect(v.blocking).toEqual([
+      {
+        id: "below_target_margin",
+        cause: { code: "below_target_margin", targetMarginPct: 60, exVatEur: 27.5, inclVatEur: 33 },
+        message: expect.stringMatching(/33,00\s€/),
+      },
+    ]);
     expect(v.blocking[0]!.message).toMatch(/27,50\s€/);
   });
 

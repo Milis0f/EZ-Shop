@@ -1,4 +1,8 @@
+"use client";
+
 import type { Verdict } from "@/engine/report/verdict";
+import { verdictWord } from "@/engine/report/localize";
+import { useLocale } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 import { VERDICT_COLOR } from "./verdict-orb";
 
@@ -7,6 +11,7 @@ import { VERDICT_COLOR } from "./verdict-orb";
  * the interface), the outline is a faint wash of it. Used in dense rows and tables.
  */
 export function VerdictChip({ verdict, className }: { verdict: Verdict; className?: string }) {
+  const locale = useLocale();
   const color = VERDICT_COLOR[verdict.value];
   return (
     <span
@@ -14,7 +19,7 @@ export function VerdictChip({ verdict, className }: { verdict: Verdict; classNam
       style={{ color, borderColor: `color-mix(in oklab, ${color} 35%, transparent)`, backgroundColor: `color-mix(in oklab, ${color} 8%, transparent)` }}
     >
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
-      {verdict.label}
+      {verdictWord(verdict.value, locale)}
     </span>
   );
 }
