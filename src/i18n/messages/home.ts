@@ -61,7 +61,7 @@ export const en = {
     shippingCost: { label: "Shipping cost (€)", help: "Per unit, to the customer.", placeholder: "e.g. 2.50" },
     sellingPrice: {
       label: "Planned selling price (€)",
-      help: "Without a price, the margin is calculated at the price observed on the market.",
+      help: "Excluding VAT. Gives your margin at this price; without it, no margin is shown.",
       placeholder: "e.g. 24.90",
     },
     targetMarginPct: { label: "Target margin (%)", help: "Between 1 and 95%, to compare with the result.", placeholder: "e.g. 40" },
@@ -162,7 +162,7 @@ export const fr: Shape = {
     shippingCost: { label: "Frais de livraison (€)", help: "Par unité, jusqu'au client.", placeholder: "ex. 2,50" },
     sellingPrice: {
       label: "Prix de vente envisagé (€)",
-      help: "Sans prix, la marge se calcule au prix observé sur le marché.",
+      help: "Hors TVA. Donne ta marge à ce prix ; sans lui, aucune marge n'est affichée.",
       placeholder: "ex. 24,90",
     },
     targetMarginPct: { label: "Marge visée (%)", help: "Entre 1 et 95 %, pour comparer au résultat.", placeholder: "ex. 40" },
@@ -261,7 +261,7 @@ export const es: Shape = {
     shippingCost: { label: "Gastos de envío (€)", help: "Por unidad, hasta el cliente.", placeholder: "p. ej., 2,50" },
     sellingPrice: {
       label: "Precio de venta previsto (€)",
-      help: "Sin precio, el margen se calcula con el precio observado en el mercado.",
+      help: "Sin IVA. Da tu margen a este precio; sin él, no se muestra ningún margen.",
       placeholder: "p. ej., 24,90",
     },
     targetMarginPct: { label: "Margen objetivo (%)", help: "Entre el 1 y el 95 %, para compararlo con el resultado.", placeholder: "p. ej., 40" },
