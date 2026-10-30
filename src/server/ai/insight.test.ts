@@ -226,11 +226,20 @@ describe("getAnalysisInsight", () => {
 
   it("does not cache a rejected reading", async () => {
     let calls = 0;
-    const { deps, completeJson } = fakeEngine(() => (++calls === 1 ? { ...goodAnswer(), summary: "Prix conseillé : 49,37 €." } : goodAnswer()));
+    const { deps, completeJson } = fakeEngine(() => (++calls <= 2 ? { ...goodAnswer(), summary: "Prix conseillé : 49,37 €." } : goodAnswer()));
 
     expect((await getAnalysisInsight(analysis, deps)).status).toBe("rejected");
     expect((await getAnalysisInsight(analysis, deps)).status).toBe("ready");
+    expect(completeJson).toHaveBeenCalledTimes(3);
+  });
+
+  it("tries once more after an unsupported number, naming it, and keeps a clean second answer", async () => {
+    let calls = 0;
+    const { deps, completeJson } = fakeEngine(() => (++calls === 1 ? { ...goodAnswer(), summary: "Prix conseillé : 49,37 €." } : goodAnswer()));
+    expect(await getAnalysisInsight(analysis, deps)).toMatchObject({ status: "ready" });
     expect(completeJson).toHaveBeenCalledTimes(2);
+    expect(completeJson.mock.calls[1][0].user).toContain("49,37");
+    expect(JSON.stringify(completeJson.mock.calls[0][0].user)).not.toContain("do not write them");
   });
 
   it("shares one generation between concurrent requests for the same analysis", async () => {

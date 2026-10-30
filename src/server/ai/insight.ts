@@ -55,6 +55,8 @@ const DEFAULT_DEPS: InsightDeps = { loadEngine: () => getLocalAiEngine(), now: (
 type ReadyInsight = Extract<AiInsightResponse, { status: "ready" }>;
 
 const MAX_CACHED = 100;
+/** Attempts when the answer cites a number the sheet does not hold. */
+const MAX_NUMBER_ATTEMPTS = 2;
 /** Context of the engine (CONTEXT_SIZE in engine.ts): system prompt, fact sheet and answer must fit in it. */
 const CONTEXT_TOKENS = 8_192;
 /** System prompt, chat template and the closing instruction, with room to spare. */
@@ -200,30 +202,38 @@ async function generate(analysis: AnalysisResult, deps: InsightDeps, locale: Loc
   const admission = deps.admitGeneration?.() ?? { allowed: true };
   if (!admission.allowed) throw new GenerationRateLimitedError(admission.retryAfterSeconds);
 
-  let raw: unknown;
-  try {
-    raw = await loaded.engine.completeJson({
-      system: PROMPT_WORDS[locale].system,
-      user: userPrompt(sheet),
-      schema: insightJsonSchema(codes),
-      maxTokens,
-    });
-  } catch (error: unknown) {
-    if (error instanceof AiAnswerIncompleteError) return rejected(reasons.incomplete);
-    console.error("[ai] insight generation failed", error instanceof Error ? error.name : typeof error);
-    return unavailable(reasons.generationFailed);
-  }
+  let insight: AiInsight | undefined;
+  let correction = "";
+  // A rounded or misquoted figure gets one more try, told which one; the guard stays the judge.
+  for (let attempt = 1; attempt <= MAX_NUMBER_ATTEMPTS && !insight; attempt += 1) {
+    let raw: unknown;
+    try {
+      raw = await loaded.engine.completeJson({
+        system: PROMPT_WORDS[locale].system,
+        user: `${userPrompt(sheet)}${correction}`,
+        schema: insightJsonSchema(codes),
+        maxTokens,
+      });
+    } catch (error: unknown) {
+      if (error instanceof AiAnswerIncompleteError) return rejected(reasons.incomplete);
+      console.error("[ai] insight generation failed", error instanceof Error ? error.name : typeof error);
+      return unavailable(reasons.generationFailed);
+    }
 
-  const parsed = aiInsightSchema.safeParse(raw);
-  if (!parsed.success) return rejected(reasons.badFormat);
+    const parsed = aiInsightSchema.safeParse(raw);
+    if (!parsed.success) return rejected(reasons.badFormat);
 
-  const insight = keepAnalysedCountries(parsed.data, codes);
-  const unsupported = textsOf(insight).flatMap((text) => findUnsupportedNumbers(text, sheet.numbers, sheet.locale));
-  if (unsupported.length > 0) {
-    // The figure itself stays in the server log: shown in the UI, the invented number would still reach the screen.
-    console.warn(`[ai] insight rejected, unsupported numbers: ${unsupported.slice(0, 5).join(", ")}`);
-    return rejected(reasons.unsupportedNumber);
+    const candidate = keepAnalysedCountries(parsed.data, codes);
+    const unsupported = textsOf(candidate).flatMap((text) => findUnsupportedNumbers(text, sheet.numbers, sheet.locale));
+    if (unsupported.length === 0) {
+      insight = candidate;
+    } else {
+      // The figure itself stays in the server log: shown in the UI, the invented number would still reach the screen.
+      console.warn(`[ai] insight rejected, unsupported numbers: ${unsupported.slice(0, 5).join(", ")}`);
+      correction = `\n\nThese numbers are not in the sheet, do not write them: ${unsupported.slice(0, 10).join(", ")}. Copy every number exactly as the sheet writes it, or leave it out.`;
+    }
   }
+  if (!insight) return rejected(reasons.unsupportedNumber);
 
   return {
     status: "ready",
