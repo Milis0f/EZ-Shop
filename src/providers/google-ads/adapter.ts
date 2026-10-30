@@ -105,6 +105,7 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
       language: language.data,
       keywordPlanNetwork: "GOOGLE_SEARCH",
       historicalMetricsOptions: {
+        includeAverageCpc: true,
         yearMonthRange: {
           start: { year: from.year, month: monthEnum(from.month) },
           end: { year: to.year, month: monthEnum(to.month) },

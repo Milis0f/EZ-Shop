@@ -22,7 +22,7 @@ const status = (): ProviderStatus => ({ state: "not_implemented", detail: "Pas d
 const none = <T>() => Promise.resolve(fail<T>("not_implemented", "Pas de données fictives pour cette source"));
 
 export const unavailableSuggest = (meta: ProviderMeta): SuggestProvider => ({ meta, status, getSuggestions: none });
-export const unavailableTopic = (meta: ProviderMeta): TopicInterestProvider => ({ meta, status, getTopicInterest: none, resolveEntity: none });
+export const unavailableTopic = (meta: ProviderMeta): TopicInterestProvider => ({ meta, status, getTopicInterest: none, resolveEntity: none, conceptTitle: async () => null });
 export const unavailableContent = (meta: ProviderMeta): ContentProvider => ({ meta, status, getContent: none });
 export const unavailableMarketplace = (meta: ProviderMeta): MarketplaceProvider => ({ meta, status, getListings: none });
 export const unavailableSourcing = (meta: ProviderMeta): SourcingProvider => ({ meta, status, searchProducts: none });

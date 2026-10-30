@@ -267,6 +267,10 @@ export class WikimediaProvider implements TopicInterestProvider {
     return ok({ wikidataId: article.wikidataId, article: article.title, englishLabel: raw.ok ? parseEnglishLabel(raw.data, article.wikidataId) : null });
   }
 
+  async conceptTitle(wikidataId: string, language: LanguageCode): Promise<string | null> {
+    return (await this.sitelink(wikidataId, language))?.title ?? null;
+  }
+
   private entity(id: string): Promise<ProviderResult<unknown>> {
     const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels|sitelinks&languages=en&ids=${id}`;
     return this.get(url, "Wikidata entity", isWikidataEntities);

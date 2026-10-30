@@ -147,6 +147,8 @@ export interface KeywordMetrics {
   /** Top-of-page bid range, in account currency units. */
   readonly lowTopOfPageBid: number | null;
   readonly highTopOfPageBid: number | null;
+  /** Average CPC Google observed, in account currency units. Absent from analyses stored before it was asked for. */
+  readonly averageCpc?: number | null;
   readonly currency: string;
   readonly source: SourceRef;
 }
@@ -302,6 +304,8 @@ export interface TopicInterestProvider extends DataProvider {
   getTopicInterest(query: TopicInterestQuery): Promise<ProviderResult<TopicInterestObservation>>;
   /** Wikipedia article and Wikidata concept matching the terms, with its English label ("sock" for "chaussettes"). */
   resolveEntity(terms: readonly string[], language: LanguageCode): Promise<ProviderResult<TopicEntity>>;
+  /** Title of the same concept's article in another language, when that edition has one. */
+  conceptTitle(wikidataId: string, language: LanguageCode): Promise<string | null>;
 }
 
 /** AliExpress: what the product costs to source, and how much it sells there. */

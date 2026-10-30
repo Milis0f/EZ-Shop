@@ -124,7 +124,7 @@ export function analyzeCountry(signals: CountrySignals, options: AnalyzeCountryO
     marketplace: v2.marketplace,
   });
   const advertising = estimateAdCosts(
-    { keywordMetrics: signals.keywordMetrics, meta: signals.adCosts.meta, tiktok: signals.adCosts.tiktok },
+    { keywordMetrics: signals.keywordMetrics, meta: signals.adCosts.meta, tiktok: signals.adCosts.tiktok, fx: options.global?.fx ?? { status: "DATA_INSUFFICIENT", ...NO_GLOBAL } },
     options.assumptions,
     rng,
   );

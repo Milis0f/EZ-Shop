@@ -180,7 +180,8 @@ const unitEconomics: Criterion = {
     if (!cpa) return missing("Aucun CPA estimable.", ...advertising.map((c) => c.cpa));
     const margin = sellingPrice - landedCost;
     const ratio = margin > 0 ? cpa.value.p50 / margin : Number.POSITIVE_INFINITY;
-    const cap = ratio > 1 ? { cap: SCORING_POLICY.negativeEconomicsCap, reason: "CPA estimé supérieur à la marge unitaire." } : undefined;
+    // The score already falls with the median. The hard cap is for when even the favourable case loses money.
+    const cap = cpa.value.p10 > margin ? { cap: SCORING_POLICY.negativeEconomicsCap, reason: "Même le CPA le plus favorable (P10) dépasse la marge unitaire." } : undefined;
     return scored(Number.isFinite(ratio) ? towards(ratio, B.cpaToMargin.best, B.cpaToMargin.worst) : 0, "CPA P50 / marge sur le prix hors TVA : ≤ 0,3 → 1, ≥ 1,2 → 0.", [cpa, ...(exVat && isKnown(exVat) ? [exVat] : [])], {
       rawValue: Number.isFinite(ratio) ? round(ratio, 2) : undefined,
       rawLabel: margin > 0 ? `CPA = ${fmt.format(ratio * 100)} % de la marge` : "Marge unitaire ≤ 0",

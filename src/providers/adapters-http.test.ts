@@ -627,7 +627,7 @@ describe("TikTokCommercialContentProvider", () => {
       url.includes("/oauth/token/") ? json({ access_token: "tok" }) : json({ data: { ads: [] }, error: { code: "scope_not_authorized", message: "no" } }),
     );
     const result = await new TikTokCommercialContentProvider(env, 500).getAdActivity({ terms: ["x"], country: "DE", since: "2026-08-01" });
-    expect(result).toMatchObject({ ok: false, error: { code: "upstream_error" } });
+    expect(result).toMatchObject({ ok: false, error: { code: "unauthorized", message: "TikTok adlib: scope_not_authorized" } });
   });
 
   describe("shared client token", () => {

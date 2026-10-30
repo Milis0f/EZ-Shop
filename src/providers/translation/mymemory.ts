@@ -35,16 +35,35 @@ const schema = z.object({
   responseStatus: z.union([z.number(), z.string()]),
   quotaFinished: z.boolean().nullable().optional(),
   responseData: z.object({ translatedText: z.string(), match: z.union([z.number(), z.string()]).optional() }),
+  matches: z
+    .array(z.object({ translation: z.string(), quality: z.union([z.number(), z.string()]).optional(), match: z.union([z.number(), z.string()]).optional() }))
+    .nullable()
+    .optional(),
 });
+
+/** Quality below this is an anonymous contribution: "casquette" came back as "Deckel" (lid) with a perfect match. */
+const MIN_QUALITY = 50;
+
+/** The best reviewed entry. Null when MyMemory lists entries and none is reliable; undefined when it lists none. */
+function bestReviewed(matches: z.infer<typeof schema>["matches"]): { text: string; match: number } | null | undefined {
+  if (!matches || matches.length === 0) return undefined;
+  const reliable = matches
+    .filter((m) => Number(m.quality ?? 0) >= MIN_QUALITY)
+    .toSorted((a, b) => Number(b.match ?? 0) - Number(a.match ?? 0) || Number(b.quality ?? 0) - Number(a.quality ?? 0));
+  const best = reliable[0];
+  return best ? { text: best.translation.trim(), match: Number(best.match ?? 0) } : null;
+}
 
 export function parseMyMemory(payload: unknown): ProviderResult<{ text: string; match: number }> {
   const parsed = schema.safeParse(payload);
   if (!parsed.success) return fail("invalid_response", "MyMemory: unexpected response shape");
-  const { responseStatus, quotaFinished, responseData } = parsed.data;
+  const { responseStatus, quotaFinished, responseData, matches } = parsed.data;
   if (quotaFinished || /MYMEMORY WARNING/i.test(responseData.translatedText)) return fail("rate_limited", "MyMemory : quota du jour atteint", true);
   if (Number(responseStatus) !== 200) return fail("upstream_error", `MyMemory: status ${String(responseStatus)}`);
-  const text = responseData.translatedText.trim();
-  const match = Number(responseData.match ?? 0);
+  const reviewed = bestReviewed(matches);
+  if (reviewed === null) return fail("no_data", "MyMemory : aucune traduction relue");
+  const text = reviewed?.text ?? responseData.translatedText.trim();
+  const match = reviewed?.match ?? Number(responseData.match ?? 0);
   if (!text) return fail("no_data", "MyMemory : traduction vide");
   if (match < MIN_MATCH) return fail("no_data", `MyMemory : traduction trop incertaine (${match})`);
   return ok({ text, match });

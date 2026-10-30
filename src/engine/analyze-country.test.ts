@@ -109,6 +109,17 @@ describe("analyzeCountry — honesty rules", () => {
     if (isKnown(result.scoring.score)) expect(result.scoring.score.value.total).toBeLessThanOrEqual(35);
   });
 
+  it("does not cap the score when the favourable CPA still fits the margin", () => {
+    const vat = observed({ country: "FR" as const, standardRatePct: 20, source: testSource("vat-rates") }, "percent", [testSource("vat-rates")]);
+    const base = signals();
+    // A typical product: 39,90 € incl. VAT, 14 € cost, clicks at 0,50 €. The median CPA exceeds the margin, the best case does not.
+    const kp = kpDatum(series, { lowTopOfPageBid: 0.35, highTopOfPageBid: 1.1, averageCpc: 0.5 });
+    const result = analyzeCountry(signals({ keywordMetrics: kp, v2: { ...base.v2, vat } }), options(39.9, 14));
+    const unit = result.scoring.criteria.find((c) => c.id === "unit_economics")!;
+    expect(unit.status).toBe("scored");
+    if (isKnown(result.scoring.score)) expect(result.scoring.score.value.cap).toBeUndefined();
+  });
+
   it("flags mock-tainted confidence", () => {
     const mockKp = kpDatum(series);
     const tainted = isKnown(mockKp)

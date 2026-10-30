@@ -2,7 +2,7 @@ import { SIMULATION_PARAMS } from "@/config/scoring";
 import type { AssumptionSet } from "@/domain/assumption";
 import { estimate, insufficient, isKnown, type Datum, type Interval, type Known } from "@/domain/datum";
 import type { AdPlatform, ChannelCost } from "@/domain/market";
-import type { AdCostObservation, KeywordMetrics } from "@/providers/contracts";
+import type { AdCostObservation, FxRates, KeywordMetrics } from "@/providers/contracts";
 import type { Rng } from "@/lib/random";
 import { simulate } from "../stats/descriptive";
 import { logNormalFromP10P90, logNormalFromP20P80, sampleDistribution, sampleLogNormal, type LogNormal } from "../stats/sampling";
@@ -11,6 +11,8 @@ export interface AdCostInputs {
   readonly keywordMetrics: Datum<readonly KeywordMetrics[]>;
   readonly meta: Datum<AdCostObservation>;
   readonly tiktok: Datum<AdCostObservation>;
+  /** Google bids come in the Ads account's currency; every amount here is in EUR. */
+  readonly fx: Datum<FxRates>;
 }
 
 interface CpcModel {
@@ -20,24 +22,52 @@ interface CpcModel {
 
 const roundMoney = (i: Interval): Interval => ({ p10: +i.p10.toFixed(2), p50: +i.p50.toFixed(2), p90: +i.p90.toFixed(2) });
 
-function googleCpc(kp: Datum<readonly KeywordMetrics[]>, rng: Rng): CpcModel | Datum<never> {
+/** How many units of a currency one EUR buys; null when unknown. */
+function eurRate(currency: string, fx: Datum<FxRates>): number | null {
+  if (currency.toUpperCase() === "EUR") return 1;
+  return isKnown(fx) ? (fx.value.rates[currency.toUpperCase()] ?? null) : null;
+}
+
+function googleCpc(kp: Datum<readonly KeywordMetrics[]>, fx: Datum<FxRates>, rng: Rng): CpcModel | Datum<never> {
   if (!isKnown(kp)) return insufficient("CPC Google indisponible (Keyword Planner non connecté).", kp.missing);
-  const bids = kp.value.filter((m) => m.lowTopOfPageBid !== null && m.highTopOfPageBid !== null && (m.lowTopOfPageBid ?? 0) > 0);
-  if (bids.length === 0) return insufficient("Aucune enchère haut de page renvoyée.", ["google-ads-keyword-planner"]);
+  const raw = kp.value.filter((m) => m.lowTopOfPageBid !== null && m.highTopOfPageBid !== null && (m.lowTopOfPageBid ?? 0) > 0);
+  if (raw.length === 0) return insufficient("Aucune enchère haut de page renvoyée.", ["google-ads-keyword-planner"]);
+  const bids = raw.flatMap((m) => {
+    const rate = eurRate(m.currency, fx);
+    return rate
+      ? [
+          {
+            ...m,
+            lowTopOfPageBid: (m.lowTopOfPageBid ?? 0) / rate,
+            highTopOfPageBid: (m.highTopOfPageBid ?? 0) / rate,
+            averageCpc: m.averageCpc ? m.averageCpc / rate : null,
+          },
+        ]
+      : [];
+  });
+  if (bids.length === 0) return insufficient("Taux de change indisponible : CPC Google non converti en euros.", ["ecb-fx"]);
   // Volume-weighted bid range across terms.
   const w = bids.map((m) => Math.max(1, m.avgMonthlySearches ?? 1));
   const total = w.reduce((s, v) => s + v, 0);
   const low = bids.reduce((s, m, i) => s + (m.lowTopOfPageBid ?? 0) * w[i], 0) / total;
   const high = bids.reduce((s, m, i) => s + (m.highTopOfPageBid ?? 0) * w[i], 0) / total;
-  const dist = logNormalFromP20P80(low, high);
+  // The average Google really observed is the centre when it is given; the bid range then only sets the spread.
+  const withAverage = bids.filter((m) => m.averageCpc !== null);
+  const average =
+    withAverage.length > 0
+      ? withAverage.reduce((s, m) => s + (m.averageCpc ?? 0) * Math.max(1, m.avgMonthlySearches ?? 1), 0) /
+        withAverage.reduce((s, m) => s + Math.max(1, m.avgMonthlySearches ?? 1), 0)
+      : null;
+  const spread = Math.sqrt(high / low);
+  const dist = average !== null ? logNormalFromP20P80(average / spread, average * spread) : logNormalFromP20P80(low, high);
   if (!dist) return insufficient("Fourchette d'enchères incohérente.", ["google-ads-keyword-planner"]);
   const sample = (r: Rng) => sampleLogNormal(dist, r);
   return {
     sample,
     interval: estimate(roundMoney(simulate(SIMULATION_PARAMS.samples, rng, sample)), "money", {
-      method: "lognormal_from_top_of_page_bid_p20_p80",
+      method: average !== null ? "lognormal_from_average_cpc" : "lognormal_from_top_of_page_bid_p20_p80",
       inputs: [kp],
-      note: "Enchère haut de page (P20–P80) utilisée comme proxy du CPC : probablement un majorant.",
+      note: average !== null ? "CPC moyen observé par Google ; l'écart vient de la fourchette d'enchères." : "Enchère haut de page (P20–P80) utilisée comme proxy du CPC : probablement un majorant.",
     }),
   };
 }
@@ -81,7 +111,7 @@ function channel(platform: AdPlatform, model: CpcModel | Datum<never>, assumptio
 
 export function estimateAdCosts(inputs: AdCostInputs, assumptions: AssumptionSet, rng: Rng): ChannelCost[] {
   return [
-    channel("google", googleCpc(inputs.keywordMetrics, rng), assumptions, rng),
+    channel("google", googleCpc(inputs.keywordMetrics, inputs.fx, rng), assumptions, rng),
     channel("meta", socialCpc("meta", inputs.meta, assumptions, rng), assumptions, rng),
     channel("tiktok", socialCpc("tiktok", inputs.tiktok, assumptions, rng), assumptions, rng),
   ];

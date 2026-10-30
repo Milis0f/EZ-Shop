@@ -22,6 +22,7 @@ const metricsSchema = z.object({
   competitionIndex: int64.optional(),
   lowTopOfPageBidMicros: int64.optional(),
   highTopOfPageBidMicros: int64.optional(),
+  averageCpcMicros: int64.optional(),
   monthlySearchVolumes: z
     .array(z.object({ month: z.enum(MONTHS), year: int64, monthlySearches: int64.optional() }))
     .optional(),
@@ -57,6 +58,7 @@ export function parseHistoricalMetrics(
       competitionIndex: m?.competitionIndex ?? null,
       lowTopOfPageBid: fromMicros(m?.lowTopOfPageBidMicros),
       highTopOfPageBid: fromMicros(m?.highTopOfPageBidMicros),
+      averageCpc: fromMicros(m?.averageCpcMicros),
       currency,
       source,
     };

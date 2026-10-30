@@ -21,7 +21,7 @@ import { AiAnswerIncompleteError, type AiJsonSchema, type EngineLoadResult } fro
  */
 
 /** Bump when the prompt, the schema or the fact sheet changes: cached readings are then regenerated. */
-export const PROMPT_VERSION = "insight-v9";
+export const PROMPT_VERSION = "insight-v10";
 
 /**
  * Rate limits of `POST /api/analyses/:id/ai` (route files may only export handlers). Every request counts

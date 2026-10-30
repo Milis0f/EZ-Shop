@@ -3,7 +3,7 @@ import { missingEnv, type ServerEnv } from "@/config/env";
 import { COUNTRIES } from "@/domain/country";
 import type { SourceRef } from "@/domain/provenance";
 import { aggregateAds, type RawAd } from "../ad-activity";
-import {
+import { type ProviderErrorCode,
   fail,
   isCovered,
   ok,
@@ -26,8 +26,11 @@ import { sharedResult, type SharedResult } from "../shared-result";
 
 const REQUIRED_ENV = ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"] as const satisfies ReadonlyArray<keyof ServerEnv>;
 const API = "https://open.tiktokapis.com/v2";
-const MAX_PAGES = 5;
-const PAGE_SIZE = 50;
+const MAX_PAGES = 10;
+/** Documented: "The default value is 10 and the maximum value is 10". */
+const PAGE_SIZE = 10;
+/** Documented limit of `search_term`. */
+const MAX_TERM_CHARS = 50;
 
 export const tiktokCommercialMeta: ProviderMeta = {
   id: "tiktok-commercial-content",
@@ -54,19 +57,36 @@ interface ClientToken {
   readonly token: string;
   readonly ttlMs: number;
 }
+const anyId = z.union([z.string(), z.number()]);
+/**
+ * Lenient where TikTok's own docs disagree with themselves: its example sends `has_more` as a string and
+ * spells `buisness_id`. `data` is optional because an error answer may come with HTTP 200 and no data.
+ */
 const querySchema = z.object({
-  data: z.object({
-    ads: z.array(
-      z.object({
-        ad: z.object({ id: z.union([z.string(), z.number()]), first_shown_date: z.union([z.string(), z.number()]), last_shown_date: z.union([z.string(), z.number()]).optional() }),
-        advertiser: z.object({ business_id: z.union([z.string(), z.number()]) }),
-      }),
-    ),
-    has_more: z.boolean().optional(),
-    search_id: z.string().optional(),
-  }),
-  error: z.object({ code: z.string(), message: z.string() }).optional(),
+  data: z
+    .object({
+      ads: z
+        .array(
+          z.object({
+            ad: z.object({ id: anyId, first_shown_date: anyId, last_shown_date: anyId.optional() }),
+            advertiser: z.object({ business_id: anyId.optional(), buisness_id: anyId.optional() }).optional(),
+          }),
+        )
+        .default([]),
+      has_more: z.union([z.boolean(), z.string()]).transform((v) => v === true || v === "true").optional(),
+      search_id: z.string().optional(),
+    })
+    .optional(),
+  error: z.object({ code: z.string() }).optional(),
 });
+
+/** API error codes are identifiers: anything else is not echoed. */
+const safeCode = (code: string): string => (/^[A-Za-z][A-Za-z0-9_.]{1,63}$/.test(code) ? code : "error");
+function errorCode(code: string): ProviderErrorCode {
+  if (/rate_limit/i.test(code)) return "rate_limited";
+  if (/access_token|scope|permission|unauthorized/i.test(code)) return "unauthorized";
+  return "upstream_error";
+}
 
 /** TikTok dates are YYYYMMDD. */
 const toIso = (v: string | number): string => {
@@ -105,8 +125,8 @@ export class TikTokCommercialContentProvider implements AdLibraryProvider {
     let hasMore = true;
     for (let page = 0; hasMore && page < MAX_PAGES; page += 1) {
       const body = {
-        filters: { ad_published_date_range: { min: toCompact(query.since), max: toCompact(today) }, country_code: query.country },
-        search_term: query.terms[0] ?? "",
+        filters: { ad_published_date_range: { min: toCompact(query.since), max: toCompact(today) }, country_code_list: [query.country] },
+        search_term: (query.terms[0] ?? "").slice(0, MAX_TERM_CHARS),
         max_count: PAGE_SIZE,
         ...(searchId ? { search_id: searchId } : {}),
       };
@@ -118,11 +138,13 @@ export class TikTokCommercialContentProvider implements AdLibraryProvider {
       if (!raw.ok) return raw;
       const parsed = querySchema.safeParse(raw.data);
       if (!parsed.success) return fail("invalid_response", "TikTok adlib: unexpected response shape");
-      if (parsed.data.error && parsed.data.error.code !== "ok") return fail("upstream_error", `TikTok adlib: ${parsed.data.error.code}`);
+      if (parsed.data.error && parsed.data.error.code !== "ok") return fail(errorCode(parsed.data.error.code), `TikTok adlib: ${safeCode(parsed.data.error.code)}`);
+      if (!parsed.data.data) return fail("invalid_response", "TikTok adlib: no data");
       ads.push(
         ...parsed.data.data.ads.map((a) => ({
           id: String(a.ad.id),
-          advertiserId: String(a.advertiser.business_id),
+          // An ad without its advertiser still counts as an ad; it counts as its own advertiser.
+          advertiserId: String(a.advertiser?.business_id ?? a.advertiser?.buisness_id ?? a.ad.id),
           startDate: toIso(a.ad.first_shown_date),
           stopDate: a.ad.last_shown_date ? toIso(a.ad.last_shown_date) : undefined,
         })),

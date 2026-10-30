@@ -1,3 +1,5 @@
+import { reasonText, verdictWord } from "@/engine/report/localize";
+import { verdictFor } from "@/engine/report/verdict";
 import { countryName } from "@/components/ai/ai-reading";
 import type { AnalysisResult, CountryAnalysis } from "@/domain/analysis";
 import type { Assumption } from "@/domain/assumption";
@@ -5,7 +7,7 @@ import type { CountryCode } from "@/domain/country";
 import { isKnown, type Datum, type Interval, type Known, type ValueKind } from "@/domain/datum";
 import type { ChannelCost } from "@/domain/market";
 import { INTL_LOCALES, type Locale } from "@/i18n/config";
-import { formatDecimal, formatInt, formatMoney, formatPct, formatRatioPct } from "@/i18n/format";
+import { formatDecimal, formatInt, formatNumber, formatPct, formatRatioPct } from "@/i18n/format";
 import { t } from "@/i18n/translate";
 import { PLATFORM_LABELS } from "@/lib/format";
 import { collectNumbersFor } from "./number-guard";
@@ -83,7 +85,11 @@ class Writer {
   ratio = (v: number): string => val(formatRatioPct(v, this.locale));
   /** Small values keep one decimal so they are not rounded to zero. */
   amount = (v: number): string => val(Math.abs(v) >= 10 ? formatInt(v, this.locale) : formatDecimal(v, this.locale));
-  money = (v: number, currency = "EUR"): string => val(formatMoney(v, this.locale, currency));
+  /** Cents are kept when an amount has some: the AI's text is refused if it writes the real 39,90 of a sheet saying 40. */
+  money = (v: number, currency = "EUR"): string => {
+    const digits = Number.isInteger(v) || Math.abs(v) >= 100 ? 0 : 2;
+    return val(formatNumber(v, this.locale, { style: "currency", currency, maximumFractionDigits: digits, minimumFractionDigits: digits }));
+  };
   /** Value first, percentile after: "P10 120" would read as one number with a thousands space. */
   interval = (i: Interval, format: (v: number) => string): string =>
     t(this.w.s.interval, { p10: format(i.p10), p50: format(i.p50), p90: format(i.p90) });
@@ -253,11 +259,27 @@ function signalLines(c: CountryAnalysis, s: Section, brief: boolean): void {
   s.add(w.s.unitCost, v2.unitCostEur, (v) => writer.money(v));
 }
 
+/** The seller's own numbers: the first reason of a NO, so they stay in the brief sheet too. */
+function economicsLines(c: CountryAnalysis, s: Section): void {
+  const v2 = c.signals;
+  if (!v2) return;
+  const { writer } = s;
+  const { w } = writer;
+  if (v2.landedUnitCostEur) s.add(w.s.landedUnitCost, v2.landedUnitCostEur, (v) => writer.money(v));
+  if (v2.marginAtPlannedPrice) s.add(w.s.marginAtPrice, v2.marginAtPlannedPrice, (v) => writer.pct(v));
+  if (v2.minPriceForTargetMargin) {
+    s.add(w.s.minPrice, v2.minPriceForTargetMargin, (v) => t(w.s.minPriceValue, { price: writer.money(v.exVatEur), margin: writer.pct(v.targetMarginPct) }));
+  }
+}
+
 function countrySection(c: CountryAnalysis, writer: Writer, currency: string, flagMock: boolean, brief: boolean): Section {
   const { scoring } = c;
   const { w } = writer;
   const s = new Section(writer, flagMock);
-  s.lines.push(writer.line(w.s.decisionLine, w.decision[scoring.decision]));
+  const verdict = verdictFor(c);
+  s.lines.push(writer.line(w.s.verdictLine, verdictWord(verdict.value, writer.locale)));
+  for (const factor of verdict.blocking) s.lines.push(writer.line(w.s.blockingLine, val(writer.clean(reasonText(factor.cause, writer.locale), 240))));
+  economicsLines(c, s);
   s.add(w.s.score, scoring.score, (v) => t(w.s.outOf100, { value: writer.int(v.total) }));
   s.lines.push(
     `${writer.line(w.s.confidenceLine, `${t(w.s.outOf100, { value: writer.int(scoring.confidence.score) })}, ${w.confidence[scoring.confidence.level]}`)} [${w.kind.derived}]`,
@@ -290,7 +312,8 @@ function headerLines(analysis: AnalysisResult, writer: Writer, flagMock: boolean
     analysis.dataMode === "mock" ? w.s.mockMode : w.s.liveMode,
     `${t(w.s.countries, { count: writer.int(countries.length) })}${w.colon}${countries.join(", ")}`,
     price(w.s.sellingPrice, economics.sellingPrice),
-    price(w.s.landedCost, economics.landedCost),
+    // Only older analyses hold a global landed cost: it is computed per country now (see economicsLines).
+    ...(economics.landedCost === undefined ? [] : [price(w.s.landedCost, economics.landedCost)]),
   ];
   const global = new Section(writer, flagMock);
   global.add(w.s.aliexpress, analysis.sourcing, (o) => t(w.s.aliexpressValue, { price: writer.money(o.priceEur.median), count: writer.int(o.sampled) }));

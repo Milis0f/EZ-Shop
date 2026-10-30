@@ -61,7 +61,7 @@ export async function runAnalysis(raw: unknown, deps: PipelineDeps): Promise<Ana
   const now = deps.now?.() ?? new Date();
   const providers = deps.providers ?? createProviderSet({ env: deps.env, cache: deps.repositories.cache });
   // Machine translations first: the stored product must list every term actually queried.
-  const translated = await addMachineTranslations(expandProduct(input), input.countries, providers.translator);
+  const translated = await addMachineTranslations(expandProduct(input), input.countries, providers.translator, providers.topicInterest);
   const product = translated.product;
   const assumptions = buildAssumptions(input.assumptionOverrides);
   const economics: UnitEconomics = { ...input.economics };

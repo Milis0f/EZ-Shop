@@ -42,13 +42,58 @@ describe("buildFactSheet", () => {
     const legacy = (v: number) => observed(v, "money", [testSource("ebay-browse")]);
     const withLegacy: AnalysisResult = {
       ...mock,
-      countries: [{ ...fr, signals: fr.signals && { ...fr.signals, marketPriceExVatEur: legacy(41.7), marketMarginPct: legacy(63.3) } }, ...rest],
+      countries: [{ ...fr, signals: fr.signals && { ...fr.signals, marketPriceExVatEur: legacy(437.13), marketMarginPct: legacy(63.37) } }, ...rest],
     };
     for (const brief of [false, true]) {
       const { text, numbers } = buildFactSheet(withLegacy, { brief });
       expect(text).not.toMatch(/médiane eBay|Marge au prix du marché/);
-      expect(numbers.has("41.7") || numbers.has("63.3")).toBe(false);
+      expect(numbers.has("437.13") || numbers.has("63.37")).toBe(false);
     }
+  });
+
+  it("gives the AI the verdict, what blocks it and the seller's margin, also in the brief sheet", () => {
+    const [fr, ...rest] = mock.countries;
+    if (!fr.signals) throw new Error("signals expected");
+    const money = (v: number) => observed(v, "money", [testSource("user-input")]);
+    const withLoss: AnalysisResult = {
+      ...mock,
+      countries: [
+        {
+          ...fr,
+          signals: {
+            ...fr.signals,
+            landedUnitCostEur: money(32.45),
+            marginAtPlannedPrice: observed(-11.5, "percent", [testSource("user-input")]),
+            minPriceForTargetMargin: observed({ targetMarginPct: 30, exVatEur: 46.36, inclVatEur: 55.63 }, "money", [testSource("user-input")]),
+          },
+        },
+        ...rest,
+      ],
+    };
+    for (const brief of [false, true]) {
+      const { text, numbers } = buildFactSheet(withLoss, { brief });
+      expect(text).toContain("- Verdict : NON");
+      expect(text).toMatch(/- Facteur bloquant : .*(perte|perd)/i);
+      expect(text).toContain("Coût de revient par pièce (achat, port et droits connus) : 32,45 €");
+      expect(text).toContain("Marge au prix prévu : -11,5 %");
+      expect(text).toContain("Prix minimum hors TVA : 46,36 € pour 30 % de marge");
+      expect(numbers.has("32.45")).toBe(true);
+      expect(numbers.has("46.36")).toBe(true);
+      expect(text).not.toContain("Décision actuelle");
+    }
+  });
+
+  it("writes the verdict and the labels in the sheet's language", () => {
+    const { text: en } = buildFactSheet(mock, { locale: "en" });
+    expect(en).toMatch(/## France \(FR\)\n- Verdict: (YES|NO|WATCH)/);
+    const { text: es } = buildFactSheet(mock, { locale: "es" });
+    expect(es).toMatch(/## Francia \(FR\)\n- Veredicto: (SÍ|NO|VIGILAR)/);
+  });
+
+  it("keeps the cents of a real price so the AI can quote it", () => {
+    const { text, numbers } = buildFactSheet({ ...mock, economics: { ...mock.economics, sellingPrice: 39.9 } });
+    expect(text).toContain("Prix de vente : 39,90 €");
+    expect(numbers.has("39.9")).toBe(true);
   });
 
   it("names the product, the analysed countries, the user's prices and the mock mode", () => {
@@ -58,7 +103,7 @@ describe("buildFactSheet", () => {
     expect(text).toContain("Pays analysés (3) : France (FR), Allemagne (DE), États-Unis (US)");
     expect(text).toContain("Prix de vente : 29 € [hypothèse ; saisie utilisateur]");
     expect(text).toContain("Mode de données : fictif (mock de développement)");
-    expect(text).toMatch(/## France \(FR\)\n- Décision actuelle : /);
+    expect(text).toMatch(/## France \(FR\)\n- Verdict : /);
   });
 
   it("writes each known value with its kind and source, and collects its number", () => {
@@ -155,7 +200,7 @@ describe("buildFactSheet", () => {
     expect(apart).toContain("## France (FR)\n");
     expect(apart).toContain("## Allemagne (DE)\n");
     expect(grouped.text).toContain("Pays analysés (3) : France (FR), Allemagne (DE), États-Unis (US)");
-    expect(grouped.text).toMatch(/## France \(FR\), Allemagne \(DE\) : mêmes faits pour chacun de ces pays\n- Décision actuelle : /);
+    expect(grouped.text).toMatch(/## France \(FR\), Allemagne \(DE\) : mêmes faits pour chacun de ces pays\n- Verdict : /);
     expect(grouped.text.indexOf("Allemagne (DE) : mêmes faits")).toBeLessThan(grouped.text.indexOf("## États-Unis (US)"));
     expect(grouped.text).not.toContain("## Allemagne (DE)");
     expect(grouped.text.length).toBeLessThan(apart.length);
@@ -171,7 +216,7 @@ describe("buildFactSheet", () => {
     expect(brief).not.toContain("Budget de test");
     expect(brief).not.toContain("Chiffre d'affaires potentiel");
     expect(brief.length).toBeLessThan(full.length);
-    expect(brief).toContain("- Décision actuelle : ");
+    expect(brief).toContain("- Verdict : ");
   });
 });
 

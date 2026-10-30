@@ -92,16 +92,18 @@ export class UkTradeTariffProvider implements TariffProvider {
     );
   }
 
-  /** Searches the GB tariff with the English description, then its words, and keeps the first match. */
+  /**
+   * Searches the GB tariff with the English description, then its words, and keeps the first exact match.
+   * A fuzzy match is never used: "cap" fuzzily finds bottle caps, and duties would be computed on them.
+   */
   async classify(description: string): Promise<ProviderResult<readonly ClassificationCandidate[]>> {
     for (const q of searchQueries(description)) {
       const raw = await this.get(`/uk/api/search?q=${encodeURIComponent(q)}`, "Trade Tariff search");
       if (!raw.ok) return raw;
       const hit = parseSearch(raw.data);
-      if (hit.kind === "none") continue;
+      if (hit.kind !== "exact") continue;
 
-      const endpoint = hit.kind === "exact" ? hit.endpoint : "commodities";
-      const id = hit.kind === "exact" ? hit.id : hit.codes[0];
+      const { endpoint, id } = hit;
       const node = await this.get(`/uk/api/${endpoint}/${id}`, "Trade Tariff node");
       const label = node.ok ? parseNodeDescription(node.data) : null;
       // A match can be a group of lines ("Other": wool, cotton, synthetic…): keep the prefix they share,
