@@ -100,6 +100,20 @@ La décision en découle (prioriser, tester prudemment, éviter, exploratoire, d
 
 Une marge inconnue n'est jamais bloquante.
 
+## Recherche web et concurrents
+
+`src/server/web/`, appelé par `POST /api/web/research` et `POST /api/web/competitor`, jamais par le pipeline d'analyse :
+ces résultats n'entrent ni dans le score ni dans le verdict.
+
+- `safe-fetch.ts` : lecture de pages publiques (http(s), ports standards, adresses privées refusées, redirections
+  revérifiées, taille limitée, `robots.txt` respecté).
+- `searxng.ts` : recherche par le SearXNG local, démarré à la demande (`scripts/searxng.mjs`).
+- `html-extract.ts`, `competitor.ts` : faits publiés par la page ; Shopify par `/products/<handle>.js`.
+- `ai-reading.ts` : résumé par l'IA locale. Les pages sont des données non fiables : pas d'outil, grammaire JSON, et
+  chaque nombre doit figurer dans le texte lu.
+
+`src/server/ai/installer.ts` (`/api/ai/install`) télécharge le modèle : reprise, place disque, SHA-256.
+
 ## Pipeline de l'IA locale
 
 `src/server/ai/`, appelé par `POST /api/analyses/:id/ai` :

@@ -88,6 +88,10 @@ Tariff, USITC HTS, taux de TVA, taux de change BCE, traduction MyMemory) n'ont b
 
 ## 4. Télécharger le modèle de l'IA locale
 
+Le plus simple : clique sur **Installer l'IA** dans l'application. Le téléchargement est gratuit (environ 5,7 Go), il
+peut être arrêté et repris, et le fichier est vérifié (SHA-256) avant d'être mis en place. La suite de cette section
+décrit l'installation à la main.
+
 Étape facultative : sans le modèle, tout fonctionne sauf la lecture par l'IA.
 
 | | |
@@ -151,6 +155,19 @@ LOCAL_AI_ENABLED=false
 La page d'analyse affiche alors « IA locale indisponible. IA locale désactivée (LOCAL_AI_ENABLED=false). » et rien
 n'est généré à sa place. Changer de modèle ou de chemin demande un redémarrage du serveur : le modèle déjà chargé
 reste en mémoire.
+
+## Recherche web (facultatif, gratuit)
+
+La recherche web et la recherche de fournisseur passent par SearXNG, un moteur open source qui tourne sur ton
+ordinateur : ni clé, ni compte, ni quota. Installe-le une fois :
+
+```bash
+npm run search:setup
+```
+
+Sous Windows, il s'installe dans WSL (Docker n'est pas nécessaire) ; il faut donc WSL avec une distribution Linux.
+L'application le démarre toute seule quand tu acceptes une recherche ; `npm run search:start` le lance à la main.
+Il écoute seulement sur `127.0.0.1:8888`. Variables : `SEARXNG_URL` et `SEARXNG_AUTOSTART=false`.
 
 ## 5. Base de données
 

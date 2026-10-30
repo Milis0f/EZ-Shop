@@ -148,6 +148,22 @@ Chaque indicateur porte sa nature. Survole une valeur pour voir sa méthode, ses
 Sur téléphone, toutes les pages s'empilent sur une colonne :
 
 
+## Rechercher sur le web
+
+Sous chaque rapport, l'application demande : « Rechercher « ton produit » sur le web ? ». Rien ne part tant que tu n'as
+pas répondu oui. L'IA lit quelques pages et résume, avec les liens. Le résultat est marqué « Non vérifié » et n'entre
+jamais dans le score ni le verdict. Si l'IA cite un nombre absent des pages lues, son résumé est écarté.
+
+## Vérifier un concurrent
+
+Ouvre **Concurrent** (lien sur l'accueil, ou barre de navigation en mode avancé) et colle une page produit.
+
+- **Observé** : ce que la page publie (prix, variantes, stock sur Shopify, date de mise en ligne, avis, livraison, applis).
+- **Ventes** : toujours `DATA_INSUFFICIENT`. Aucune boutique ne les publie et l'application ne les devine pas.
+- **Hypothèses** : indices de dropshipping et, si tu coches l'option, fournisseurs probables. Rien ne prouve où la boutique achète.
+
+Les sites qui l'interdisent dans leur `robots.txt` ne sont pas lus, ni les adresses privées.
+
 ## Brancher des sources
 
 La page **Sources de données** montre l'état de chaque connecteur et son guide pas à pas.

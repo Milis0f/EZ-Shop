@@ -26,7 +26,8 @@ Autocomplete, customs tariffs, VAT, ECB exchange rates) answer without an accoun
 
 ### Optional: enable the local AI
 
-Download the model (about 5.7 GB) into `.data/models/`:
+Click **Install the AI** in the app: it downloads the free model (about 5.7 GB), checks the file and can resume if
+stopped. Or download it yourself into `.data/models/`:
 
 ```bash
 pip install -U huggingface_hub
@@ -36,6 +37,16 @@ hf download unsloth/Qwen3.5-9B-GGUF Qwen3.5-9B-Q4_K_M.gguf --local-dir .data/mod
 SHA-256: `03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8`. A GPU with about 8 GB of VRAM is
 recommended (Vulkan, CUDA or Metal through prebuilt binaries; CPU works, slowly). Set `LOCAL_AI_MODEL_PATH` to use
 another location, or `LOCAL_AI_ENABLED=false` to turn the AI off. Without the model, everything else works.
+
+### Optional: enable web search
+
+Free too: [SearXNG](https://github.com/searxng/searxng), an open-source search engine, runs on your own computer with
+no key and no account. On Windows it installs inside WSL; on macOS and Linux, directly. Once installed, the app starts
+it by itself.
+
+```bash
+npm run search:setup
+```
 
 ### Other commands
 
@@ -76,6 +87,15 @@ produces data. Everything the AI wrote is marked by a small animated « aura »,
 AI and what comes from the data.
 
 <img src="docs/screenshots/home-supplier-link.png" alt="Home: an AliExpress link recognised and the price drawer open" width="720">
+
+## Web search and competitors
+
+- **Web search, only if you say yes**: under each report the app asks before searching. The AI reads a few pages and
+  sums them up with their links. Only the search words leave your computer, and the result never enters a score or a
+  verdict. Every number in the summary must appear in the pages read.
+- **Competitor check**: paste a product page. The app shows what the page publishes (prices, variants, stock on
+  Shopify, publication date, reviews, delivery, apps) and keeps clues apart from facts. **Sales are never estimated**,
+  and a supplier is only ever a hypothesis. It reads public pages only and respects `robots.txt`.
 
 ## Connecting more sources
 
