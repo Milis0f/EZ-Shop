@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Suspense } from "react";
+import { AiInstallButton } from "@/components/ai/ai-install-button";
 import { ConnectorsSummary } from "@/components/search/connectors-summary";
 import { RecentAnalyses } from "@/components/search/recent-analyses";
 import { SearchForm } from "@/components/search/search-form";
@@ -11,14 +13,22 @@ const stagger = (i: number) => ({ "--stagger": i }) as React.CSSProperties;
 
 export default async function HomePage() {
   const m = await getMessages("home");
+  const web = await getMessages("web");
   return (
     <>
       <div className="simple:block hidden">
         <SimpleSearch />
+        <p className="mt-6 text-center text-sm">
+          <Link href="/competitor" className="text-muted-foreground underline decoration-line underline-offset-4 transition-colors duration-(--dur-fast) hover:text-foreground">
+            {web.competitor.homeLink}
+          </Link>
+        </p>
       </div>
       <div className="advanced:block hidden">
         <AdvancedHome m={m.advanced} />
       </div>
+
+      <AiInstallButton className="mt-12" />
 
       <section className="mx-auto mt-16 max-w-6xl simple:max-w-3xl" aria-labelledby="recent-title">
         <h2 id="recent-title" className="mb-5 px-1 text-base font-semibold tracking-tight">

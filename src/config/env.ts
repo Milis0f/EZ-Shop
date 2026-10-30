@@ -36,6 +36,17 @@ const envSchema = z.object({
     .optional()
     .transform((v) => (v ? v : DEFAULT_LOCAL_AI_MODEL_PATH)),
 
+  // Web search: a SearXNG on this machine (free, no key), started on demand. See `npm run search:setup`.
+  SEARXNG_URL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v.replace(/\/+$/, "") : "http://127.0.0.1:8888")),
+  SEARXNG_AUTOSTART: z
+    .enum(["true", "false", ""])
+    .default("true")
+    .transform((v) => v !== "false"),
+
   // Google Trends API (alpha, access on application only).
   GOOGLE_TRENDS_API_KEY: optionalSecret,
 

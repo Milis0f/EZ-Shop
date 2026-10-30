@@ -3,6 +3,8 @@
 import { Fragment, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { AiAura, aiRevealClassName, type AiAuraState } from "@/components/ai/ai-aura";
 import { AiBadge } from "@/components/ai/ai-badge";
+import { AiInstallButton } from "@/components/ai/ai-install-button";
+import { useAiInstall } from "@/components/ai/ai-install-store";
 import {
   getInsightView,
   INITIAL_VIEW,
@@ -253,6 +255,27 @@ export function AiInsight({ analysisId, className }: { analysisId: string; class
 
   const thinking = view.kind === "thinking";
   const auraState = AURA_STATE[view.kind];
+
+  // The reading failed only because the model was missing: it runs as soon as the install ends.
+  const install = useAiInstall();
+  const installed = install?.state === "installed";
+  const wasMissing = useRef(false);
+  const notInstalled = install !== null && (install.state === "missing" || install.state === "downloading" || install.state === "verifying" || install.state === "failed");
+  useEffect(() => {
+    if (notInstalled) wasMissing.current = true;
+    if (installed && wasMissing.current) {
+      wasMissing.current = false;
+      retryInsight(analysisId, locale);
+    }
+  }, [notInstalled, installed, analysisId, locale]);
+
+  if (notInstalled && view.kind === "unavailable") {
+    return (
+      <div className={cn("flex justify-center py-6", className)}>
+        <AiInstallButton />
+      </div>
+    );
+  }
 
   return (
     <AiAura ref={auraRef} tabIndex={-1} state={auraState} aria-busy={thinking} className={cn("outline-none focus-visible:outline-2 focus-visible:outline-offset-2", className)} surfaceClassName="p-5 sm:p-6">

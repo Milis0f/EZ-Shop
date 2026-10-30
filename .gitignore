@@ -36,6 +36,7 @@ yarn-error.log*
 
 # local embedded database (PGlite)
 /.data/
+/.playwright-mcp/
 
 # vercel
 .vercel

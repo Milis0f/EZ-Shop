@@ -1,5 +1,6 @@
 "use client";
 
+import { WebResearchAsk } from "@/components/web/web-research";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -279,6 +280,7 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
 
       <section aria-label={p.aiAria} className="mx-auto mt-10 max-w-3xl">
         <AiInsight analysisId={analysis.id} />
+        <WebResearchAsk query={analysis.input.productName} className="mt-4" />
       </section>
 
       <div className="mt-10">

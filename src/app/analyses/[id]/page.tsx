@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WebResearchAsk } from "@/components/web/web-research";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -134,6 +135,7 @@ function AdvancedAnalysis({ analysis, points, unscored, created, locale }: Advan
           {m.ai.intro}
         </SectionTitle>
         <AiInsight analysisId={analysis.id} />
+        <WebResearchAsk query={analysis.input.productName} className="mt-4" />
       </section>
 
       <section aria-labelledby="map-title" className="mt-14 grid grid-cols-1 gap-4 min-[900px]:grid-cols-[minmax(0,1fr)_20rem]">

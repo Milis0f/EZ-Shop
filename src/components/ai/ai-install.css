@@ -1,0 +1,104 @@
+/*
+ * The "Install the AI" button: white, with a soft halo that is mostly white and only faintly coloured.
+ * Pale tints at low strength, so it reads as light on a pearl rather than a rainbow.
+ * Plain global stylesheet, like ai-aura.css (see the note there).
+ */
+
+@property --ai-install-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.ai-install-aura {
+  --tint-a: oklch(0.86 0.07 250);
+  --tint-b: oklch(0.88 0.07 330);
+  --tint-c: oklch(0.9 0.07 170);
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+  border-radius: var(--radius-pill);
+}
+
+.ai-install-aura::before,
+.ai-install-aura::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(from var(--ai-install-angle), #fff, var(--tint-a), #fff 35%, var(--tint-b), #fff 68%, var(--tint-c), #fff);
+  animation: ai-install-turn 9s linear infinite;
+}
+
+/* The ring. */
+.ai-install-aura::before {
+  inset: -1.5px;
+  opacity: 0.9;
+}
+
+/* The light around it. */
+.ai-install-aura::after {
+  inset: -7px;
+  filter: blur(14px);
+  opacity: 0.32;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+.ai-install-aura:hover::after,
+.ai-install-aura:focus-within::after {
+  opacity: 0.5;
+}
+
+.ai-install-button {
+  min-height: 3rem;
+  padding: 0 2rem;
+  border-radius: inherit;
+  background-color: #fff;
+  color: #000;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.ai-install-button:active {
+  transform: scale(0.98);
+}
+
+.ai-install-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 5px;
+}
+
+.ai-install-track {
+  width: 100%;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-2);
+}
+
+.ai-install-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--craie);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+@keyframes ai-install-turn {
+  to {
+    --ai-install-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-install-aura::before,
+  .ai-install-aura::after {
+    animation: none;
+  }
+  .ai-install-button,
+  .ai-install-fill {
+    transition: none;
+  }
+}

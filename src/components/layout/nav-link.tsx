@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, History, PlugZap, Search, type LucideIcon } from "lucide-react";
+import { BookOpen, History, PlugZap, Telescope, Search, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef } from "react";
@@ -26,6 +26,7 @@ interface NavItem {
 const ITEMS: readonly NavItem[] = [
   { href: "/", label: "newAnalysis", shortLabel: "newAnalysisShort", icon: Search, isActive: (p) => p === "/" },
   { href: "/#recent-title", label: "recent", shortLabel: "recentShort", icon: History, isActive: (p) => p.startsWith("/analyses") },
+  { href: "/competitor", label: "competitor", shortLabel: "competitorShort", icon: Telescope, isActive: (p) => p.startsWith("/competitor") },
   { href: "/connectors", label: "sources", shortLabel: "sourcesShort", icon: PlugZap, isActive: (p) => p.startsWith("/connectors") },
   { href: "/methodology", label: "method", shortLabel: "methodShort", icon: BookOpen, isActive: (p) => p.startsWith("/methodology") },
 ];
@@ -95,7 +96,7 @@ function NavLinks({ pathname, layout }: { pathname: string | null; layout: NavLa
   const rail = layout === "rail";
 
   return (
-    <ul ref={listRef} className={cn("group/nav relative isolate", rail ? "flex flex-col gap-1" : "grid grid-cols-4 gap-1")}>
+    <ul ref={listRef} className={cn("group/nav relative isolate", rail ? "flex flex-col gap-1" : "grid grid-cols-5 gap-1")}>
       <span
         aria-hidden
         className={cn(

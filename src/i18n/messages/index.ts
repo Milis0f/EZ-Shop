@@ -10,6 +10,7 @@ import * as report from "./report";
 import * as serverMessages from "./server-messages";
 import * as shell from "./shell";
 import type { DeepStringShape } from "./types";
+import * as web from "./web";
 
 /** Every dictionary, by area. One file per area so parallel work never touches the same file. */
 export const MESSAGES = {
@@ -23,6 +24,7 @@ export const MESSAGES = {
   methodology,
   ai,
   serverMessages,
+  web,
 } as const;
 
 export type Area = keyof typeof MESSAGES;
