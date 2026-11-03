@@ -45,6 +45,9 @@ export const youtubeMeta: ProviderMeta = {
   requiredEnv: [...REQUIRED_ENV],
   coverage: { kind: "all" },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: null,
+  termsUrl: "https://developers.google.com/youtube/terms/api-services-terms-of-service",
   notes: [
     "Vidéos publiées sur le produit dans chaque pays sur 12 mois, et vues médianes des plus pertinentes : intérêt et contenus concurrents.",
     "Quota gratuit de 10 000 unités par jour, soit une dizaine d'analyses de 9 pays.",

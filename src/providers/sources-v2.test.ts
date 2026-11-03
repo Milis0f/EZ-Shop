@@ -134,6 +134,15 @@ describe("Trade Tariff parsing", () => {
     expect(parseHeadingLeaves(heading, "6115").map((l) => l.code)).toEqual(["6115950000", "6115961000"]);
   });
 
+  it("takes a heading with no subdivision as its own declarable line (9617, vacuum flasks)", () => {
+    const flask = {
+      data: { id: "54742", type: "heading", attributes: { goods_nomenclature_item_id: "9617000000", declarable: true, description_plain: "Vacuum flasks and other vacuum vessels" } },
+      included: [{ id: "9", type: "measure", attributes: {} }],
+    };
+    expect(parseHeadingLeaves(flask, "9617000000")).toEqual([{ code: "9617000000", description: "Vacuum flasks and other vacuum vessels" }]);
+    expect(parseHeadingLeaves({ ...flask, data: { ...flask.data, attributes: { ...flask.data.attributes, declarable: false } } }, "9617")).toEqual([]);
+  });
+
   it("applies erga omnes, group preferences and origin-specific measures for the given origin only", () => {
     const measure = (id: string, type: string, duty: string, geo: string) => ({
       id,
@@ -358,5 +367,22 @@ describe("cache validity predicates", () => {
 
     expect(isWikidataEntities({ entities: { Q1: { id: "Q1", missing: "" } }, success: 1 })).toBe(true);
     expect(isWikidataEntities({ error: { code: "no-such-entity" }, success: 0 })).toBe(false);
+  });
+});
+
+describe("ECB Data Portal rates", () => {
+  it("keeps the latest day's rate of each currency still quoted, and leaves out the ones the ECB stopped", async () => {
+    const { parseEcbRates } = await import("./reference/ecb-fx");
+    const payload = {
+      dataSets: [{ series: { "0:0:0:0:0": { observations: { "0": [91.5953, 0, 0, null, 0] } }, "0:1:0:0:0": { observations: { "1": [1.0812, 0] } }, "0:2:0:0:0": { observations: { "1": [0.8421, 0] } } } }],
+      structure: {
+        dimensions: {
+          series: [{ id: "FREQ", values: [{ id: "D" }] }, { id: "CURRENCY", values: [{ id: "ARS" }, { id: "USD" }, { id: "GBP" }] }, { id: "CURRENCY_DENOM", values: [{ id: "EUR" }] }],
+          observation: [{ values: [{ id: "2020-10-30" }, { id: "2026-11-03" }] }],
+        },
+      },
+    };
+    expect(parseEcbRates(payload)).toEqual({ date: "2026-11-03", rates: { USD: 1.0812, GBP: 0.8421 } });
+    expect(parseEcbRates({ base: "EUR", rates: {} })).toBeNull();
   });
 });

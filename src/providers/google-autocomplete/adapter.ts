@@ -36,6 +36,9 @@ export const googleAutocompleteMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  maturity: "experimental",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://policies.google.com/terms",
   unofficial: true,
   notes: [
     "Recherches associées réellement tapées dans chaque pays (achat, avis, marques, marketplaces). Aucun volume.",

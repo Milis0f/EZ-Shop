@@ -33,6 +33,9 @@ export const googleTrendsMeta: ProviderMeta = {
   requiredEnv: ["GOOGLE_TRENDS_API_KEY"],
   coverage: { kind: "all" },
   verification: "not_implemented",
+  maturity: "disabled",
+  lastVerifiedAt: null,
+  termsUrl: null,
   notes: [
     "Indice relatif 0–100 : donne la forme de la demande (tendance, saisonnalité), pas un volume.",
     "Accès alpha sur candidature ; format de réponse non public.",

@@ -42,6 +42,9 @@ export const ukTradeTariffMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
   notes: [
     "Classement douanier (code SH) et droits à l'import pour le Royaume-Uni et l'Union européenne, selon le pays d'origine.",
     "Inclut la taxe UE temporaire de 3 € par article sur les colis de moins de 150 € (depuis le 1er juillet 2026).",

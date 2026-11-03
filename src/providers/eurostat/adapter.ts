@@ -45,6 +45,9 @@ export const eurostatMeta: ProviderMeta = {
     note: "UE + Suisse (séries partielles). Royaume-Uni absent depuis le Brexit.",
   },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://ec.europa.eu/eurostat/about-us/policies/copyright",
   notes: ["Part des individus ayant acheté en ligne sur les 12 derniers mois (isoc_ec_ib20, I_BLT12)."],
 };
 

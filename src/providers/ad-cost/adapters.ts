@@ -32,6 +32,9 @@ export const metaMarketingMeta: ProviderMeta = {
   requiredEnv: ["META_MARKETING_ACCESS_TOKEN", "META_AD_ACCOUNT_ID"],
   coverage: { kind: "all" },
   verification: "not_implemented",
+  maturity: "disabled",
+  lastVerifiedAt: null,
+  termsUrl: null,
   notes: ["Estimation officielle dépendante du ciblage et de l'objectif — jamais une garantie de coût."],
 };
 
@@ -47,6 +50,9 @@ export const tiktokBusinessMeta: ProviderMeta = {
   requiredEnv: ["TIKTOK_BUSINESS_ACCESS_TOKEN", "TIKTOK_ADVERTISER_ID"],
   coverage: { kind: "all" },
   verification: "not_implemented",
+  maturity: "disabled",
+  lastVerifiedAt: null,
+  termsUrl: null,
   notes: ["Le Reach Estimator dépend du budget, de l'objectif, du ciblage et de la stratégie d'enchères."],
 };
 

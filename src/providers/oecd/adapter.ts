@@ -45,6 +45,9 @@ export const oecdMeta: ProviderMeta = {
     note: "Pays membres de l'OCDE.",
   },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: null,
   notes: ["Indicateur de confiance des consommateurs (CCI), ajusté en amplitude, moyenne long terme = 100."],
 };
 

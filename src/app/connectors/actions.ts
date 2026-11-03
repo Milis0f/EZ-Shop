@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { connectorFields, validateEnvValue } from "@/config/connector-fields";
 import { REAL_PROVIDER_METAS } from "@/providers/registry";
 import { checkConnector } from "@/server/connector-check";
+import { isLocalRequest } from "@/server/connector-config";
+import { testConnectorHealth } from "@/server/connector-health";
+import type { HealthResult } from "@/providers/health-probes";
 import { getLocale, getMessages } from "@/i18n/server";
 import { plural, t } from "@/i18n/translate";
 import { updateEnvLocal, type EnvUpdate } from "@/server/env-file";
@@ -14,6 +17,22 @@ import type { ConnectorFormState, ConnectorTestResult } from "./form-state";
 const SAVE_RATE_LIMIT = { limit: 20, windowMs: 60_000 } as const;
 /** Each test spends real API quota: a few per minute is plenty to fix a setting. */
 const TEST_RATE_LIMIT = { limit: 6, windowMs: 60_000 } as const;
+
+const HEALTH_RATE_LIMIT = { limit: 20, windowMs: 60_000 } as const;
+
+/**
+ * "Test now": one real read of the source, in development and in production alike (it changes no
+ * setting), from this computer only. The outcome is kept for the page.
+ */
+export async function testSourceHealth(providerId: string): Promise<{ ok: true; result: HealthResult } | { ok: false; reason: "remote" | "too_many" | "unknown" }> {
+  if (!(await isLocalRequest())) return { ok: false, reason: "remote" };
+  if (!checkRateLimit("connectors:health", HEALTH_RATE_LIMIT.limit, HEALTH_RATE_LIMIT.windowMs).allowed) return { ok: false, reason: "too_many" };
+  const meta = REAL_PROVIDER_METAS.find((m) => m.id === providerId);
+  const result = meta ? await testConnectorHealth(meta.id) : null;
+  if (!result) return { ok: false, reason: "unknown" };
+  revalidatePath("/connectors");
+  return { ok: true, result };
+}
 
 /** Tries the saved credentials against the real API, step by step. Nothing is written. */
 export async function testConnectorConnection(providerId: string): Promise<ConnectorTestResult> {

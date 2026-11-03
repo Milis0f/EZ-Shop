@@ -45,8 +45,12 @@ export const vatRatesMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  // The EU rates rest on a third party run by one developer, with no stated upstream source.
+  maturity: "experimental",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: null,
   notes: [
-    "Taux normal de TVA de chaque pays de destination : UE via vatcomply.com, autres pays depuis les administrations fiscales.",
+    "Taux normal de TVA de chaque pays de destination : UE via vatcomply.com (service tiers d'un développeur indépendant, sans source amont déclarée ; la référence officielle est la base TEDB de la Commission européenne), autres pays recopiés depuis les administrations fiscales.",
     "Sert à comparer les prix affichés TTC avec ton prix HT ; la TVA n'entre pas dans ta marge.",
   ],
 };

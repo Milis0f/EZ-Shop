@@ -86,12 +86,21 @@ export interface LeafCommodity {
 
 /** Declarable end-lines of a heading whose code starts with `prefix` (4 to 10 digits). */
 export function parseHeadingLeaves(payload: unknown, prefix: string): LeafCommodity[] {
-  return (asDoc(payload).included ?? [])
+  const doc = asDoc(payload);
+  const leaves = (doc.included ?? [])
     .filter((r) => r.type === "commodity" && r.attributes?.leaf === true)
     .flatMap((r) => {
       const code = str(r.attributes?.goods_nomenclature_item_id);
       return code && code.startsWith(prefix) ? [{ code, description: str(r.attributes?.description_plain) ?? str(r.attributes?.description) ?? "" }] : [];
     });
+  if (leaves.length > 0) return leaves;
+  // A heading with no subdivision (9617 vacuum flasks) is itself the declarable line: no commodity under it.
+  const self = Array.isArray(doc.data) ? undefined : doc.data;
+  const heading = self?.attributes;
+  const code = str(heading?.goods_nomenclature_item_id);
+  return self?.type === "heading" && heading?.declarable === true && code?.startsWith(prefix.slice(0, 4))
+    ? [{ code, description: str(heading.description_plain) ?? str(heading.description) ?? "" }]
+    : [];
 }
 
 // ---------- Commodity → measures applicable to an origin ----------

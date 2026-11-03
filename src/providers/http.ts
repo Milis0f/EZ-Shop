@@ -5,7 +5,11 @@ import { fail, ok, type ProviderErrorCode, type ProviderResult } from "./contrac
 
 /** Shared HTTP layer: timeout, bounded retry on transient errors, typed failures. */
 
-export const USER_AGENT = "EZ-Shop/0.1 (+pre-launch product research; country-level statistics)";
+/**
+ * Names the software and where to reach its maintainers, as open APIs ask (Wikimedia counts a full URL
+ * as contact information). Each install calls the providers itself: there is no EZ-Shop server.
+ */
+export const USER_AGENT = "EZ-Shop/0.1 (+https://github.com/Milis0f/EZ-Shop; pre-launch product research)";
 
 export interface HttpOptions {
   readonly timeoutMs: number;
@@ -39,6 +43,28 @@ function codeForStatus(status: number): { code: ProviderErrorCode; retryable: bo
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Longest pause the shared layer accepts before a retry; a longer Retry-After means "not now": no retry. */
+export const MAX_RETRY_WAIT_MS = 30_000;
+
+/** Retry-After as seconds or an HTTP date, in ms from `now`; null when absent or unreadable. */
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  if (!header) return null;
+  const seconds = Number(header.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const at = Date.parse(header);
+  return Number.isNaN(at) ? null : Math.max(0, at - now);
+}
+
+/**
+ * Pause before attempt `attempt + 1`: the provider's own Retry-After when it gave one, else an
+ * exponential backoff (×2 each time, longer after a 429) with a little jitter so retries do not align.
+ */
+export function backoffMs(attempt: number, rateLimited: boolean, retryAfter: number | null, random = Math.random): number {
+  if (retryAfter !== null) return retryAfter;
+  const base = (rateLimited ? 1200 : 400) * 2 ** (attempt - 1);
+  return Math.round(base * (0.85 + random() * 0.3));
+}
+
 /**
  * Fetch a URL as text. `label` is what appears in error messages: it must never
  * contain credentials (tokens are often passed in query strings).
@@ -46,8 +72,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function httpText(url: string, label: string, options: HttpOptions): Promise<ProviderResult<string>> {
   const attempts = Math.max(1, options.attempts ?? 2);
   let last: ProviderResult<string> = fail("upstream_error", `${label}: no attempt made`);
+  let wait: number | null = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    wait = null;
     try {
       const response = await fetch(url, {
         method: options.method ?? "GET",
@@ -58,6 +86,7 @@ export async function httpText(url: string, label: string, options: HttpOptions)
       });
       if (response.ok) return ok(await response.text());
       const { code, retryable } = codeForStatus(response.status);
+      wait = retryAfterMs(response.headers.get("retry-after"));
       const described = options.describeError?.(response.status, await response.text().catch(() => ""));
       const reason = described && SAFE_REASON.test(described.reason) ? described.reason : undefined;
       last = fail(described?.code ?? code, `${label}: HTTP ${response.status}${reason ? ` (${reason})` : ""}`, retryable);
@@ -66,8 +95,10 @@ export async function httpText(url: string, label: string, options: HttpOptions)
       const isTimeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
       last = fail(isTimeout ? "timeout" : "upstream_error", `${label}: ${isTimeout ? "timeout" : "network error"}`, true);
     }
-    // Throttling (429) needs a longer pause than a transient server error.
-    if (attempt < attempts) await sleep((!last.ok && last.error.code === "rate_limited" ? 1200 : 400) * attempt);
+    if (attempt >= attempts) break;
+    // A provider asking to wait longer than we would is respected: no retry now, the error says so.
+    if (wait !== null && wait > MAX_RETRY_WAIT_MS) return last;
+    await sleep(backoffMs(attempt, !last.ok && last.error.code === "rate_limited", wait));
   }
   return last;
 }

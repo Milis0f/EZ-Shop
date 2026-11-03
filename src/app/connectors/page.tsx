@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ConnectorDialog } from "@/components/connectors/connector-dialog";
 import { ConnectorFrame, FreshNote } from "@/components/connectors/connector-frame";
+import { HealthCheck } from "@/components/connectors/health-check";
 import { SOURCE_STATUS_ORDER, sourceStatus, StatusChip, StatusDot, type SourceStatus } from "@/components/connectors/source-status";
 import { ProgressRing } from "@/components/motion/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,13 +14,14 @@ import { connectorGroups, connectorGuides } from "@/config/connector-guides";
 import type { ProviderState } from "@/domain/analysis";
 import { connectorName } from "@/engine/report/localize";
 import type { Locale } from "@/i18n/config";
-import { formatInt } from "@/i18n/format";
+import { formatInt, formatPeriodEnd } from "@/i18n/format";
 import type { Messages } from "@/i18n/messages";
 import { getLocale, getMessages } from "@/i18n/server";
 import { plural, t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 import type { ProviderMeta } from "@/providers/contracts";
 import { fieldStates } from "@/server/connector-config";
+import { lastHealth } from "@/server/connector-health";
 import { getConnectorOverview } from "@/server/services";
 import { localizedEditorAccess } from "./editor-access";
 
@@ -127,6 +129,7 @@ function Summary({ statuses, locale, m }: SummaryProps) {
 async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly m: ConnectorMessages }) {
   await connection();
   const [{ connectors }, editor] = await Promise.all([getConnectorOverview(), localizedEditorAccess(locale)]);
+  const health = await lastHealth(connectors.map((c) => c.meta.id));
   const guides = connectorGuides(locale);
   const rows = connectors.map(({ meta, status }) => {
     const fields = fieldStates(meta);
@@ -180,6 +183,9 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                     <div className="flex flex-wrap gap-1.5 text-xs">
                       {guide && <span className="rounded-pill bg-surface-2 px-3 py-1 text-muted-foreground">{guide.cost}</span>}
                       {guide?.setupTime && <span className="rounded-pill bg-surface-2 px-3 py-1 text-muted-foreground">{guide.setupTime}</span>}
+                      <span title={m.maturityHint[meta.maturity]} className="rounded-pill bg-surface-2 px-3 py-1 text-muted-foreground">
+                        {m.maturity[meta.maturity]}
+                      </span>
                       {meta.unofficial && (
                         <span
                           title={guide?.unofficialNote ?? meta.notes[1] ?? undefined}
@@ -212,6 +218,18 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                       <div className="min-w-0 space-y-0.5">
                         <p className="text-foreground">{footerDetail(fields, status.state, meta.access, m, locale)}</p>
                         <p className="text-muted-foreground">{m.verification[meta.verification]}</p>
+                        <p className="text-muted-foreground">
+                          {meta.lastVerifiedAt ? t(m.verifiedOn, { date: formatPeriodEnd(meta.lastVerifiedAt, locale) }) : m.neverVerified}
+                          {meta.termsUrl && (
+                            <>
+                              {" "}
+                              <a href={meta.termsUrl} target="_blank" rel="noreferrer" className="underline decoration-line underline-offset-4 hover:decoration-foreground">
+                                {m.terms}
+                              </a>
+                            </>
+                          )}
+                        </p>
+                        {meta.maturity !== "disabled" && <HealthCheck providerId={meta.id} last={health.get(meta.id) ?? null} />}
                         <FreshNote />
                       </div>
                       {fields.length > 0 && (

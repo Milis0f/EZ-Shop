@@ -55,6 +55,9 @@ export const googleAdsMeta: ProviderMeta = {
   requiredEnv: [...REQUIRED_ENV],
   coverage: { kind: "all" },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: null,
   notes: [
     "Volumes mensuels absolus, indice de concurrence, enchères haut de page (micros → devise du compte).",
     "Plus de jeton développeur : l'accès dépend du projet Google Cloud du client OAuth. Keyword Planner exige le niveau Basic (vérification de la marque).",

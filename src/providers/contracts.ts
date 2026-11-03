@@ -30,6 +30,30 @@ export type ProviderCategory =
  */
 export type VerificationLevel = "live_verified" | "documented_unverified" | "not_implemented";
 
+/**
+ * How stable a connector is, apart from how one connects to it:
+ * - stable:       run for real, behaves as documented;
+ * - beta:         written from the official docs, works in tests, not yet proven on a real account;
+ * - experimental: works, but rests on something that may change (an undocumented endpoint, a third party);
+ * - deprecated:   kept for existing data, being replaced;
+ * - disabled:     not usable yet (contract only, or access refused).
+ */
+export type ConnectorMaturity = "stable" | "beta" | "experimental" | "deprecated" | "disabled";
+
+/**
+ * How a person gets a connector to work, derived from its metadata (never declared twice):
+ * - automatic:     no account, no key, works right after installing;
+ * - one_click:     an official sign-in with EZ-Shop's own public app (none qualifies yet);
+ * - advanced:      the person's own key, developer app or approval;
+ * - not_qualified: not usable as it stands.
+ */
+export type AccessClass = "automatic" | "one_click" | "advanced" | "not_qualified";
+
+export function accessClass(meta: Pick<ProviderMeta, "access" | "verification" | "maturity">): AccessClass {
+  if (meta.verification === "not_implemented" || meta.maturity === "disabled") return "not_qualified";
+  return meta.access === "open" ? "automatic" : "advanced";
+}
+
 export type ProviderCoverage =
   | { readonly kind: "all" }
   | { readonly kind: "list"; readonly countries: readonly CountryCode[]; readonly note: string };
@@ -47,6 +71,11 @@ export interface ProviderMeta {
   readonly requiredEnv: readonly string[];
   readonly coverage: ProviderCoverage;
   readonly verification: VerificationLevel;
+  readonly maturity: ConnectorMaturity;
+  /** Day the connector was last checked against the real service by this project; null if never. */
+  readonly lastVerifiedAt: string | null;
+  /** The provider's terms of use for this API or data, when checked; null when not verified. */
+  readonly termsUrl: string | null;
   readonly notes: readonly string[];
   /** Public endpoint not documented as an API by its owner: may change or stop without notice. */
   readonly unofficial?: boolean;

@@ -46,6 +46,9 @@ export const aliexpressMeta: ProviderMeta = {
   requiredEnv: [...REQUIRED_ENV],
   coverage: { kind: "all" },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: null,
+  termsUrl: null,
   notes: [
     "Prix d'achat réels du produit sur AliExpress, nombre de ventes récentes et notes des vendeurs : ton coût de sourcing.",
     "Compte affilié gratuit et application validée par AliExpress (1 à 3 jours ouvrés).",

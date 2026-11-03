@@ -38,6 +38,9 @@ export const worldBankMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets",
   notes: [
     "Population, PIB par habitant PPA, part d'internautes. Dernière valeur non vide (mrnev=1).",
     "Données annuelles, souvent publiées avec 1 à 2 ans de décalage.",

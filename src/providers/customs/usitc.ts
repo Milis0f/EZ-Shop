@@ -37,6 +37,9 @@ export const usitcMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "list", countries: ["US"], note: "États-Unis uniquement." },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: null,
   notes: [
     "Droits à l'import aux États-Unis par code SH : taux général, préférences des accords et colonne 2.",
     "Les droits additionnels du chapitre 99 (section 301, mesures par origine) sont signalés mais pas calculés.",

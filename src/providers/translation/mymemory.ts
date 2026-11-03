@@ -28,6 +28,9 @@ export const myMemoryMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  maturity: "beta",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://mymemory.translated.net/doc/usagelimits.php",
   notes: ["Traduit le nom du produit dans la langue de chaque pays analysé ; tes propres traductions restent prioritaires."],
 };
 

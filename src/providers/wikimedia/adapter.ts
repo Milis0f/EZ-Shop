@@ -42,6 +42,9 @@ export const wikimediaMeta: ProviderMeta = {
   requiredEnv: [],
   coverage: { kind: "all" },
   verification: "live_verified",
+  maturity: "stable",
+  lastVerifiedAt: "2026-11-03",
+  termsUrl: "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
   notes: [
     "Lectures mensuelles de l'article le plus proche du produit (souvent la catégorie : « Chaussette »), par langue.",
     "Donne la forme de l'intérêt (tendance, saisonnalité), jamais un volume, et par langue, pas par pays.",
@@ -214,13 +217,13 @@ export class WikimediaProvider implements TopicInterestProvider {
   }
 
   private get userAgent(): string {
-    return this.contact ? `EZ-Shop/0.1 (${this.contact}) pre-launch product research` : USER_AGENT;
+    return this.contact ? `EZ-Shop/0.1 (${this.contact}; +https://github.com/Milis0f/EZ-Shop) pre-launch product research` : USER_AGENT;
   }
 
   private limitMessage(): string {
     return this.contact
       ? "Wikipédia : limite de requêtes atteinte, réessaie dans une minute"
-      : "Wikipédia limite les requêtes sans contact à 10 par minute : ajoute un contact dans Sources de données pour passer à 200";
+      : "Wikipédia : limite de requêtes atteinte ; ajoute ton propre contact dans Sources de données si cela se répète";
   }
 
   constructor(
@@ -231,7 +234,8 @@ export class WikimediaProvider implements TopicInterestProvider {
   ) {}
 
   status(): ProviderStatus {
-    return { state: "ready", detail: this.contact ? "API ouverte, contact renseigné (200 requêtes/min)." : "API ouverte, sans contact : 10 requêtes/min." };
+    // The User-Agent always carries the project's URL, which Wikimedia accepts as contact information.
+    return { state: "ready", detail: this.contact ? "API ouverte, ton contact renseigné (200 requêtes/min)." : "API ouverte, contact du projet EZ-Shop (200 requêtes/min)." };
   }
 
   async getTopicInterest(query: TopicInterestQuery): Promise<ProviderResult<TopicInterestObservation>> {

@@ -71,6 +71,9 @@ export const ebayMeta: ProviderMeta = {
     note: "Pays avec un site eBay national (pas le Luxembourg, le Portugal, la Suède ni le Danemark).",
   },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: null,
+  termsUrl: "https://developer.ebay.com/join/api-license-agreement",
   notes: [
     "Annonces et prix réels du produit sur le site eBay de chaque pays, et part des vendeurs basés en Chine.",
     "Compte développeur gratuit ; données publiques d'annonces, aucune vente lue.",

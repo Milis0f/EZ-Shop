@@ -63,6 +63,9 @@ export const metaAdLibraryMeta: ProviderMeta = {
     note: "Toutes les publicités : pays de l'UE uniquement (DSA). Hors UE : publicités politiques seulement.",
   },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: null,
+  termsUrl: "https://developers.facebook.com/terms/",
   notes: [
     "Mesure la présence publicitaire visible (annonces, annonceurs), jamais les ventes ni les budgets.",
     "Compte développeur vérifié + jeton d'accès requis.",

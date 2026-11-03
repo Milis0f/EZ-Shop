@@ -5,7 +5,7 @@ import { MemoryCacheRepository } from "@/server/repositories/memory-repositories
 import { EbayBrowseProvider } from "./ebay/adapter";
 import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
 import { ok } from "./contracts";
-import { cached, httpJson, httpText } from "./http";
+import { backoffMs, cached, httpJson, httpText, MAX_RETRY_WAIT_MS, retryAfterMs } from "./http";
 import { MetaAdLibraryProvider } from "./meta-ad-library/adapter";
 import { OecdProvider } from "./oecd/adapter";
 import { TikTokCommercialContentProvider } from "./tiktok-commercial/adapter";
@@ -42,6 +42,34 @@ function fakeClock(start = "2026-10-16T12:00:00Z") {
 }
 
 describe("http layer", () => {
+  it("reads Retry-After as seconds or as a date", () => {
+    expect(retryAfterMs("2")).toBe(2000);
+    expect(retryAfterMs(new Date(Date.UTC(2026, 10, 3, 12, 0, 5)).toUTCString(), Date.UTC(2026, 10, 3, 12, 0, 0))).toBe(5000);
+    expect(retryAfterMs(null)).toBeNull();
+    expect(retryAfterMs("soon")).toBeNull();
+  });
+
+  it("backs off exponentially, longer after a 429, and follows the provider's own pause first", () => {
+    const fixed = () => 0.5;
+    expect(backoffMs(1, false, null, fixed)).toBe(400);
+    expect(backoffMs(2, false, null, fixed)).toBe(800);
+    expect(backoffMs(3, true, null, fixed)).toBe(4800);
+    expect(backoffMs(1, true, 2500, fixed)).toBe(2500);
+  });
+
+  it("waits as long as a 429 asks, then retries", async () => {
+    let n = 0;
+    const calls = stubFetch(() => (++n === 1 ? new Response("", { status: 429, headers: { "Retry-After": "0" } }) : new Response("ok")));
+    expect(await httpText("https://x.test", "X", { timeoutMs: 500, attempts: 2 })).toEqual({ ok: true, data: "ok" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("does not retry when the provider asks to wait longer than it is worth now", async () => {
+    const calls = stubFetch(() => new Response("", { status: 429, headers: { "Retry-After": String(MAX_RETRY_WAIT_MS / 1000 + 60) } }));
+    expect(await httpText("https://x.test", "X", { timeoutMs: 500, attempts: 3 })).toMatchObject({ ok: false, error: { code: "rate_limited" } });
+    expect(calls).toHaveLength(1);
+  });
+
   it("retries transient 5xx failures then succeeds", async () => {
     let n = 0;
     const calls = stubFetch(() => (++n === 1 ? new Response("boom", { status: 503 }) : new Response("ok")));

@@ -48,6 +48,9 @@ export const tiktokCommercialMeta: ProviderMeta = {
     note: "Publicités diffusées dans l'UE.",
   },
   verification: "documented_unverified",
+  maturity: "beta",
+  lastVerifiedAt: null,
+  termsUrl: null,
   notes: ["Présence publicitaire visible (annonces, annonceurs, dates). Candidature et approbation requises."],
 };
 
