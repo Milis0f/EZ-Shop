@@ -232,23 +232,42 @@ function createEngine(runtime: LoadedRuntime, info: AiModelInfo, queue: ReturnTy
   };
 }
 
+/** Reloads after a context that did not fit on the card: at most this many tries, each with a fifth fewer layers there. */
+const MAX_FIT_TRIES = 5;
+const FIT_STEP = 0.8;
+
+/** The layers to keep on the card for the next try, or null to give up (not a card-memory error, or nothing left to move). */
+export function fewerLayers(onCard: number | undefined, error: unknown, attempt: number): number | null {
+  if (attempt >= MAX_FIT_TRIES || typeof onCard !== "number" || onCard <= 0) return null;
+  if (!(error instanceof Error) || !/vram/i.test(error.message)) return null;
+  return Math.floor(onCard * FIT_STEP);
+}
+
 async function loadRuntime(modelPath: string, gpu: boolean): Promise<LoadedRuntime> {
   const { getLlama, LlamaChatSession, QwenChatWrapper, defineChatSessionFunction } = await import("node-llama-cpp");
   // Prebuilt binaries only (Vulkan / CUDA / CPU): never compile llama.cpp from a web request.
   const llama = await getLlama(gpu ? { build: "never" } : { build: "never", gpu: false });
   try {
-    // A model larger than the card keeps room there for its context: the layers that do not fit go to memory.
-    const model = await llama.loadModel({ modelPath, gpuLayers: { fitContext: { contextSize: CONTEXT_SIZE } } });
-    try {
-      // The full context when the card holds it; else the largest that fits, never under half.
-      const context = await model
-        .createContext({ contextSize: CONTEXT_SIZE, sequences: 1 })
-        .catch(() => model.createContext({ contextSize: { min: CONTEXT_SIZE / 2, max: CONTEXT_SIZE }, sequences: 1 }));
-      const chatWrapper = new QwenChatWrapper({ variation: "3.5", thoughts: "discourage" });
-      return { llama, model, context, chatWrapper, LlamaChatSession, defineFunction: defineChatSessionFunction };
-    } catch (error) {
-      await model.dispose().catch(() => undefined);
-      throw error;
+    // The card first, then memory: as many layers on the card as leave room for the context there, the
+    // rest from memory. node-llama-cpp's estimate can be too generous for the Qwen 3.5 architecture on
+    // a card smaller than the model; then the model is loaded again with fewer layers on the card.
+    let gpuLayers: number | { fitContext: { contextSize: number } } = { fitContext: { contextSize: CONTEXT_SIZE } };
+    for (let attempt = 1; ; attempt += 1) {
+      const model = await llama.loadModel({ modelPath, gpuLayers });
+      try {
+        // The full context when the card holds it; else the largest that fits, never under half.
+        const context = await model
+          .createContext({ contextSize: CONTEXT_SIZE, sequences: 1 })
+          .catch(() => model.createContext({ contextSize: { min: CONTEXT_SIZE / 2, max: CONTEXT_SIZE }, sequences: 1 }));
+        const chatWrapper = new QwenChatWrapper({ variation: "3.5", thoughts: "discourage" });
+        return { llama, model, context, chatWrapper, LlamaChatSession, defineFunction: defineChatSessionFunction };
+      } catch (error) {
+        const onCard = model.gpuLayers;
+        await model.dispose().catch(() => undefined);
+        const fewer = fewerLayers(onCard, error, attempt);
+        if (fewer === null) throw error;
+        gpuLayers = fewer;
+      }
     }
   } catch (error) {
     // Each retry would otherwise leave one more backend instance behind.
@@ -327,12 +346,12 @@ export async function releaseLocalAiEngine(): Promise<void> {
 }
 
 /** The memory the loaded model takes right now, read from its backend; null when no model is loaded. */
-export async function localAiMemory(): Promise<{ readonly vram: number; readonly ram: number; readonly gpu: string | false } | null> {
+export async function localAiMemory(): Promise<{ readonly vram: number; readonly ram: number; readonly gpu: string | false; readonly gpuLayers: number; readonly totalLayers: number } | null> {
   const runtime = engineState().runtime;
   if (!runtime) return null;
   try {
     const usage = await runtime.llama.getLlamaMemoryUsage();
-    return { vram: usage.gpuVram, ram: usage.cpuRam, gpu: runtime.llama.gpu };
+    return { vram: usage.gpuVram, ram: usage.cpuRam, gpu: runtime.llama.gpu, gpuLayers: runtime.model.gpuLayers, totalLayers: runtime.model.fileInsights.totalLayers };
   } catch {
     return null;
   }

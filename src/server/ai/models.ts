@@ -2,12 +2,14 @@ import path from "node:path";
 import type { AiModelInfo } from "./types";
 
 /**
- * The local models EZ-Shop offers, from the smallest to the largest. All are Qwen 3.5 (Apache-2.0) in
- * the Q4_K_M quantisation from unsloth, so the same chat wrapper and prompts serve each of them. Sizes
- * and SHA-256 come from Hugging Face's file listing; a download is put in place only if its hash matches.
+ * The local models EZ-Shop offers, from the smallest to the largest: Qwen 3.5 2B, 4B and 9B, then
+ * Qwen 3.8 27B, all Apache-2.0 in a Q4_K_M quantisation from unsloth. Qwen 3.8 is built on the same
+ * architecture as 3.5 (`qwen35` in its GGUF header), so the same chat wrapper and prompts serve each of
+ * them. Sizes and SHA-256 come from Hugging Face's file listing; a download is put in place only if its
+ * hash matches. The 27B is dense: on a card smaller than it, the layers that do not fit run from memory.
  */
 
-export const AI_MODEL_IDS = ["qwen3.5-2b", "qwen3.5-4b", "qwen3.5-9b", "qwen3.5-35b-a3b"] as const;
+export const AI_MODEL_IDS = ["qwen3.5-2b", "qwen3.5-4b", "qwen3.5-9b", "qwen3.8-27b"] as const;
 export type AiModelId = (typeof AI_MODEL_IDS)[number];
 
 export const AI_MODEL_TIERS = ["tiny", "light", "balanced", "strong"] as const;
@@ -68,14 +70,14 @@ export const AI_MODELS: readonly AiModelSpec[] = [
     license: "Apache-2.0",
   },
   {
-    id: "qwen3.5-35b-a3b",
-    name: "Qwen3.5-35B-A3B (Q4_K_M)",
+    id: "qwen3.8-27b",
+    name: "Qwen3.8-27B (Q4_K_M)",
     tier: "strong",
-    file: "Qwen3.5-35B-A3B-Q4_K_M.gguf",
-    url: `${HF}/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf`,
-    sha256: "3b46d1066bc91cc2d613e3bc22ce691dd77e6f0d33c9060690d24ce6de494375",
-    bytes: 22_016_023_168,
-    needBytes: 25 * GB,
+    file: "Qwen3.8-27B-UD-Q4_K_M.gguf",
+    url: `${HF}/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf`,
+    sha256: "322e194ff79741c7baa497c240f677f54b201b0efab44ca8e50f122b39123482",
+    bytes: 16_464_440_224,
+    needBytes: 18.5 * GB,
     license: "Apache-2.0",
   },
 ];

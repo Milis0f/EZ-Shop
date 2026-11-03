@@ -39,8 +39,9 @@ recommended (Vulkan, CUDA or Metal through prebuilt binaries; CPU works, slowly)
 another location, or `LOCAL_AI_ENABLED=false` to turn the AI off. Without the model, everything else works.
 
 **Settings → Local AI** shows this computer's memory and graphics card (and the share the loaded model takes), and
-offers four Qwen 3.5 models, each marked fast, split, slow or too heavy for this machine, with one suggested:
-2B (1.3 GB) and 4B (2.7 GB) for small computers, 9B (5.7 GB, the default) and 35B-A3B (22 GB) for large cards. Each
+offers four Qwen models, each marked fast, split, slow or too heavy for this machine, with one suggested:
+Qwen 3.5 2B (1.3 GB) and 4B (2.7 GB) for small computers, 9B (5.7 GB, the default), and Qwen 3.8 27B (16.5 GB) for
+large cards. Each
 download is checked against its SHA-256 before use; switching frees the loaded model. `LOCAL_AI_GPU=off` keeps the
 model on the processor.
 

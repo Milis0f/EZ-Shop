@@ -24,7 +24,8 @@ export interface AiMachine {
   /** ok: the card was read; none: no usable card; failed: it could not be read. */
   readonly gpuProbe: "ok" | "none" | "failed";
   /** Memory the loaded model takes right now; null when no model is loaded. */
-  readonly ai: { readonly vram: number; readonly ram: number } | null;
+  /** What the loaded model takes, and how many of its layers sit on the graphics card (the rest run from memory). */
+  readonly ai: { readonly vram: number; readonly ram: number; readonly layers?: { readonly onGpu: number; readonly total: number; readonly backend: string | false } } | null;
   readonly gpuMode: "auto" | "off";
   /** Free disk space where models are stored; null when unknown. */
   readonly diskFree: number | null;

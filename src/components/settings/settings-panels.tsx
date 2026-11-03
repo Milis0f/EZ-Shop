@@ -137,6 +137,15 @@ function MachinePanel({ machine }: { readonly machine: AiMachine }) {
         {gpu && !gpu.unified ? (
           <MemoryBar label={`${m.graphics} · ${gpu.names.join(", ") || gpu.backend}`} total={gpu.vramTotal} used={gpu.vramUsed} ai={machine.ai?.vram ?? null}>
             {machine.gpuMode === "off" && <span className="mt-1 block">{m.gpuOff}</span>}
+            {machine.ai?.layers && (
+              <span className="mt-1 block">
+                {t(machine.ai.layers.onGpu >= machine.ai.layers.total ? m.layersAll : m.layersSplit, {
+                  onGpu: f.int(machine.ai.layers.onGpu),
+                  total: f.int(machine.ai.layers.total),
+                  backend: machine.ai.layers.backend || "CPU",
+                })}
+              </span>
+            )}
           </MemoryBar>
         ) : (
           <div className="flex flex-col gap-2">

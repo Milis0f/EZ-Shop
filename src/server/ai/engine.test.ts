@@ -192,6 +192,16 @@ describe("getLocalAiEngine", () => {
     expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
   });
 
+  it("moves layers from the card to memory when the context does not fit beside them", async () => {
+    const vram = new Error("A context size of 4096 is too large for the available VRAM");
+    const tooFull = { createContext: vi.fn(async () => Promise.reject(vram)), dispose: vi.fn(async () => undefined), gpuLayers: 37 };
+    fake.llama.loadModel.mockResolvedValueOnce(tooFull as never);
+    const result = await getLocalAiEngine(envWith({}));
+    expect(result.ok).toBe(true);
+    expect(tooFull.dispose).toHaveBeenCalledTimes(1);
+    expect(fake.llama.loadModel).toHaveBeenLastCalledWith({ modelPath: modelFile, gpuLayers: 29 });
+  });
+
   it("frees the backend when the model cannot be loaded", async () => {
     fake.llama.loadModel.mockRejectedValueOnce(new Error("bad file"));
     const result = await getLocalAiEngine(envWith({}));

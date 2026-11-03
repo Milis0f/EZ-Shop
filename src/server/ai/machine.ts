@@ -77,7 +77,7 @@ async function read(env: ServerEnv): Promise<AiMachine> {
     threads: cpus.length,
     gpu,
     gpuProbe: probe,
-    ai: ai ? { vram: ai.vram, ram: ai.ram } : null,
+    ai: ai ? { vram: ai.vram, ram: ai.ram, layers: { onGpu: ai.gpuLayers, total: ai.totalLayers, backend: ai.gpu } } : null,
     gpuMode: env.LOCAL_AI_GPU,
     diskFree,
   };

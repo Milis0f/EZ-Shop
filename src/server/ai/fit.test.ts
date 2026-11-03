@@ -56,12 +56,15 @@ describe("how a model runs on this computer", () => {
   it("counts the shared memory of an integrated card once", () => {
     const unified = machine(16, 16, { gpu: { backend: "metal", names: ["Apple M2"], vramTotal: 16 * GB, vramUsed: 0, vramFree: 16 * GB, unified: true } });
     expect(fitOf(aiModel("qwen3.5-4b").needBytes, unified)).toBe("fast");
-    expect(fitOf(aiModel("qwen3.5-35b-a3b").needBytes, unified)).toBe("too_big");
+    expect(fitOf(aiModel("qwen3.8-27b").needBytes, unified)).toBe("too_big");
   });
 
   it("suggests the largest model the card holds, a light one on the processor alone", () => {
     expect(recommendedModel(AI_MODELS, machine(32, 8))).toBe("qwen3.5-9b");
-    expect(recommendedModel(AI_MODELS, machine(64, 32))).toBe("qwen3.5-35b-a3b");
+    expect(recommendedModel(AI_MODELS, machine(64, 32))).toBe("qwen3.8-27b");
+    // A 12 GB card holds the 9B whole; the 27B would be split with memory.
+    expect(recommendedModel(AI_MODELS, machine(32, 12))).toBe("qwen3.5-9b");
+    expect(fitOf(aiModel("qwen3.8-27b").needBytes, machine(32, 12))).toBe("split");
     expect(recommendedModel(AI_MODELS, machine(32, null))).toBe("qwen3.5-4b");
     expect(recommendedModel(AI_MODELS, machine(4, null))).toBe("qwen3.5-2b");
     expect(recommendedModel(AI_MODELS, machine(2, null))).toBeNull();
@@ -72,5 +75,20 @@ describe("how a model runs on this computer", () => {
     expect(choices.filter((c) => c.onDisk).map((c) => c.id)).toEqual(["qwen3.5-2b", "qwen3.5-9b"]);
     expect(choices.find((c) => c.active)?.id).toBe("qwen3.5-9b");
     expect(choices.filter((c) => c.recommended).map((c) => c.id)).toEqual(["qwen3.5-9b"]);
+  });
+});
+
+describe("fewerLayers", () => {
+  const vram = new Error("A context size of 8192 is too large for the available VRAM");
+  it("keeps a fifth fewer layers on the card after a card-memory error", async () => {
+    const { fewerLayers } = await import("./engine");
+    expect(fewerLayers(37, vram, 1)).toBe(29);
+  });
+  it("gives up on other errors, with nothing left on the card, or after five tries", async () => {
+    const { fewerLayers } = await import("./engine");
+    expect(fewerLayers(37, new Error("bad file"), 1)).toBeNull();
+    expect(fewerLayers(0, vram, 1)).toBeNull();
+    expect(fewerLayers(undefined, vram, 1)).toBeNull();
+    expect(fewerLayers(20, vram, 5)).toBeNull();
   });
 });
