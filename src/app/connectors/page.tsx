@@ -56,7 +56,22 @@ function coverageNote(meta: ProviderMeta, m: ConnectorMessages): string | null {
   return notes[meta.id] ?? meta.coverage.note;
 }
 
-export default async function ConnectorsPage() {
+const OAUTH_RESULTS = ["connected", "denied", "refused", "exchange_failed", "no_refresh_token", "scope_missing", "save_failed", "missing_client"] as const;
+type OauthResult = (typeof OAUTH_RESULTS)[number];
+
+/** What came of a Google sign-in, read from the address it returned to; anything unknown says nothing. */
+async function OauthNotice({ params, m }: { readonly params: Promise<Record<string, string | string[] | undefined>>; readonly m: ConnectorMessages }) {
+  const raw = (await params).oauth;
+  const result = typeof raw === "string" && (OAUTH_RESULTS as readonly string[]).includes(raw) ? (raw as OauthResult) : null;
+  if (!result) return null;
+  return (
+    <p role="status" className="panel mt-8 px-6 py-4 text-sm leading-relaxed">
+      {m.oauth.results[result]}
+    </p>
+  );
+}
+
+export default async function ConnectorsPage({ searchParams }: { readonly searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const locale = await getLocale();
   const m = await getMessages("connectors", locale);
   return (
@@ -66,6 +81,9 @@ export default async function ConnectorsPage() {
         <h1 className="page-title">{m.page.title}</h1>
         <p className="mt-4 leading-relaxed text-muted-foreground">{m.page.intro}</p>
       </header>
+      <Suspense fallback={null}>
+        <OauthNotice params={searchParams} m={m} />
+      </Suspense>
       <Suspense fallback={<ConnectorsSkeleton label={m.page.loading} />}>
         <ConnectorList locale={locale} m={m} />
       </Suspense>
@@ -230,6 +248,14 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                           )}
                         </p>
                         {meta.maturity !== "disabled" && <HealthCheck providerId={meta.id} last={health.get(meta.id) ?? null} />}
+                        {meta.id === "google-ads-keyword-planner" && (
+                          <div className="space-y-1 pt-1">
+                            <a href="/api/oauth/google/start" className="inline-flex h-6 items-center rounded-pill border border-line px-2.5 text-xs text-foreground hover:bg-secondary">
+                              {m.oauth.google}
+                            </a>
+                            <p className="text-muted-foreground">{m.oauth.googleNeeds}</p>
+                          </div>
+                        )}
                         <FreshNote />
                       </div>
                       {fields.length > 0 && (

@@ -54,6 +54,20 @@ export const en = {
   },
   fieldState: { set: "Set", optional: "Optional", missing: "To fill in", removing: "Will be removed" },
   access: { open: "Open, no account", account: "Account required", approval: "Application and approval" },
+  oauth: {
+    google: "Authorize my Google Ads account",
+    googleNeeds: "Signing in is not enough: the Google Cloud project of this OAuth client must have Basic access to the Google Ads API (see the guide). Use an OAuth client of type “Desktop app”.",
+    results: {
+      connected: "Google account authorized: the token is kept in this computer's credential store. Run “Test now” to see what Google Ads allows.",
+      denied: "Google sign-in cancelled: nothing was saved.",
+      refused: "This sign-in was not started here, or is too old: start it again.",
+      exchange_failed: "Google refused the code exchange. Check that the client is of type “Desktop app” and try again.",
+      no_refresh_token: "Google returned no refresh token: remove EZ-Shop's access in your Google account, then sign in again.",
+      scope_missing: "The Google Ads permission was not granted: sign in again and tick it.",
+      save_failed: "The token could not be saved: nothing was changed.",
+      missing_client: "Enter the OAuth client ID of your Google Cloud project first (Configure).",
+    },
+  },
   health: {
     test: "Test now",
     testing: "Testing…",
@@ -562,6 +576,20 @@ export const fr: Shape = {
   },
   fieldState: { set: "Définie", optional: "Facultative", missing: "À renseigner", removing: "Sera retirée" },
   access: { open: "Ouverte, sans compte", account: "Compte requis", approval: "Candidature et approbation" },
+  oauth: {
+    google: "Autoriser mon compte Google Ads",
+    googleNeeds: "La connexion ne suffit pas : le projet Google Cloud de ce client OAuth doit avoir l'accès Basic à l'API Google Ads (voir le guide). Utilise un client OAuth de type « Application de bureau ».",
+    results: {
+      connected: "Compte Google autorisé : le jeton est gardé dans le coffre d'identifiants de cet ordinateur. Lance « Tester maintenant » pour voir ce que Google Ads permet.",
+      denied: "Connexion Google annulée : rien n'a été enregistré.",
+      refused: "Cette connexion n'a pas été lancée ici, ou elle est trop ancienne : recommence.",
+      exchange_failed: "Google a refusé l'échange du code. Vérifie que le client est de type « Application de bureau », puis recommence.",
+      no_refresh_token: "Google n'a pas renvoyé de jeton durable : retire l'accès d'EZ-Shop dans ton compte Google, puis reconnecte-toi.",
+      scope_missing: "L'autorisation Google Ads n'a pas été accordée : reconnecte-toi et coche-la.",
+      save_failed: "Le jeton n'a pas pu être enregistré : rien n'a changé.",
+      missing_client: "Renseigne d'abord l'identifiant du client OAuth de ton projet Google Cloud (Configurer).",
+    },
+  },
   health: {
     test: "Tester maintenant",
     testing: "Test en cours…",
@@ -1066,6 +1094,20 @@ export const es: Shape = {
   },
   fieldState: { set: "Definida", optional: "Opcional", missing: "Por rellenar", removing: "Se quitará" },
   access: { open: "Abierta, sin cuenta", account: "Requiere cuenta", approval: "Solicitud y aprobación" },
+  oauth: {
+    google: "Autorizar mi cuenta de Google Ads",
+    googleNeeds: "Iniciar sesión no basta: el proyecto de Google Cloud de este cliente OAuth debe tener acceso Basic a la API de Google Ads (ver la guía). Usa un cliente OAuth de tipo «Aplicación de escritorio».",
+    results: {
+      connected: "Cuenta de Google autorizada: el token se guarda en el almacén de credenciales de este equipo. Lanza «Probar ahora» para ver lo que permite Google Ads.",
+      denied: "Inicio de sesión de Google cancelado: no se guardó nada.",
+      refused: "Este inicio de sesión no se lanzó aquí, o es demasiado antiguo: vuelve a empezar.",
+      exchange_failed: "Google rechazó el intercambio del código. Comprueba que el cliente es de tipo «Aplicación de escritorio» y vuelve a intentarlo.",
+      no_refresh_token: "Google no devolvió un token duradero: retira el acceso de EZ-Shop en tu cuenta de Google y vuelve a conectarte.",
+      scope_missing: "No se concedió el permiso de Google Ads: vuelve a conectarte y márcalo.",
+      save_failed: "No se pudo guardar el token: no cambió nada.",
+      missing_client: "Introduce primero el ID del cliente OAuth de tu proyecto de Google Cloud (Configurar).",
+    },
+  },
   health: {
     test: "Probar ahora",
     testing: "Probando…",

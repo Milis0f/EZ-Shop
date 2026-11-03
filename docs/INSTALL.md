@@ -220,8 +220,12 @@ carte (le 27B sur une carte de 12 Go) reste lent : une partie calcule sur le pro
 | `npm run build` | Build de production |
 | `npm start` | Serveur de production, après `npm run build` |
 
-Le formulaire **Sources de données → Configurer** est désactivé en production (`npm start`) : renseigne alors
-`.env.local` à la main.
+Le formulaire **Sources de données → Configurer** marche en développement comme en production (`npm start`), depuis
+cet ordinateur seulement. Les **secrets** (clés, secrets clients, jetons) vont dans le coffre d'identifiants du
+système : Gestionnaire d'identification Windows, Trousseau macOS, Secret Service sous Linux (bibliothèque
+`@napi-rs/keyring`, MIT). Le reste va dans `.env.local`. Sans coffre utilisable, tout reste dans `.env.local` comme
+avant. **Réglages → Clés et jetons** indique où ils sont et déplace ceux qui sont encore en clair ; chacun est relu
+dans le coffre avant de quitter le fichier. En développement, une valeur écrite dans `.env.local` reste prioritaire.
 
 **Cet ordinateur seulement.** `npm run dev` et `npm start` écoutent sur `127.0.0.1` : les autres appareils du
 réseau ne peuvent pas joindre EZ-Shop. En plus, `src/proxy.ts` refuse (403) toute requête qui n'est pas adressée à

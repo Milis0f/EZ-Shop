@@ -103,12 +103,37 @@ country, e.g. 145 EUR in France and 137 CHF in Switzerland); gymshark.com and bo
 as "absent" in the report's sources). A product count is the count the shop exposes, never a claim on
 its real catalogue; reviews are never sales; a Tranco rank is never a number of visits.
 
+## Signing in with Google (OAuth on this computer)
+
+Google Ads no longer needs a refresh token copied by hand. **Sources → Google Ads → Authorize my Google
+Ads account** runs the OAuth 2.0 authorization code flow with **PKCE (S256)** and a loopback redirect to
+`http://127.0.0.1:<port>/api/oauth/google/callback`, as Google documents for desktop apps, which it calls
+public clients that "cannot keep secrets confidential" (client secret optional).
+[OAuth for desktop apps](https://developers.google.com/identity/protocols/oauth2/native-app)
+
+- The state is single-use and expires after 10 minutes; a forged or replayed callback is refused.
+- The refresh token goes to the system's credential store; nothing is logged.
+- A successful sign-in does not mark Google Ads as working: **Test now** says what the access level allows.
+- The OAuth client must be of type **Desktop app**. A "Web application" client answers
+  `redirect_uri_mismatch` (checked on 2026-11-03 with the test machine's client) unless the exact URI
+  `http://127.0.0.1:<port>/api/oauth/google/callback` is added to its authorized redirect URIs.
+
 ## One-click sign-in (class B)
 
-None is offered yet, on purpose. A one-click sign-in needs an app registered by the project with each
-provider, as a **public client** (authorization code + PKCE, loopback redirect, no confidential secret
-in the code). That registration is the project owner's step; nothing in the code pretends otherwise.
-The connectors that need a key or approval stay in class C, with their step-by-step guide.
+No source is class B yet. The Google sign-in above becomes one click once the project registers its own
+**Desktop app** OAuth client and puts its client ID (public, no secret) in
+`EZ_SHOP_GOOGLE_PUBLIC_CLIENT_ID` (`src/server/oauth/google.ts`). That is the project owner's step, with
+Google's brand verification and, for the `adwords` scope, the sensitive-scope review. Note that every user
+signing in through the project's client would share **its** Google Ads access level and daily operations
+(Basic: 15,000 a day); a person's own client keeps their own quota. Other providers (Microsoft Advertising,
+eBay, Meta, TikTok) need their own qualification before any OAuth code is written.
+
+## Secrets
+
+Keys, client secrets and tokens are kept by the system's credential store (Windows Credential Manager,
+macOS Keychain, Linux Secret Service; `src/server/secrets/`), loaded at the server start and kept in memory.
+Without a usable store they stay in `.env.local`. No secret is in the repository; the only OAuth value
+meant to ship is a public client ID, and none ships today.
 
 ## Quotas and errors
 
@@ -125,3 +150,17 @@ in the local database (`provider_cache`) for their own update rhythm.
 | Unit and mapping tests | `npm test` | none (stubbed fetch) |
 | Real read of every source | `EZ_LIVE=1 npm test -- live.integration` | yes, keys from `.env.local`, never printed |
 | One source, from the app | Sources page → **Test now** | yes; the last result is kept 90 days |
+| Credential store | `src/server/secrets/vault.test.ts` (fake store) | none; checked once for real on Windows on 2026-11-03 |
+| Google sign-in | `src/server/oauth/google.test.ts` (PKCE, state, exchange) | none; the redirect to Google checked for real |
+
+## What is left, and who can do it
+
+| Item | Who |
+|---|---|
+| Basic access for the Google Cloud project (Keyword Planner) | the project owner, Cloud Console |
+| A Desktop OAuth client for the Google sign-in | each person, or the project for class B |
+| Real tests of YouTube, eBay, AliExpress, Meta Ad Library, TikTok | anyone with those accounts: configure, then **Test now** |
+| Google Trends API | apply for the alpha; the response mapping is written once access exists |
+| Meta / TikTok ad cost estimates | developer apps and approvals, then the adapters (`src/providers/ad-cost/`) |
+| Microsoft Advertising keyword planning | a developer token and an OAuth app (not started) |
+| More marketplaces (Etsy, Walmart, Mercado Libre…) | qualified one by one before any code |
