@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { envValue } from "./vault-values";
 
 /**
  * Server-side environment, validated once. Secrets never leave this module
@@ -113,9 +114,12 @@ let cached: { readonly fingerprint: string; readonly env: ServerEnv } | undefine
  * or .env.local reloaded by the dev server), so a new key works without a restart.
  */
 export function getEnv(): ServerEnv {
-  const fingerprint = ENV_KEYS.map((k) => process.env[k] ?? "").join("\u0000");
+  // A secret kept in the system's credential store fills a variable the environment leaves empty.
+  const source: Record<string, string | undefined> = { ...process.env };
+  for (const k of ENV_KEYS) source[k] = envValue(k) ?? process.env[k];
+  const fingerprint = ENV_KEYS.map((k) => source[k] ?? "").join("\u0000");
   if (cached?.fingerprint === fingerprint) return cached.env;
-  const parsed = envSchema.safeParse(process.env);
+  const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
     const fields = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
     throw new Error(`Invalid server environment: ${fields}`);

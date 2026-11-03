@@ -1,6 +1,7 @@
 import "server-only";
 import { connectorFields, validateEnvValue } from "@/config/connector-fields";
 import { getEnv } from "@/config/env";
+import { envValue } from "@/config/vault-values";
 import type { ProviderId } from "@/domain/provenance";
 import type { Locale } from "@/i18n/config";
 import { t } from "@/i18n/translate";
@@ -19,7 +20,7 @@ import type { ProviderCacheRepository } from "./repositories/types";
 export function formatStep(meta: Pick<ProviderMeta, "id" | "requiredEnv">, locale: Locale): ConnectionCheckStep {
   const m = checkMessages(locale);
   const problems = connectorFields(meta, locale).flatMap((field) => {
-    const value = process.env[field.name]?.trim();
+    const value = envValue(field.name);
     if (!value) return field.optional ? [] : [t(m.missingValue, { label: field.label })];
     const checked = validateEnvValue(field, value, locale);
     return checked.ok ? [] : [t(m.problem, { label: field.label, error: checked.error })];

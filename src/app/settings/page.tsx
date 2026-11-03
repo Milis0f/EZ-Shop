@@ -6,6 +6,7 @@ import { EpistemicLegend } from "@/components/data/epistemic-legend";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { TermPrompt } from "@/components/marketing/term";
 import { BackupPanel } from "@/components/settings/backup-panel";
+import { SecretsPanel } from "@/components/settings/secrets-panel";
 import { AiSettings, ModeSettings, SettingsSection } from "@/components/settings/settings-panels";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getEnv } from "@/config/env";
@@ -16,6 +17,7 @@ import { probeMachine } from "@/server/ai/machine";
 import { AI_MODELS, modelInfoOf, modelOfPath } from "@/server/ai/models";
 import { backupsAvailable, listLocalBackups } from "@/server/db/backup";
 import { backupDir, localDataDir } from "@/server/db/client";
+import { secretsStatus } from "@/server/secrets/settings-store";
 import { localizedEditorAccess } from "../connectors/editor-access";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -39,6 +41,9 @@ export default async function SettingsPage() {
         <Suspense fallback={<Skeleton className="h-48 w-full rounded-tile" />}>
           <BackupSection />
         </Suspense>
+        <Suspense fallback={<Skeleton className="h-32 w-full rounded-tile" />}>
+          <SecretsSection />
+        </Suspense>
         <SettingsSection bar="réglages — langue" title={m.language.title} intro={m.language.intro}>
           <LanguageSwitcher />
         </SettingsSection>
@@ -57,6 +62,12 @@ export default async function SettingsPage() {
       </div>
     </div>
   );
+}
+
+/** Where the connectors' secrets are kept: counts only, never a value. */
+async function SecretsSection() {
+  await connection();
+  return <SecretsPanel status={await secretsStatus()} />;
 }
 
 /** The backups on disk: readable even when the database itself no longer opens, to restore one. */

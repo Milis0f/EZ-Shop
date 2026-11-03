@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { getEnv } from "@/config/env";
+import { envValue } from "@/config/vault-values";
 import { connectorFields, type EnvEditorAccess, type FieldState } from "@/config/connector-fields";
 import { DEFAULT_LOCALE } from "@/i18n/config";
 import type { ProviderMeta } from "@/providers/contracts";
@@ -8,10 +9,7 @@ import { isLoopbackHost } from "./local-access";
 
 export { isLoopbackHost };
 
-const currentValue = (name: string): string | undefined => {
-  const v = process.env[name]?.trim();
-  return v ? v : undefined;
-};
+const currentValue = (name: string): string | undefined => envValue(name);
 
 export function fieldStates(meta: Pick<ProviderMeta, "id" | "requiredEnv">): FieldState[] {
   // Only names, optionality and secrecy are read here: they do not depend on the language.
@@ -27,13 +25,11 @@ export async function isLocalRequest(): Promise<boolean> {
 }
 
 /**
- * Writing .env.local from the browser is a local-development convenience only: never in production,
- * and only for requests addressed to this machine (Next.js also rejects cross-origin server actions).
+ * Settings are edited from this computer only, in development and in production alike: EZ-Shop is a
+ * local app (the future desktop app runs a production build), and the proxy refuses any other host.
+ * Secrets go to the system's credential store (src/server/secrets), not to a hosting configuration.
  */
 export async function getEnvEditorAccess(): Promise<EnvEditorAccess> {
-  if (getEnv().NODE_ENV === "production") {
-    return { enabled: false, reason: "Désactivé en production : renseigne ces variables dans la configuration de l'hébergeur." };
-  }
   const host = (await headers()).get("host") ?? "";
   if (!isLoopbackHost(host)) {
     return { enabled: false, reason: "Modification possible uniquement depuis cette machine (localhost)." };

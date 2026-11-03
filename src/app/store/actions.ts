@@ -6,7 +6,8 @@ import type { AdsResult, ReviewResult } from "@/domain/store";
 import { summariseStore } from "@/engine/store/summary";
 import { getLocale, getMessages } from "@/i18n/server";
 import { t } from "@/i18n/translate";
-import { updateEnvLocal, type EnvUpdate } from "@/server/env-file";
+import type { EnvUpdate } from "@/server/env-file";
+import { saveSettings } from "@/server/secrets/settings-store";
 import { checkRateLimit } from "@/server/rate-limit";
 import { adsConfigured, readAds } from "@/server/store/ads";
 import { reviewStore } from "@/server/store/review";
@@ -90,15 +91,11 @@ export async function saveStoreConnection(_prev: StoreConnectionState, formData:
   if (updates.length === 0) return { status: "error", message: m.errors.nothing };
 
   try {
-    await updateEnvLocal(updates, SECTIONS[group]);
+    // The client secret and the token to the system's credential store when there is one.
+    await saveSettings(updates, SECTIONS[group]);
   } catch (error: unknown) {
-    // The message describes the file system error only; values are never part of it.
-    console.error("[saveStoreConnection] .env.local could not be written:", error instanceof Error ? error.message : "unknown error");
+    console.error("[saveStoreConnection] settings could not be saved:", error instanceof Error ? error.name : "unknown error");
     return { status: "error", message: m.errors.write };
-  }
-  for (const { key, value } of updates) {
-    if (value === null) delete process.env[key];
-    else process.env[key] = value;
   }
   revalidatePath("/store");
   return { status: "saved", message: m.saved, savedAt: Date.now() };

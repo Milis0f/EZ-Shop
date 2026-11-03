@@ -9,7 +9,9 @@ import { testConnectorHealth } from "@/server/connector-health";
 import type { HealthResult } from "@/providers/health-probes";
 import { getLocale, getMessages } from "@/i18n/server";
 import { plural, t } from "@/i18n/translate";
-import { updateEnvLocal, type EnvUpdate } from "@/server/env-file";
+import { envValue } from "@/config/vault-values";
+import type { EnvUpdate } from "@/server/env-file";
+import { saveSettings } from "@/server/secrets/settings-store";
 import { checkRateLimit } from "@/server/rate-limit";
 import { localizedEditorAccess } from "./editor-access";
 import type { ConnectorFormState, ConnectorTestResult } from "./form-state";
@@ -88,22 +90,17 @@ export async function saveConnectorConfig(_prev: ConnectorFormState, formData: F
   if (updates.length === 0) return { status: "error", message: m.nothingEntered };
 
   try {
-    await updateEnvLocal(updates, meta.name);
+    // Secrets to the system's credential store when there is one, the rest to .env.local; applied at once.
+    await saveSettings(updates, meta.name);
   } catch (error: unknown) {
-    // The message describes the file system error only; values are never part of it.
-    console.error("[saveConnectorConfig] .env.local could not be written:", error instanceof Error ? error.message : "unknown error");
+    // The error's name only: values are never part of it.
+    console.error("[saveConnectorConfig] settings could not be saved:", error instanceof Error ? error.name : "unknown error");
     return { status: "error", message: m.writeFailed };
-  }
-
-  // Applied to the running server at once; the dev server also reloads .env.local on its own.
-  for (const { key, value } of updates) {
-    if (value === null) delete process.env[key];
-    else process.env[key] = value;
   }
   revalidatePath("/connectors");
   revalidatePath("/");
 
-  const missing = fields.filter((f) => !f.optional && !process.env[f.name]?.trim()).length;
+  const missing = fields.filter((f) => !f.optional && !envValue(f.name)).length;
   return {
     status: "saved",
     complete: missing === 0,

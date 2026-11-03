@@ -14,5 +14,5 @@ export async function localizedEditorAccess(locale: Locale): Promise<EnvEditorAc
   const access = await getEnvEditorAccess();
   if (access.enabled) return access;
   const m = (await getMessages("connectors", locale)).editor;
-  return { enabled: false, reason: getEnv().NODE_ENV === "production" ? m.production : m.remote };
+  return { enabled: false, reason: m.remote };
 }

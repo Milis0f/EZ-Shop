@@ -83,6 +83,16 @@ const ENV_RULES: Readonly<Record<EnvName, EnvFieldRule>> = {
   TIKTOK_ADVERTISER_ID: { secret: false, pattern: /^\d{5,25}$/ },
 };
 
+/**
+ * Every variable that holds a secret (keys, client secrets, tokens), the connectors' and those of "My
+ * store": they go to the system's credential store when there is one, never to a plain file.
+ */
+export const SECRET_ENV_NAMES: readonly string[] = [
+  ...(Object.keys(ENV_RULES) as EnvName[]).filter((name) => ENV_RULES[name].secret),
+  "SHOPIFY_CLIENT_SECRET",
+  "META_ADS_ACCESS_TOKEN",
+];
+
 /** One dictionary entry, seen without its exact literal keys. */
 interface FieldText {
   readonly label: string;

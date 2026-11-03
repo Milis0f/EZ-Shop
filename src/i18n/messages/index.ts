@@ -11,6 +11,7 @@ import * as history from "./history";
 import * as home from "./home";
 import * as methodology from "./methodology";
 import * as report from "./report";
+import * as secrets from "./secrets";
 import * as serverMessages from "./server-messages";
 import * as settings from "./settings";
 import * as shell from "./shell";
@@ -41,6 +42,7 @@ export const MESSAGES = {
   settings,
   backup,
   history,
+  secrets,
 } as const;
 
 export type Area = keyof typeof MESSAGES;

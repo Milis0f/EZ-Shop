@@ -88,3 +88,15 @@ export async function updateEnvLocal(updates: readonly EnvUpdate[], section: str
     await rm(tmp, { force: true });
   }
 }
+
+/** The variables written in .env.local, by name (comments and blank lines left out). Values stay server-side. */
+export async function readEnvLocal(): Promise<Record<string, string>> {
+  const text = await readIfExists(envLocalPath());
+  return Object.fromEntries(
+    text
+      .split(/\r?\n/)
+      .map((line) => /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/.exec(line))
+      .filter((m): m is RegExpExecArray => m !== null && m[2].trim() !== "")
+      .map((m) => [m[1], m[2].trim()]),
+  );
+}
