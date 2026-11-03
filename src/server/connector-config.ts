@@ -1,6 +1,5 @@
 import "server-only";
 import { headers } from "next/headers";
-import { getEnv } from "@/config/env";
 import { envValue } from "@/config/vault-values";
 import { connectorFields, type EnvEditorAccess, type FieldState } from "@/config/connector-fields";
 import { DEFAULT_LOCALE } from "@/i18n/config";
