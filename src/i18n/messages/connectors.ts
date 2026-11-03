@@ -44,7 +44,7 @@ export const en = {
     loading: "Loading sources",
     freshNote: "Connected since your last visit",
   },
-  status: { ready: "Ready", repair: "Needs fixing", not_configured: "Not connected", not_implemented: "Not built yet" },
+  status: { ready: "Ready", untested: "Configured, not tested", failing: "Last test failed", repair: "Needs fixing", not_configured: "Not connected", not_implemented: "Not built yet" },
   /** Footer line of a card when no required variable is missing, derived from the provider state. */
   statusDetail: {
     open: "Open API, no key.",
@@ -567,7 +567,7 @@ export const fr: Shape = {
     loading: "Chargement des sources",
     freshNote: "Branchée depuis ta dernière visite",
   },
-  status: { ready: "Prête", repair: "À réparer", not_configured: "Non branchée", not_implemented: "À implémenter" },
+  status: { ready: "Prête", untested: "Configurée, non testée", failing: "Dernier test échoué", repair: "À réparer", not_configured: "Non branchée", not_implemented: "À implémenter" },
   statusDetail: {
     open: "API ouverte, sans clé.",
     configured: "Configuré.",
@@ -1085,7 +1085,7 @@ export const es: Shape = {
     loading: "Cargando fuentes",
     freshNote: "Conectada desde tu última visita",
   },
-  status: { ready: "Lista", repair: "Por reparar", not_configured: "Sin conectar", not_implemented: "Por implementar" },
+  status: { ready: "Lista", untested: "Configurada, sin probar", failing: "Falló la última prueba", repair: "Por reparar", not_configured: "Sin conectar", not_implemented: "Por implementar" },
   statusDetail: {
     open: "API abierta, sin clave.",
     configured: "Configurada.",

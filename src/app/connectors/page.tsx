@@ -151,7 +151,7 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
   const guides = connectorGuides(locale);
   const rows = connectors.map(({ meta, status }) => {
     const fields = fieldStates(meta);
-    return { meta, status, fields, display: sourceStatus(status.state, fields) };
+    return { meta, status, fields, display: sourceStatus(status.state, fields, meta.access, health.get(meta.id)?.outcome ?? null) };
   });
 
   return (
@@ -174,7 +174,7 @@ async function ConnectorList({ locale, m }: { readonly locale: Locale; readonly 
                 const guide = guides[meta.id];
                 const coverage = coverageNote(meta, m);
                 return (
-                  <ConnectorFrame key={meta.id} id={meta.id} ready={status.state === "ready"} className="panel flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+                  <ConnectorFrame key={meta.id} id={meta.id} ready={display === "ready"} className="panel flex min-w-0 flex-col gap-4 p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 pt-1">
                         <a
