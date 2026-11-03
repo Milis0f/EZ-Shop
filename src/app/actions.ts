@@ -7,6 +7,7 @@ import { localizeInputIssues } from "@/domain/validation-messages";
 import { formatInt } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
 import { t } from "@/i18n/translate";
+import { isLocalRequest } from "@/server/connector-config";
 import { LocalDatabaseError } from "@/server/db/client";
 import { AnalysisValidationError } from "@/server/pipeline/run-analysis";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
@@ -42,6 +43,8 @@ function parseExtraTerms(text: string): { terms: Array<{ language: LanguageCode;
 export async function submitAnalysis(_prev: SearchFormState, formData: FormData): Promise<SearchFormState> {
   const locale = await getLocale();
   const m = (await getMessages("home", locale)).action;
+  // The proxy refuses the others already; a Server Action checks again (Next.js advice).
+  if (!(await isLocalRequest())) return { error: m.remote };
   const limit = checkRateLimit("analysis:form", ANALYSIS_RATE_LIMIT.limit, ANALYSIS_RATE_LIMIT.windowMs);
   if (!limit.allowed) return { error: t(m.rateLimited, { seconds: formatInt(limit.retryAfterSeconds, locale) }) };
 

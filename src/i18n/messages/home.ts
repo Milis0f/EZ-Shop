@@ -120,6 +120,7 @@ export const en = {
   },
   action: {
     rateLimited: "Too many analyses. Try again in {seconds} s.",
+    remote: "Analyses start only from this computer (localhost).",
     extraTermsFormat: "Expected format “de: term1, term2”. Invalid lines: {lines}",
     failed: "The analysis failed. Check the server logs.",
   },
@@ -246,6 +247,7 @@ export const fr: Shape = {
   },
   action: {
     rateLimited: "Trop d'analyses. Réessaie dans {seconds} s.",
+    remote: "Une analyse se lance uniquement depuis cet ordinateur (localhost).",
     extraTermsFormat: "Format attendu « de: terme1, terme2 ». Lignes invalides : {lines}",
     failed: "L'analyse a échoué. Consulte les logs serveur.",
   },
@@ -370,6 +372,7 @@ export const es: Shape = {
   },
   action: {
     rateLimited: "Demasiados análisis. Vuelve a intentarlo en {seconds} s.",
+    remote: "Los análisis solo se inician desde este equipo (localhost).",
     extraTermsFormat: "Formato esperado «de: término1, término2». Líneas no válidas: {lines}",
     failed: "El análisis ha fallado. Revisa los registros del servidor.",
   },

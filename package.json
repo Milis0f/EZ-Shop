@@ -6,9 +6,9 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "node node_modules/next/dist/bin/next dev",
+    "dev": "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
     "build": "node node_modules/next/dist/bin/next build",
-    "start": "node node_modules/next/dist/bin/next start",
+    "start": "node node_modules/next/dist/bin/next start --hostname 127.0.0.1",
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "test": "node node_modules/vitest/vitest.mjs run",

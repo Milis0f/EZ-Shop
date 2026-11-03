@@ -195,6 +195,14 @@ le serveur et supprime le dossier `.data/pglite` : tes analyses enregistrées se
 Le formulaire **Sources de données → Configurer** est désactivé en production (`npm start`) : renseigne alors
 `.env.local` à la main.
 
+**Cet ordinateur seulement.** `npm run dev` et `npm start` écoutent sur `127.0.0.1` : les autres appareils du
+réseau ne peuvent pas joindre EZ-Shop. En plus, `src/proxy.ts` refuse (403) toute requête qui n'est pas adressée à
+`localhost`, `127.0.0.1` ou `[::1]`, même si le serveur est lancé à la main avec `-H 0.0.0.0` : un site qui ferait
+pointer son nom vers ta machine (« DNS rebinding ») n'obtient rien. Une modification envoyée par une page doit venir
+d'EZ-Shop lui-même (même adresse et même port). Ce n'est pas une authentification : un programme qui tourne sur cet
+ordinateur reste de confiance, puisqu'il peut de toute façon lire les fichiers. Il n'existe pas encore de mode
+d'accès à distance.
+
 ## 7. Tests et vérifications
 
 | Commande | Rôle |

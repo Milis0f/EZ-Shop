@@ -46,7 +46,8 @@ async function createPglite(dataDir: string): Promise<Database> {
   const { drizzle } = await import("drizzle-orm/pglite");
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   const absoluteDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), dataDir);
-  mkdirSync(absoluteDir, { recursive: true });
+  // Owner only where the system honours it (not Windows): the analyses and the cache stay private.
+  mkdirSync(absoluteDir, { recursive: true, mode: 0o700 });
   const client = new PGlite(absoluteDir);
   try {
     const db = drizzle(client, { schema });
