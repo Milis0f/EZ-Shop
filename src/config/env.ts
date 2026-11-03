@@ -21,6 +21,10 @@ const envSchema = z.object({
   /** Postgres / Supabase connection string. When absent, a local PGlite database is used. */
   DATABASE_URL: optionalSecret,
   PGLITE_DATA_DIR: z.string().default(".data/pglite"),
+  // Backups of the embedded database: folder (default: `backups` next to it), how many to keep, how often.
+  BACKUP_DIR: optionalSecret,
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(100).default(10),
+  BACKUP_INTERVAL_HOURS: z.coerce.number().min(1).max(24 * 30).default(24),
 
   PROVIDER_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(12_000),
 

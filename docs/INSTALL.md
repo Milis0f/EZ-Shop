@@ -184,6 +184,20 @@ npm run db:migrate
 Le schéma et les migrations (`drizzle/`) sont les mêmes pour les deux bases. Pour repartir de zéro en local, arrête
 le serveur et supprime le dossier `.data/pglite` : tes analyses enregistrées seront perdues.
 
+**Sauvegardes (base intégrée seulement).** EZ-Shop sauvegarde la base dans `.data/backups/` (ou `BACKUP_DIR`) :
+une fois par jour tant qu'il tourne, et avant qu'une mise à jour applique une migration. Il utilise les outils de
+PGlite (`dumpDataDir` après un `CHECKPOINT`, puis `loadDataDir`), et chaque copie est rouverte en mémoire avant d'être
+comptée comme valide. Les 10 copies valides les plus récentes sont gardées (`BACKUP_KEEP`), jamais moins d'une.
+**Réglages → Sauvegardes** permet d'en faire une, de la revérifier, de la télécharger, de la restaurer ou de la retirer.
+
+**Après un arrêt brutal**, si la base ne s'ouvre plus, l'application le dit et propose « Restaurer une sauvegarde ».
+La restauration ne supprime rien : le dossier actuel est renommé `.data/pglite-avant-restauration-<date>` et la
+copie est ouverte à sa place. Si quelque chose échoue, le dossier d'origine est remis.
+
+**Historique.** La page Historique liste les analyses de produit et, dans la table `research_runs`, les recherches IA
+approfondies, les vérifications de concurrent et les recherches web, avec leur rapport et leurs sources. Une
+recherche coupée par un arrêt apparaît « interrompue » au redémarrage.
+
 ## 6. Lancer l'application
 
 | Commande | Rôle |

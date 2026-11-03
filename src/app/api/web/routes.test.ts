@@ -5,8 +5,10 @@ const analyzeCompetitor = vi.fn();
 const startInstall = vi.fn();
 const cancelInstall = vi.fn();
 const installStatus = vi.fn();
+const recordRun = vi.fn(async () => null);
 vi.mock("@/server/web/research", () => ({ runWebResearch }));
 vi.mock("@/server/web/competitor", () => ({ analyzeCompetitor }));
+vi.mock("@/server/history", () => ({ recordRun }));
 vi.mock("@/server/ai/installer", () => ({ startInstall, cancelInstall, installStatus }));
 
 const research = await import("./research/route");
@@ -66,6 +68,22 @@ describe("POST /api/web/competitor", () => {
   it("refuses a bad body", async () => {
     expect((await competitor.POST(post("/api/web/competitor", { url: 12 }))).status).toBe(400);
     expect((await competitor.POST(post("/api/web/competitor", { url: "a".repeat(2001) }))).status).toBe(400);
+    expect(recordRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps each check in the history, a refused one with its reason", async () => {
+    await competitor.POST(post("/api/web/competitor", { url: "https://shop.example/p" }));
+    expect(recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "competitor", title: "https://shop.example/p", params: expect.objectContaining({ url: "https://shop.example/p" }) }),
+      { status: "failed", error: "robots" },
+    );
+  });
+});
+
+describe("history of web searches", () => {
+  it("keeps a search, with why it found nothing", async () => {
+    await research.POST(post("/api/web/research", { query: "tuyau PVC" }));
+    expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ kind: "web_research", title: "tuyau PVC" }), { status: "failed", error: "no_results" });
   });
 });
 

@@ -3,6 +3,7 @@ import { apiError, apiErrorFrom, apiMessages, apiOk } from "@/server/api-respons
 import { checkRateLimit } from "@/server/rate-limit";
 import { checkJsonPost } from "@/server/request-guard";
 import { GUARD_MESSAGE_KEY, requestLocale } from "@/server/request-locale";
+import { recordRun } from "@/server/history";
 import { analyzeCompetitor } from "@/server/web/competitor";
 
 const RATE_LIMIT = { key: "web:competitor", limit: 30, windowMs: 10 * 60_000 } as const;
@@ -18,7 +19,12 @@ export async function POST(request: Request) {
   try {
     const body = competitorRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return apiError(400, "validation_error", m.invalidInput);
-    return apiOk(await analyzeCompetitor(body.data.url, { searchSupplier: body.data.searchSupplier, deep: body.data.deep }, locale));
+    const result = await analyzeCompetitor(body.data.url, { searchSupplier: body.data.searchSupplier, deep: body.data.deep }, locale);
+    await recordRun(
+      { kind: "competitor", title: result.status === "ready" ? result.domain : body.data.url, locale, countries: [], params: body.data },
+      result.status === "ready" ? { status: "completed", result, sourceCount: result.sources.length, durationMs: result.durationMs } : { status: "failed", error: result.code },
+    );
+    return apiOk(result);
   } catch (error: unknown) {
     return apiErrorFrom(error, locale);
   }

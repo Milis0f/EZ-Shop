@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
@@ -11,6 +12,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Never the owner's database: a test that reaches getDb() without its own folder opens this one.
+    env: {
+      PGLITE_DATA_DIR: path.join(os.tmpdir(), `ezshop-vitest-${process.pid}`, "pglite"),
+      BACKUP_DIR: path.join(os.tmpdir(), `ezshop-vitest-${process.pid}`, "backups"),
+    },
     include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",

@@ -6,6 +6,7 @@ import type {
   UnitEconomics,
 } from "@/domain/analysis";
 import type { CountryCode } from "@/domain/country";
+import type { RunKind, RunStatus } from "@/domain/history";
 import type { ProductQuery } from "@/domain/product";
 import type { DataOrigin, ProviderId } from "@/domain/provenance";
 import type { AnalysisInput } from "@/domain/schemas";
@@ -65,6 +66,64 @@ export interface AnalysisRepository {
   fail(id: string, error: string): Promise<void>;
   findById(id: string): Promise<AnalysisResult | null>;
   listRecent(limit: number): Promise<AnalysisSummary[]>;
+  /** Removes an analysis and everything computed for it (country results, observations…). */
+  delete(id: string): Promise<boolean>;
+}
+
+export interface NewRun {
+  readonly kind: RunKind;
+  readonly title: string;
+  readonly locale: string;
+  readonly countries: readonly string[];
+  readonly params: unknown;
+}
+
+export interface RunFinish {
+  readonly status: Exclude<RunStatus, "pending" | "running">;
+  readonly result?: unknown;
+  readonly sourceCount?: number;
+  readonly model?: string | null;
+  readonly error?: string;
+  readonly durationMs?: number;
+}
+
+export interface RunRecord {
+  readonly id: string;
+  readonly kind: RunKind;
+  readonly title: string;
+  readonly status: RunStatus;
+  readonly locale: string;
+  readonly countries: readonly string[];
+  readonly params: unknown;
+  /** The stored report: validate it with its domain schema before use. */
+  readonly result: unknown;
+  readonly sourceCount: number | null;
+  readonly model: string | null;
+  readonly error: string | null;
+  readonly progress: number | null;
+  readonly step: string | null;
+  readonly durationMs: number | null;
+  readonly createdAt: string;
+  readonly startedAt: string | null;
+  readonly finishedAt: string | null;
+}
+
+export interface RunListQuery {
+  readonly kind?: RunKind;
+  readonly q?: string;
+  readonly order: "newest" | "oldest";
+  readonly limit: number;
+}
+
+/** Deep research, competitor checks and web searches kept for the history (`research_runs`). */
+export interface ResearchRunRepository {
+  start(run: NewRun): Promise<string>;
+  finish(id: string, finish: RunFinish): Promise<void>;
+  findById(id: string): Promise<RunRecord | null>;
+  list(query: RunListQuery): Promise<RunRecord[]>;
+  delete(id: string): Promise<boolean>;
+  /** Runs still pending or running from before `startedBefore` (the app stopped meanwhile). */
+  markInterrupted(startedBefore: Date): Promise<number>;
 }
 
 export interface ProviderCacheRepository {
@@ -75,4 +134,5 @@ export interface ProviderCacheRepository {
 export interface Repositories {
   readonly analyses: AnalysisRepository;
   readonly cache: ProviderCacheRepository;
+  readonly runs: ResearchRunRepository;
 }

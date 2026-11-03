@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { endAnalysis, reportAnalysis, startAnalysis } from "@/components/planet/planet-store";
 import { countryName } from "@/components/search/display-names";
@@ -17,7 +18,7 @@ import { DeepReportView } from "./deep-report";
 /** Usual length of a deep analysis, for the ring until the first real steps arrive. */
 const EXPECTED_MS = 150_000;
 
-type View = { readonly kind: "idle" } | { readonly kind: "running" } | { readonly kind: "done"; readonly report: DeepReport } | { readonly kind: "failed"; readonly message: string };
+type View = { readonly kind: "idle" } | { readonly kind: "running" } | { readonly kind: "done"; readonly report: DeepReport; readonly savedId: string | null } | { readonly kind: "failed"; readonly message: string };
 
 type StepMessages = Messages<"deepResearch">["steps"];
 
@@ -75,6 +76,7 @@ export function DeepResearch() {
     setView({ kind: "running" });
     startAnalysis({ product: name, countries: [country], message: m.form.pending, expectedMs: EXPECTED_MS, phases: [] });
     let report: DeepReport | null = null;
+    let savedId: string | null = null;
     let failure: string | null = null;
     try {
       const response = await fetch("/api/research/deep", {
@@ -107,6 +109,7 @@ export function DeepResearch() {
             const e = parsed.data;
             if (e.type === "step") reportAnalysis({ progress: e.progress, step: stepLabel(e, m.steps) });
             else if (e.type === "report") report = e.report;
+            else if (e.type === "saved") savedId = e.id;
             else failure = m.failures[e.code];
           }
           if (done) break;
@@ -117,7 +120,7 @@ export function DeepResearch() {
     } finally {
       endAnalysis();
     }
-    setView(report ? { kind: "done", report } : { kind: "failed", message: failure ?? m.failures.request });
+    setView(report ? { kind: "done", report, savedId } : { kind: "failed", message: failure ?? m.failures.request });
     if (report) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -170,6 +173,13 @@ export function DeepResearch() {
       {view.kind === "failed" && (
         <p role="alert" className="mt-6 text-center text-sm text-muted-foreground">
           {view.message}
+        </p>
+      )}
+      {view.kind === "done" && view.savedId && (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          <Link href={`/analyses/runs/${view.savedId}`} className="underline decoration-line underline-offset-4 hover:decoration-foreground">
+            {m.saved}
+          </Link>
         </p>
       )}
       {view.kind === "done" && <DeepReportView report={view.report} />}

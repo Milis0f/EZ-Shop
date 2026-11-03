@@ -3,6 +3,7 @@ import { apiError, apiErrorFrom, apiMessages, apiOk } from "@/server/api-respons
 import { checkRateLimit } from "@/server/rate-limit";
 import { checkJsonPost } from "@/server/request-guard";
 import { GUARD_MESSAGE_KEY, requestLocale } from "@/server/request-locale";
+import { recordRun } from "@/server/history";
 import { runWebResearch } from "@/server/web/research";
 
 const RATE_LIMIT = { key: "web:research", limit: 20, windowMs: 10 * 60_000 } as const;
@@ -18,7 +19,12 @@ export async function POST(request: Request) {
   try {
     const body = webResearchRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return apiError(400, "validation_error", m.invalidInput);
-    return apiOk(await runWebResearch(body.data.query, locale));
+    const result = await runWebResearch(body.data.query, locale);
+    await recordRun(
+      { kind: "web_research", title: body.data.query, locale, countries: [], params: body.data },
+      result.status === "ready" ? { status: "completed", result, sourceCount: result.sources.length, durationMs: result.durationMs } : { status: "failed", error: result.code },
+    );
+    return apiOk(result);
   } catch (error: unknown) {
     return apiErrorFrom(error, locale);
   }

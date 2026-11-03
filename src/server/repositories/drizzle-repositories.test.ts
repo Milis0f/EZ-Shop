@@ -18,6 +18,7 @@ import * as t from "../db/schema";
 import { runAnalysis } from "../pipeline/run-analysis";
 import { DrizzleAnalysisRepository } from "./drizzle-analysis-repository";
 import { DrizzleCacheRepository } from "./drizzle-cache-repository";
+import { MemoryResearchRunRepository } from "./memory-repositories";
 import { createMemoryRepositories, MemoryAnalysisRepository } from "./memory-repositories";
 import type { CompletedAnalysis, NewAnalysis, ObservationRecord } from "./types";
 
@@ -85,7 +86,7 @@ afterEach(() => {
 const mockProviders = (now: Date): ProviderSet => createMockProviderSet(() => now);
 
 function analyse(now: Date = NOW): Promise<AnalysisResult> {
-  return runAnalysis(input, { repositories: { analyses, cache }, env: devEnv, now: () => now, providers: mockProviders(now) });
+  return runAnalysis(input, { repositories: { analyses, cache, runs: new MemoryResearchRunRepository() }, env: devEnv, now: () => now, providers: mockProviders(now) });
 }
 
 /** A valid CompletedAnalysis (and the NewAnalysis that produced it), built without touching the database under test. */

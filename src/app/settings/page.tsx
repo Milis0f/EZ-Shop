@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { EpistemicLegend } from "@/components/data/epistemic-legend";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { TermPrompt } from "@/components/marketing/term";
+import { BackupPanel } from "@/components/settings/backup-panel";
 import { AiSettings, ModeSettings, SettingsSection } from "@/components/settings/settings-panels";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getEnv } from "@/config/env";
@@ -13,6 +14,8 @@ import { modelChoices } from "@/server/ai/fit";
 import { installedModels } from "@/server/ai/installer";
 import { probeMachine } from "@/server/ai/machine";
 import { AI_MODELS, modelInfoOf, modelOfPath } from "@/server/ai/models";
+import { backupsAvailable, listLocalBackups } from "@/server/db/backup";
+import { backupDir, localDataDir } from "@/server/db/client";
 import { localizedEditorAccess } from "../connectors/editor-access";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -33,6 +36,9 @@ export default async function SettingsPage() {
         <Suspense fallback={<Skeleton className="h-64 w-full rounded-tile" />}>
           <AiSection />
         </Suspense>
+        <Suspense fallback={<Skeleton className="h-48 w-full rounded-tile" />}>
+          <BackupSection />
+        </Suspense>
         <SettingsSection bar="réglages — langue" title={m.language.title} intro={m.language.intro}>
           <LanguageSwitcher />
         </SettingsSection>
@@ -51,6 +57,14 @@ export default async function SettingsPage() {
       </div>
     </div>
   );
+}
+
+/** The backups on disk: readable even when the database itself no longer opens, to restore one. */
+async function BackupSection() {
+  await connection();
+  const available = backupsAvailable();
+  const backups = available ? await listLocalBackups() : [];
+  return <BackupPanel data={{ available, backups, folder: backupDir(), dataDir: localDataDir(), keep: getEnv().BACKUP_KEEP }} />;
 }
 
 /** Reads this computer (memory, graphics card, models on disk): each model's needs are stated against it. */

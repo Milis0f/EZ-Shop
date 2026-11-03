@@ -110,5 +110,7 @@ export const deepEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("step"), step: z.enum(DEEP_STEPS), progress: z.number().min(0).max(1), detail: z.string().nullable() }),
   z.object({ type: z.literal("report"), report: deepReportSchema }),
   z.object({ type: z.literal("failed"), code: z.enum(DEEP_FAILURES) }),
+  /** The report was kept in the history under this id. */
+  z.object({ type: z.literal("saved"), id: z.string().uuid() }),
 ]);
 export type DeepEvent = z.infer<typeof deepEventSchema>;

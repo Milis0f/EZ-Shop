@@ -6,8 +6,13 @@ import type {
   CompletedAnalysis,
   CreatedAnalysis,
   NewAnalysis,
+  NewRun,
   ProviderCacheRepository,
   Repositories,
+  ResearchRunRepository,
+  RunFinish,
+  RunListQuery,
+  RunRecord,
 } from "./types";
 
 /** In-memory implementations — used by tests; no persistence across restarts. */
@@ -45,6 +50,10 @@ export class MemoryAnalysisRepository implements AnalysisRepository {
 
   async findById(id: string): Promise<AnalysisResult | null> {
     return this.store.get(id)?.result ?? null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.store.delete(id);
   }
 
   async listRecent(limit: number): Promise<AnalysisSummary[]> {
@@ -94,6 +103,52 @@ export class MemoryCacheRepository implements ProviderCacheRepository {
   }
 }
 
+export class MemoryResearchRunRepository implements ResearchRunRepository {
+  private readonly store = new Map<string, RunRecord>();
+  private sequence = 0;
+
+  async start(run: NewRun): Promise<string> {
+    this.sequence += 1;
+    const id = `00000000-0000-4000-9000-${String(this.sequence).padStart(12, "0")}`;
+    const now = new Date().toISOString();
+    this.store.set(id, { ...run, id, status: "running", result: null, sourceCount: null, model: null, error: null, progress: null, step: null, durationMs: null, createdAt: now, startedAt: now, finishedAt: null });
+    return id;
+  }
+
+  async finish(id: string, finish: RunFinish): Promise<void> {
+    const run = this.store.get(id);
+    if (!run) return;
+    this.store.set(id, { ...run, status: finish.status, result: finish.result ?? null, sourceCount: finish.sourceCount ?? null, model: finish.model ?? null, error: finish.error ?? null, durationMs: finish.durationMs ?? null, finishedAt: new Date().toISOString() });
+  }
+
+  async findById(id: string): Promise<RunRecord | null> {
+    return this.store.get(id) ?? null;
+  }
+
+  async list(query: RunListQuery): Promise<RunRecord[]> {
+    const q = query.q?.toLowerCase();
+    return [...this.store.values()]
+      .filter((r) => (!query.kind || r.kind === query.kind) && (!q || r.title.toLowerCase().includes(q)))
+      .toSorted((a, b) => (query.order === "oldest" ? a.createdAt.localeCompare(b.createdAt) : b.createdAt.localeCompare(a.createdAt)))
+      .slice(0, query.limit);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.store.delete(id);
+  }
+
+  async markInterrupted(startedBefore: Date): Promise<number> {
+    let count = 0;
+    for (const run of this.store.values()) {
+      if ((run.status === "pending" || run.status === "running") && run.createdAt < startedBefore.toISOString()) {
+        this.store.set(run.id, { ...run, status: "interrupted", finishedAt: new Date().toISOString() });
+        count += 1;
+      }
+    }
+    return count;
+  }
+}
+
 export function createMemoryRepositories(): Repositories & { analyses: MemoryAnalysisRepository } {
-  return { analyses: new MemoryAnalysisRepository(), cache: new MemoryCacheRepository() };
+  return { analyses: new MemoryAnalysisRepository(), cache: new MemoryCacheRepository(), runs: new MemoryResearchRunRepository() };
 }

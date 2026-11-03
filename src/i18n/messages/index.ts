@@ -1,11 +1,13 @@
 import type { Locale } from "../config";
 import * as ai from "./ai";
 import * as analysisAdvanced from "./analysis-advanced";
+import * as backup from "./backup";
 import * as common from "./common";
 import * as competitorReport from "./competitor-report";
 import * as connectors from "./connectors";
 import * as country from "./country";
 import * as deepResearch from "./deep-research";
+import * as history from "./history";
 import * as home from "./home";
 import * as methodology from "./methodology";
 import * as report from "./report";
@@ -37,6 +39,8 @@ export const MESSAGES = {
   storeLive,
   storeGuide,
   settings,
+  backup,
+  history,
 } as const;
 
 export type Area = keyof typeof MESSAGES;

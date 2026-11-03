@@ -10,6 +10,9 @@ import type { FetchDeps } from "./safe-fetch";
 import { ensureSearxng, mergeHits, parseSearchResponse, searchWeb, type SearchDeps } from "./searxng";
 import { median, parseCatalogue, priceBands } from "./shop-catalogue";
 
+/** No database: the competitor check's watch keeps nothing (never the owner's .data/pglite). */
+const noCache = async () => null;
+
 const env = { SEARXNG_URL: "http://127.0.0.1:8888", SEARXNG_AUTOSTART: true } as ServerEnv;
 
 const engineAnswering = (answer: unknown) => {
@@ -291,7 +294,7 @@ describe("competitor check", () => {
   const shop = site({ "https://shop.example/products/cap": shopHtml, "https://shop.example/products/cap.js": { body: shopJson, type: "application/json" } });
 
   it("reads a Shopify product: facts from its JSON, reviews and delivery from the page", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(competitorResponseSchema.safeParse(result).success).toBe(true);
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.platform).toBe("shopify");
@@ -303,12 +306,12 @@ describe("competitor check", () => {
   });
 
   it("never carries a sales figure", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(JSON.stringify(result).toLowerCase()).not.toContain("sales");
   });
 
   it("adds https when the address has no scheme", async () => {
-    const result = await analyzeCompetitor("shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(result.status).toBe("ready");
   });
 
@@ -321,7 +324,7 @@ describe("competitor check", () => {
       { url: "https://www.temu.com/blue-cap-g-601.html", title: "Blue cap, adjustable" },
     ]);
     const { reading, completeJson } = engineAnswering({ summary: "A cap.", keyPoints: [] });
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search, reading, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, cache: noCache, fetch: shop, search, reading, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.suppliers?.map((s) => s.url)).toEqual(["https://www.aliexpress.com/item/1005001.html", "https://www.temu.com/blue-cap-g-601.html"]);
     expect(result.signals).toContain("marketplace_copy");
@@ -333,7 +336,7 @@ describe("competitor check", () => {
       { url: "https://www.aliexpress.com/popular.html", title: "Blue Cap Wholesalers Directory" },
       { url: "https://www.aliexpress.com/item/9.html", title: "Soap dish" },
     ]);
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, cache: noCache, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.suppliers).toEqual([]);
     expect(result.supplierSearch).toBe("done");
@@ -342,19 +345,19 @@ describe("competitor check", () => {
 
   it("does not search when not asked", async () => {
     const search = searchDeps([]);
-    await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
+    await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
     expect(search.fetch).not.toHaveBeenCalled();
   });
 
   it("reports a supplier search that could not run, and still answers", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search: searchDeps([], { up: false }), reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, cache: noCache, fetch: shop, search: searchDeps([], { up: false }), reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.supplierSearch).toBe("search_not_installed");
   });
 
   it("reads an ordinary site without any Shopify call", async () => {
     const plain = site({ "https://brand.example/item": `<title>Item</title><meta property="product:price:amount" content="49,90"><meta property="product:price:currency" content="GBP">` });
-    const result = await analyzeCompetitor("https://brand.example/item", { searchSupplier: false, deep: false }, "en", { env, fetch: plain, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://brand.example/item", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: plain, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.platform).toBe("other");
     expect(result.observed).toMatchObject({ name: "Item", priceMin: 49.9, currency: "GBP", variants: null, variantsInStock: null });
@@ -363,7 +366,7 @@ describe("competitor check", () => {
 
   it("keeps page facts when the Shopify JSON is refused", async () => {
     const partial = site({ "https://shop.example/products/cap": shopHtml });
-    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: partial, reading: noModel, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: partial, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.observed).toMatchObject({ name: "Cap", reviewCount: 37, variants: null });
   });
@@ -373,14 +376,14 @@ describe("competitor check", () => {
     ["ftp://shop.example/x", "invalid_url"],
     ["https://shop.example/missing", "http_error"],
   ])("blocks %s", async (url, code) => {
-    expect(await analyzeCompetitor(url, { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code });
+    expect(await analyzeCompetitor(url, { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code });
   });
 
   it("refuses what is not a page, and respects robots.txt", async () => {
     const pdf = site({ "https://a.example/f": { body: "%PDF", type: "application/pdf" } });
-    expect(await analyzeCompetitor("https://a.example/f", { searchSupplier: false, deep: false }, "en", { env, fetch: pdf, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "not_a_page" });
+    expect(await analyzeCompetitor("https://a.example/f", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: pdf, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "not_a_page" });
     const closed = site({ "https://a.example/robots.txt": "User-agent: *\nDisallow: /", "https://a.example/p": "<p>x</p>" });
-    expect(await analyzeCompetitor("https://a.example/p", { searchSupplier: false, deep: false }, "en", { env, fetch: closed, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "robots" });
+    expect(await analyzeCompetitor("https://a.example/p", { searchSupplier: false, deep: false }, "en", { env, cache: noCache, fetch: closed, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "robots" });
   });
 });
 
@@ -612,7 +615,7 @@ describe("a page that is not a product", () => {
   it("never shows the shop's name as a product, reads the catalogue and briefs the AI on the shop", async () => {
     const { completeJson, reading } = engineAnswering({ summary: "Une boutique de baskets.", keyPoints: [] });
     const shop = site({ "https://s.example/": home, "https://s.example/products.json?limit=250&page=1": { body: catalogue, type: "application/json" } });
-    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: true, deep: false }, "fr", { env, fetch: shop, search: searchDeps([]), reading, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: true, deep: false }, "fr", { env, cache: noCache, fetch: shop, search: searchDeps([]), reading, now: () => 0, paceMs: 0 });
     expect(competitorResponseSchema.safeParse(result).success).toBe(true);
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.pageKind).toBe("not_product");
@@ -625,7 +628,7 @@ describe("a page that is not a product", () => {
   it("offers the links it finds and leaves the AI out when there is nothing to read", async () => {
     const loadEngine = vi.fn(noModel.loadEngine);
     const shop = site({ "https://s.example/": home });
-    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: false, deep: false }, "fr", { env, fetch: shop, reading: { loadEngine }, now: () => 0, paceMs: 0 });
+    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: false, deep: false }, "fr", { env, cache: noCache, fetch: shop, reading: { loadEngine }, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.catalogue).toBeNull();
     expect(result.productLinks).toEqual(["https://s.example/products/samba"]);
@@ -660,7 +663,7 @@ describe("a shop that limits reads", () => {
     });
     return { deps: { lookup: async () => ["93.184.216.34"], fetch: fetchImpl as unknown as typeof fetch }, robotsReads: () => robots };
   };
-  const run = (deps: FetchDeps, sleep: (ms: number) => Promise<void>) => analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep });
+  const run = (deps: FetchDeps, sleep: (ms: number) => Promise<void>) => analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, cache: noCache, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep });
 
   it("waits and reads again, and reads robots.txt only once", async () => {
     const sleep = vi.fn(async () => undefined);
@@ -684,6 +687,6 @@ describe("a shop that limits reads", () => {
 
   it("names the refusal when the page itself is limited", async () => {
     const deps: FetchDeps = { lookup: async () => ["93.184.216.34"], fetch: vi.fn(async (input: string) => (String(input).endsWith("/robots.txt") ? new Response("") : new Response("", { status: 429 }))) as unknown as typeof fetch };
-    expect(await analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep: async () => undefined })).toEqual({ status: "blocked", code: "rate_limited" });
+    expect(await analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, cache: noCache, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep: async () => undefined })).toEqual({ status: "blocked", code: "rate_limited" });
   });
 });

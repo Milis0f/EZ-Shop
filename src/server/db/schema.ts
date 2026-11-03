@@ -213,6 +213,35 @@ export const competitionSnapshots = pgTable(
   ],
 );
 
+/**
+ * Research kept for the history, other than product analyses: deep AI research, competitor checks,
+ * web searches. `params` is what was asked, `result` the whole report with its sources (validated
+ * again with its domain schema when read back). Kind and status are checked in code (src/domain/history.ts).
+ */
+export const researchRuns = pgTable(
+  "research_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    status: text("status").notNull(),
+    locale: text("locale").notNull(),
+    countries: jsonb("countries").$type<string[]>().notNull().default([]),
+    params: jsonb("params").$type<unknown>().notNull(),
+    result: jsonb("result").$type<unknown>(),
+    sourceCount: integer("source_count"),
+    model: text("model"),
+    error: text("error"),
+    progress: doublePrecision("progress"),
+    step: text("step"),
+    durationMs: integer("duration_ms"),
+    createdAt: createdAt(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("research_runs_created_at_idx").on(t.createdAt.desc()), index("research_runs_kind_idx").on(t.kind, t.createdAt.desc())],
+);
+
 /** Raw provider responses, to avoid re-calling slow-moving public APIs. */
 export const providerCache = pgTable(
   "provider_cache",

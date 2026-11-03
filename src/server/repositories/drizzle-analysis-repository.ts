@@ -226,6 +226,12 @@ export class DrizzleAnalysisRepository implements AnalysisRepository {
     };
   }
 
+  async delete(id: string): Promise<boolean> {
+    // Country results, observations, assumptions, forecasts and scores go with it (ON DELETE CASCADE).
+    const rows = await this.db.delete(t.analyses).where(eq(t.analyses.id, id)).returning({ id: t.analyses.id });
+    return rows.length > 0;
+  }
+
   async listRecent(limit: number): Promise<AnalysisSummary[]> {
     const rows = await this.db
       .select({

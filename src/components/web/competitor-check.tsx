@@ -18,11 +18,11 @@ import { WebResearchResult } from "./web-research";
 
 type View = { readonly kind: "idle" } | { readonly kind: "reading" } | { readonly kind: "done"; readonly response: CompetitorResponse } | { readonly kind: "error" };
 
-function CheckForm() {
+function CheckForm({ initialUrl = "" }: { readonly initialUrl?: string }) {
   const m = useMessages("web").competitor;
   const r = useMessages("competitorReport");
   const failures = useMessages("web").results;
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [deep, setDeep] = useState(true);
   const [view, setView] = useState<View>({ kind: "idle" });
   const urlId = useId();
@@ -147,12 +147,13 @@ function FreeSearch() {
   );
 }
 
-export function CompetitorCheck() {
+/** `initialUrl` fills the address (a check opened again from the history); nothing is read until asked. */
+export function CompetitorCheck({ initialUrl }: { readonly initialUrl?: string } = {}) {
   return (
     <>
       <AiInstallButton className="mb-10" />
       <SpotlightArea>
-        <CheckForm />
+        <CheckForm initialUrl={initialUrl} />
         <FreeSearch />
       </SpotlightArea>
     </>

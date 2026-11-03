@@ -15,6 +15,13 @@
       "when": 1792095815546,
       "tag": "0001_analysis_context",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793710628966,
+      "tag": "0002_research_runs",
+      "breakpoints": true
     }
   ]
 }
