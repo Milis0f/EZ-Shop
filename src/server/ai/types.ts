@@ -43,6 +43,8 @@ export interface AiToolRequest {
 
 export interface LocalAiEngine {
   readonly model: AiModelInfo;
+  /** Tokens the loaded context really holds: less than asked when the card had no room for the full one. */
+  readonly contextTokens?: number;
   /** Runs one grammar-constrained generation and returns the parsed JSON (still to be validated by the caller). */
   completeJson(request: AiJsonRequest): Promise<unknown>;
   /** Lets the model call the given tools while it writes a free text answer, which is returned. */

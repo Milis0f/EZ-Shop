@@ -227,6 +227,7 @@ function createEngine(runtime: LoadedRuntime, info: AiModelInfo, queue: ReturnTy
 
   return {
     model: info,
+    contextTokens: runtime.context.contextSize,
     completeJson: (request) => enqueue(() => start(request)),
     runWithTools: runtime.defineFunction ? (request) => enqueue(() => startWork(request, (signal) => generateWithTools(request, signal))) as Promise<string> : undefined,
   };

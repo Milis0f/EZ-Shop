@@ -22,6 +22,8 @@ const TOOL_TOKENS = 1_200;
 const WRITE_TOKENS = 2_200;
 /** The model's context holds 8 192 tokens, about 2.9 characters each: the material keeps to this. */
 const MATERIAL_CHARS = 13_000;
+/** The system prompt and the instructions around the material, in tokens. */
+const PROMPT_TOKENS = 900;
 const SEARCH_RESULTS = 5;
 
 export type ToolEvent = { readonly tool: string; readonly detail: string };
@@ -178,8 +180,25 @@ export interface WriteFacts {
   readonly extraFacts: readonly string[];
 }
 
-/** The numbered material the report is written from: the facts, then each source's text, until the context is full. */
-export function materialFor(book: SourceBook, facts: WriteFacts): string {
+/** Pages read in full say most; a shop next, then search snippets and unread listings. */
+const KIND_ORDER: Readonly<Record<string, number>> = { page: 0, shop: 1, search: 2, marketplace: 3 };
+
+/** Room the material may take in a context of `contextTokens`, after the prompt and the answer (about 3 characters a token). */
+export function materialBudget(contextTokens: number | undefined): number {
+  if (!contextTokens) return MATERIAL_CHARS;
+  return Math.max(2_000, Math.min(MATERIAL_CHARS * 2, Math.floor((contextTokens - WRITE_TOKENS - PROMPT_TOKENS) * 3)));
+}
+
+const sentencesOf = (text: string) => text.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean);
+const normalised = (sentence: string) => sentence.toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N} ]/gu, "");
+
+/**
+ * The numbered material the report is written from: the facts, then each source's text, the most
+ * telling sources first, until the room the context leaves is full. A sentence already given by
+ * another source is left out (shops and marketplaces repeat the same product text); the source keeps
+ * its number, so citations stay exact.
+ */
+export function materialFor(book: SourceBook, facts: WriteFacts, budget: number = MATERIAL_CHARS): string {
   const lines = [
     `Product: ${facts.product}. Market: ${facts.country}.`,
     ...facts.prices.map((p) => `[${p.source}] states the price ${p.price} ${p.currency ?? ""} for "${p.name}"${p.reviewCount ? `, ${p.reviewCount} reviews` : ""}${p.rating ? `, rated ${p.rating}` : ""}.`),
@@ -187,11 +206,21 @@ export function materialFor(book: SourceBook, facts: WriteFacts): string {
     ...facts.extraFacts,
   ].filter(Boolean);
   let used = lines.join("\n").length;
-  for (const source of book.all()) {
-    const body = book.text(source.n);
-    if (!body) continue;
-    const entry = `\n[${source.n}] ${source.title} (${source.domain})\n${body}`;
-    if (used + entry.length > MATERIAL_CHARS) continue;
+  const seen = new Set<string>();
+  const ordered = [...book.all()].sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || a.n - b.n);
+  for (const source of ordered) {
+    const text = book.text(source.n);
+    if (!text) continue;
+    const fresh = sentencesOf(text).filter((sentence) => {
+      const key = normalised(sentence);
+      if (key.length < 24) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (fresh.length === 0) continue;
+    const entry = `\n[${source.n}] ${source.title} (${source.domain})\n${fresh.join(" ")}`;
+    if (used + entry.length > budget) continue;
     lines.push(entry);
     used += entry.length;
   }
@@ -222,7 +251,8 @@ export function keepCited(answer: Answer, allowed: ReadonlySet<string>, sourceCo
 }
 
 export async function writeReport(engine: LocalAiEngine, book: SourceBook, facts: WriteFacts, locale: Locale, signal: AbortSignal, deadlineAt?: number): Promise<{ ai: DeepAi | null; note: "ai_rejected" | "ai_failed" | null }> {
-  const material = materialFor(book, facts);
+  // As much material as the context the model really got leaves room for.
+  const material = materialFor(book, facts, materialBudget(engine.contextTokens));
   const allowed = collectNumbersFor(locale, [material]);
   const user = `Write the report.\n\n<data>\n${material}\n</data>`;
   try {

@@ -157,3 +157,29 @@ describe("a deep research", () => {
     expect(events.at(-1)).toEqual({ type: "failed", code: "search_not_installed" });
   });
 });
+
+describe("material for the report", () => {
+  it("gives as much room as the context the model really got, never less than a little", async () => {
+    const { materialBudget } = await import("./deep-ai");
+    expect(materialBudget(undefined)).toBe(13_000);
+    expect(materialBudget(8192)).toBe(15_276);
+    expect(materialBudget(4096)).toBe(2_988);
+    expect(materialBudget(1024)).toBe(2_000);
+  });
+
+  it("puts read pages before snippets, and leaves out a sentence another source already gave", async () => {
+    const { SourceBook } = await import("./deep-gather");
+    const book = new SourceBook();
+    const snippet = book.add("https://s.example/a", "Search hit", "search");
+    const page = book.add("https://shop.example/p", "Shop page", "page", { read: true });
+    const copy = book.add("https://market.example/q", "Listing", "marketplace");
+    const repeated = "This stainless steel bottle keeps drinks cold for twenty-four hours.";
+    book.setText(snippet, "A short snippet about bottles sold online.");
+    book.setText(page, `${repeated} Price 19.90 EUR.`);
+    book.setText(copy, repeated);
+    const material = materialFor(book, { product: "gourde", country: "France", prices: [], shops: [], margin: null, extraFacts: [] });
+    expect(material.indexOf(`[${page}]`)).toBeLessThan(material.indexOf(`[${snippet}]`));
+    expect(material.split(repeated)).toHaveLength(2);
+    expect(material).not.toContain(`[${copy}]`);
+  });
+});
