@@ -76,6 +76,8 @@ export interface NewRun {
   readonly locale: string;
   readonly countries: readonly string[];
   readonly params: unknown;
+  /** "pending": queued for the background worker; "running" (default): run right away by the caller. */
+  readonly status?: "pending" | "running";
 }
 
 export interface RunFinish {
@@ -122,8 +124,17 @@ export interface ResearchRunRepository {
   findById(id: string): Promise<RunRecord | null>;
   list(query: RunListQuery): Promise<RunRecord[]>;
   delete(id: string): Promise<boolean>;
-  /** Runs still pending or running from before `startedBefore` (the app stopped meanwhile). */
+  /**
+   * Runs started before `startedBefore` and still running (the app stopped meanwhile) become interrupted.
+   * Pending ones stay pending: nothing of them ran, the worker can take them without doing anything twice.
+   */
   markInterrupted(startedBefore: Date): Promise<number>;
+  /** Takes the oldest pending run and marks it running; null when none waits. */
+  claimNext(): Promise<RunRecord | null>;
+  /** Where a running run is: a share from 0 to 1 and the step under way. */
+  progress(id: string, progress: number, step: string | null): Promise<void>;
+  /** Cancels a run that has not started yet; false when it already started or ended. */
+  cancelPending(id: string): Promise<boolean>;
 }
 
 export interface ProviderCacheRepository {

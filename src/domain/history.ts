@@ -38,3 +38,35 @@ export interface HistoryEntry {
   /** A product analysis' verdict, as its report opens with it. */
   readonly verdict?: AnalysisSummary["verdict"];
 }
+
+/** The step a running run is at, as the worker saved it. */
+export const runStepSchema = z.object({ step: z.string().max(40), detail: z.string().max(400).nullable() });
+export type RunStep = z.infer<typeof runStepSchema>;
+
+/** Reads the saved step; anything unreadable is no step rather than a wrong one. */
+export function parseRunStep(text: string | null): RunStep | null {
+  if (!text) return null;
+  try {
+    const parsed = runStepSchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the page polls while a run works: GET /api/runs/:id. `result` comes once it is completed. */
+export const runViewSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(RUN_KINDS),
+  title: z.string(),
+  status: z.enum(RUN_STATUSES),
+  progress: z.number().min(0).max(1).nullable(),
+  step: runStepSchema.nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string(),
+  finishedAt: z.string().nullable(),
+  result: z.unknown().optional(),
+});
+export type RunView = z.infer<typeof runViewSchema>;
+
+export const isRunOver = (status: RunStatus): boolean => status !== "pending" && status !== "running";

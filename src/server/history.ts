@@ -18,7 +18,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const globalForHistory = globalThis as unknown as { __ezShopStarted?: Date; __ezShopRunsSwept?: Promise<unknown> };
 globalForHistory.__ezShopStarted ??= new Date();
 
-function sweepInterrupted(runs: ResearchRunRepository): Promise<unknown> {
+/** Once per server start, before anything reads or takes a run. */
+export function sweepInterrupted(runs: ResearchRunRepository): Promise<unknown> {
   globalForHistory.__ezShopRunsSwept ??= runs.markInterrupted(globalForHistory.__ezShopStarted ?? new Date()).catch((error: unknown) => {
     globalForHistory.__ezShopRunsSwept = undefined;
     throw error;

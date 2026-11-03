@@ -6,6 +6,14 @@ export const en = {
   title: "Deep AI analysis",
   intro: "The app searches the web, reads the pages, the Shopify shops and the marketplaces, then the local AI digs further with its own tools and writes a report where every point links to its sources. A few minutes; nothing leaves this computer but the search words.",
   saved: "Kept in the history: open it again any time.",
+  queue: {
+    waiting: "Waiting for the AI to be free…",
+    resumed: "Deep AI research",
+    leave: "You can leave this page: the research goes on, and the History keeps it.",
+    cancel: "Stop the research",
+    cancelled: "The research was stopped.",
+    interrupted: "The research was cut by a stop of EZ-Shop. Start it again when you like.",
+  },
   form: {
     product: "Product",
     productPlaceholder: "e.g. stainless steel water bottle",
@@ -86,6 +94,14 @@ export const fr: Shape = {
   title: "Analyse IA approfondie",
   intro: "L'app cherche sur le web, lit les pages, les boutiques Shopify et les marketplaces, puis l'IA locale creuse avec ses propres outils et écrit un compte rendu où chaque point renvoie à ses sources. Quelques minutes ; seuls les mots de recherche quittent cet ordinateur.",
   saved: "Gardé dans l'historique : rouvre-le quand tu veux.",
+  queue: {
+    waiting: "En attente que l'IA soit libre…",
+    resumed: "Recherche IA approfondie",
+    leave: "Tu peux quitter cette page : la recherche continue, et l'Historique la garde.",
+    cancel: "Arrêter la recherche",
+    cancelled: "La recherche a été arrêtée.",
+    interrupted: "La recherche a été coupée par un arrêt d'EZ-Shop. Relance-la quand tu veux.",
+  },
   form: {
     product: "Produit",
     productPlaceholder: "ex. gourde inox",
@@ -164,6 +180,14 @@ export const es: Shape = {
   title: "Análisis IA a fondo",
   intro: "La app busca en la web, lee las páginas, las tiendas Shopify y los marketplaces, y luego la IA local profundiza con sus propias herramientas y escribe un informe donde cada punto enlaza a sus fuentes. Unos minutos; solo las palabras de búsqueda salen de este ordenador.",
   saved: "Guardado en el historial: vuelve a abrirlo cuando quieras.",
+  queue: {
+    waiting: "Esperando a que la IA esté libre…",
+    resumed: "Investigación IA a fondo",
+    leave: "Puedes salir de esta página: la investigación sigue, y el Historial la guarda.",
+    cancel: "Detener la investigación",
+    cancelled: "La investigación se detuvo.",
+    interrupted: "Una parada de EZ-Shop cortó la investigación. Vuelve a lanzarla cuando quieras.",
+  },
   form: {
     product: "Producto",
     productPlaceholder: "p. ej. botella de acero inoxidable",

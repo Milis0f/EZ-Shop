@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { DatabaseNotice } from "@/components/data/database-notice";
+import { LiveRun, RetryRun } from "@/components/history/live-run";
 import { RemoveEntry } from "@/components/history/remove-entry";
 import { SavedRunReport, type SavedReport } from "@/components/history/saved-run";
 import { TermPrompt } from "@/components/marketing/term";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deepReportSchema } from "@/domain/deep-research";
+import { isRunOver } from "@/domain/history";
 import { competitorResponseSchema, webResearchResponseSchema } from "@/domain/web";
 import { formatDate, formatInt } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
@@ -70,10 +72,13 @@ async function SavedRun({ params }: { readonly params: Promise<{ id: string }> }
               {m.run.checkAgain}
             </Link>
           )}
+          {run.kind === "deep_research" && isRunOver(run.status) && run.status !== "completed" && <RetryRun params={run.params} />}
           <RemoveEntry kind={run.kind} id={run.id} title={run.title} onRemoved="/analyses" />
         </div>
       </header>
-      {saved ? (
+      {!isRunOver(run.status) ? (
+        <LiveRun id={run.id} />
+      ) : saved ? (
         <SavedRunReport saved={saved} />
       ) : (
         <p className="rounded-tile border border-dashed border-foreground/15 px-6 py-10 text-center text-sm text-muted-foreground">{run.result === null ? m.run.noReport : m.run.unreadable}</p>

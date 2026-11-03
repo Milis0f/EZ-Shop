@@ -111,7 +111,8 @@ export class MemoryResearchRunRepository implements ResearchRunRepository {
     this.sequence += 1;
     const id = `00000000-0000-4000-9000-${String(this.sequence).padStart(12, "0")}`;
     const now = new Date().toISOString();
-    this.store.set(id, { ...run, id, status: "running", result: null, sourceCount: null, model: null, error: null, progress: null, step: null, durationMs: null, createdAt: now, startedAt: now, finishedAt: null });
+    const { status = "running", ...fields } = run;
+    this.store.set(id, { ...fields, id, status, result: null, sourceCount: null, model: null, error: null, progress: null, step: null, durationMs: null, createdAt: now, startedAt: status === "pending" ? null : now, finishedAt: null });
     return id;
   }
 
@@ -140,12 +141,32 @@ export class MemoryResearchRunRepository implements ResearchRunRepository {
   async markInterrupted(startedBefore: Date): Promise<number> {
     let count = 0;
     for (const run of this.store.values()) {
-      if ((run.status === "pending" || run.status === "running") && run.createdAt < startedBefore.toISOString()) {
+      if (run.status === "running" && (run.startedAt ?? run.createdAt) < startedBefore.toISOString()) {
         this.store.set(run.id, { ...run, status: "interrupted", finishedAt: new Date().toISOString() });
         count += 1;
       }
     }
     return count;
+  }
+
+  async claimNext(): Promise<RunRecord | null> {
+    const next = [...this.store.values()].filter((r) => r.status === "pending").toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0];
+    if (!next) return null;
+    const claimed: RunRecord = { ...next, status: "running", startedAt: new Date().toISOString(), progress: 0 };
+    this.store.set(next.id, claimed);
+    return claimed;
+  }
+
+  async progress(id: string, progress: number, step: string | null): Promise<void> {
+    const run = this.store.get(id);
+    if (run?.status === "running") this.store.set(id, { ...run, progress, step });
+  }
+
+  async cancelPending(id: string): Promise<boolean> {
+    const run = this.store.get(id);
+    if (run?.status !== "pending") return false;
+    this.store.set(id, { ...run, status: "cancelled", finishedAt: new Date().toISOString() });
+    return true;
   }
 }
 

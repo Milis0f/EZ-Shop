@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { endAnalysis, reportAnalysis, startAnalysis } from "@/components/planet/planet-store";
 import { countryName } from "@/components/search/display-names";
 import { TermBar } from "@/components/marketing/term";
@@ -9,16 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { COUNTRY_CODES, type CountryCode } from "@/domain/country";
-import { deepEventSchema, type DeepEvent, type DeepReport } from "@/domain/deep-research";
+import { DEEP_STEPS, deepReportSchema, type DeepEvent, type DeepReport, type DeepStep } from "@/domain/deep-research";
 import { useLocale, useMessages } from "@/i18n/client";
 import type { Messages } from "@/i18n/messages";
 import { t } from "@/i18n/translate";
 import { DeepReportView } from "./deep-report";
+import { cancelRun, followRun } from "./follow-run";
 
 /** Usual length of a deep analysis, for the ring until the first real steps arrive. */
 const EXPECTED_MS = 150_000;
 
-type View = { readonly kind: "idle" } | { readonly kind: "running" } | { readonly kind: "done"; readonly report: DeepReport; readonly savedId: string | null } | { readonly kind: "failed"; readonly message: string };
+type View = { readonly kind: "idle" } | { readonly kind: "running"; readonly runId: string | null } | { readonly kind: "done"; readonly report: DeepReport; readonly savedId: string | null } | { readonly kind: "failed"; readonly message: string };
 
 type StepMessages = Messages<"deepResearch">["steps"];
 
@@ -51,6 +52,8 @@ export function stepLabel(event: Extract<DeepEvent, { type: "step" }>, m: StepMe
   }
 }
 
+const isDeepStep = (step: string): step is DeepStep => (DEEP_STEPS as readonly string[]).includes(step);
+
 const parsePrice = (raw: string): number | undefined => {
   const value = Number(raw.replace(",", ".").trim());
   return raw.trim() && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -66,63 +69,84 @@ export function DeepResearch() {
   const abortRef = useRef<AbortController | null>(null);
   const id = useId();
 
+  /** Follows a queued run to its end: the planet shows its real steps, the report comes with it. */
+  async function follow(runId: string, name: string, runCountries: readonly CountryCode[]) {
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+    setView({ kind: "running", runId });
+    startAnalysis({ product: name, countries: [...runCountries], message: m.form.pending, expectedMs: EXPECTED_MS, phases: [] });
+    try {
+      let named = runCountries.length > 0;
+      const last = await followRun(runId, abort.signal, (v) => {
+        // Followed again from its address: the planet takes the research's own name once it is known.
+        if (!named) {
+          named = true;
+          startAnalysis({ product: v.title, countries: [], message: m.form.pending, expectedMs: EXPECTED_MS, phases: [] });
+        }
+        if (v.status === "pending") reportAnalysis({ progress: 0, step: m.queue.waiting });
+        else if (v.step && isDeepStep(v.step.step)) reportAnalysis({ progress: v.progress ?? 0, step: stepLabel({ type: "step", step: v.step.step, progress: v.progress ?? 0, detail: v.step.detail }, m.steps) });
+      });
+      if (abort.signal.aborted) return;
+      const report = last?.status === "completed" ? deepReportSchema.safeParse(last.result) : null;
+      if (report?.success) {
+        setView({ kind: "done", report: report.data, savedId: runId });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setView({ kind: "failed", message: failureMessage(last?.status ?? null, last?.error ?? null) });
+      }
+    } finally {
+      if (!abort.signal.aborted) endAnalysis();
+    }
+  }
+
+  function failureMessage(status: string | null, error: string | null): string {
+    if (status === "cancelled") return m.queue.cancelled;
+    if (status === "interrupted") return m.queue.interrupted;
+    if (error && error in m.failures) return m.failures[error as keyof typeof m.failures];
+    return m.failures.request;
+  }
+
   async function run(event: FormEvent) {
     event.preventDefault();
     const name = product.trim();
     if (name.length < 2 || view.kind === "running") return;
-    abortRef.current?.abort();
-    const abort = new AbortController();
-    abortRef.current = abort;
-    setView({ kind: "running" });
-    startAnalysis({ product: name, countries: [country], message: m.form.pending, expectedMs: EXPECTED_MS, phases: [] });
-    let report: DeepReport | null = null;
-    let savedId: string | null = null;
-    let failure: string | null = null;
+    setView({ kind: "running", runId: null });
     try {
       const response = await fetch("/api/research/deep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product: name, country, sellingPrice: parsePrice(prices.selling), supplierPrice: parsePrice(prices.supplier), shippingCost: parsePrice(prices.shipping) }),
-        signal: abort.signal,
       });
-      if (!response.ok || !response.body) {
-        failure = response.status === 429 ? m.failures.rate_limited : m.failures.request;
-      } else {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            let raw: unknown;
-            try {
-              raw = JSON.parse(line);
-            } catch {
-              continue;
-            }
-            const parsed = deepEventSchema.safeParse(raw);
-            if (!parsed.success) continue;
-            const e = parsed.data;
-            if (e.type === "step") reportAnalysis({ progress: e.progress, step: stepLabel(e, m.steps) });
-            else if (e.type === "report") report = e.report;
-            else if (e.type === "saved") savedId = e.id;
-            else failure = m.failures[e.code];
-          }
-          if (done) break;
-        }
+      const runId = response.ok ? ((await response.json()) as { data?: { id?: unknown } }).data?.id : undefined;
+      if (typeof runId !== "string") {
+        setView({ kind: "failed", message: response.status === 429 ? m.failures.rate_limited : m.failures.request });
+        return;
       }
+      // The address keeps the run: a reload, or coming back later, follows it again.
+      window.history.replaceState(null, "", `?run=${runId}`);
+      await follow(runId, name, [country]);
     } catch {
-      if (!abort.signal.aborted) failure = m.failures.request;
-    } finally {
-      endAnalysis();
+      setView({ kind: "failed", message: m.failures.request });
     }
-    setView(report ? { kind: "done", report, savedId } : { kind: "failed", message: failure ?? m.failures.request });
-    if (report) window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  // Opened with ?run=… (a reload, or from the history while it runs): follow that run.
+  useEffect(() => {
+    const runId = new URLSearchParams(window.location.search).get("run");
+    if (!runId || !/^[0-9a-f-]{36}$/i.test(runId)) return;
+    // Started from a timer, like a subscription: the effect itself sets no state.
+    const timer = setTimeout(() => void follow(runId, m.queue.resumed, []), 0);
+    return () => {
+      clearTimeout(timer);
+      abortRef.current?.abort();
+    };
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Leaving the page stops following only: the research goes on in the background.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
     <>
@@ -164,9 +188,17 @@ export function DeepResearch() {
               ))}
             </div>
           </fieldset>
-          <Button type="submit" disabled={view.kind === "running"} className="self-start">
-            {view.kind === "running" ? m.form.running : m.form.submit}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={view.kind === "running"}>
+              {view.kind === "running" ? m.form.running : m.form.submit}
+            </Button>
+            {view.kind === "running" && view.runId && (
+              <Button type="button" variant="ghost" onClick={() => void cancelRun(view.runId as string)}>
+                {m.queue.cancel}
+              </Button>
+            )}
+          </div>
+          {view.kind === "running" && <p className="text-sm text-muted-foreground">{m.queue.leave}</p>}
         </div>
       </form>
 

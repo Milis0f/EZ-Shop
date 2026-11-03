@@ -30,6 +30,7 @@ export const en = {
     noReport: "No report was kept for this research.",
     unreadable: "The report kept here no longer matches what this version of EZ-Shop reads: it is not shown, rather than shown wrong.",
     checkAgain: "Check it again",
+    retry: "Start it again",
   },
 } as const;
 
@@ -64,6 +65,7 @@ export const fr: Shape = {
     noReport: "Aucun rapport n'a été gardé pour cette recherche.",
     unreadable: "Le rapport gardé ici ne correspond plus à ce que cette version d'EZ-Shop sait lire : il n'est pas affiché, plutôt qu'affiché faux.",
     checkAgain: "Revérifier",
+    retry: "Relancer",
   },
 };
 
@@ -96,5 +98,6 @@ export const es: Shape = {
     noReport: "No se guardó ningún informe para esta investigación.",
     unreadable: "El informe guardado aquí ya no corresponde a lo que esta versión de EZ-Shop sabe leer: no se muestra, antes que mostrarlo mal.",
     checkAgain: "Volver a comprobar",
+    retry: "Volver a lanzarla",
   },
 };

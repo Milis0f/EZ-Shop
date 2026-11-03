@@ -46,7 +46,7 @@ export class DrizzleResearchRunRepository implements ResearchRunRepository {
     const now = new Date();
     const [row] = await this.db
       .insert(researchRuns)
-      .values({ kind: run.kind, title: run.title, status: "running", locale: run.locale, countries: [...run.countries], params: run.params, createdAt: now, startedAt: now })
+      .values({ kind: run.kind, title: run.title, status: run.status ?? "running", locale: run.locale, countries: [...run.countries], params: run.params, createdAt: now, startedAt: run.status === "pending" ? null : now })
       .returning({ id: researchRuns.id });
     return row.id;
   }
@@ -95,8 +95,35 @@ export class DrizzleResearchRunRepository implements ResearchRunRepository {
     const rows = await this.db
       .update(researchRuns)
       .set({ status: "interrupted", finishedAt: new Date(), step: null })
-      .where(and(inArray(researchRuns.status, ["pending", "running"]), lt(researchRuns.createdAt, startedBefore)))
+      .where(and(eq(researchRuns.status, "running"), lt(researchRuns.startedAt, startedBefore)))
       .returning({ id: researchRuns.id });
     return rows.length;
+  }
+
+  async claimNext(): Promise<RunRecord | null> {
+    // One worker per process and PGlite has one connection: the select-then-update cannot race.
+    const next = this.db.select({ id: researchRuns.id }).from(researchRuns).where(eq(researchRuns.status, "pending")).orderBy(asc(researchRuns.createdAt)).limit(1);
+    const [row] = await this.db
+      .update(researchRuns)
+      .set({ status: "running", startedAt: new Date(), progress: 0 })
+      .where(and(eq(researchRuns.status, "pending"), inArray(researchRuns.id, next)))
+      .returning();
+    return row ? toRecord(row) : null;
+  }
+
+  async progress(id: string, progress: number, step: string | null): Promise<void> {
+    await this.db
+      .update(researchRuns)
+      .set({ progress: Math.min(1, Math.max(0, progress)), step })
+      .where(and(eq(researchRuns.id, id), eq(researchRuns.status, "running")));
+  }
+
+  async cancelPending(id: string): Promise<boolean> {
+    const rows = await this.db
+      .update(researchRuns)
+      .set({ status: "cancelled", finishedAt: new Date() })
+      .where(and(eq(researchRuns.id, id), eq(researchRuns.status, "pending")))
+      .returning({ id: researchRuns.id });
+    return rows.length > 0;
   }
 }

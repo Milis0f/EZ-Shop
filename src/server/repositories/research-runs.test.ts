@@ -69,6 +69,33 @@ describe("DrizzleResearchRunRepository", { timeout: 30_000 }, () => {
     expect((await runs.findById(done))?.status).toBe("completed");
   });
 
+  it("leaves the waiting runs waiting after a stop: none of them started", async () => {
+    const waiting = await runs.start({ ...run("waiting"), status: "pending" });
+    expect(await runs.markInterrupted(new Date(Date.now() + 1000))).toBe(0);
+    expect((await runs.findById(waiting))?.status).toBe("pending");
+  });
+
+  it("hands the waiting runs out oldest first, each once", async () => {
+    const first = await runs.start({ ...run("first"), status: "pending" });
+    const second = await runs.start({ ...run("second"), status: "pending" });
+    expect((await runs.claimNext())?.id).toBe(first);
+    expect((await runs.claimNext())?.id).toBe(second);
+    expect(await runs.claimNext()).toBeNull();
+    expect(await runs.findById(first)).toMatchObject({ status: "running", progress: 0 });
+  });
+
+  it("saves the progress of a running run only, and cancels a waiting one only", async () => {
+    const waiting = await runs.start({ ...run("waiting"), status: "pending" });
+    await runs.progress(waiting, 0.5, "x");
+    expect((await runs.findById(waiting))?.progress).toBeNull();
+    const running = await runs.start(run("running"));
+    await runs.progress(running, 0.42, '{"step":"read","detail":"a.example"}');
+    expect(await runs.findById(running)).toMatchObject({ progress: 0.42, step: '{"step":"read","detail":"a.example"}' });
+    expect(await runs.cancelPending(running)).toBe(false);
+    expect(await runs.cancelPending(waiting)).toBe(true);
+    expect((await runs.findById(waiting))?.status).toBe("cancelled");
+  });
+
   it("skips a row whose kind this version does not know", async () => {
     await test.db.execute(sql`INSERT INTO research_runs (kind, title, status, locale, params) VALUES ('future_kind', 'x', 'completed', 'fr', '{}')`);
     expect(await runs.list({ order: "newest", limit: 10 })).toEqual([]);

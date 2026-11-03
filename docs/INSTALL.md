@@ -198,6 +198,20 @@ copie est ouverte à sa place. Si quelque chose échoue, le dossier d'origine es
 approfondies, les vérifications de concurrent et les recherches web, avec leur rapport et leurs sources. Une
 recherche coupée par un arrêt apparaît « interrompue » au redémarrage.
 
+**Tâches en arrière-plan.** La recherche IA approfondie ne tourne plus dans la requête de la page : elle est mise en
+file dans `research_runs` (statut `pending`), et un worker local la prend dès qu'il est libre, une à la fois (l'IA
+locale ne génère qu'une réponse à la fois). La page suit sa progression chaque seconde (`GET /api/runs/:id`) ; tu
+peux la quitter, la recharger ou revenir par l'Historique. « Arrêter la recherche » l'annule
+(`POST /api/runs/:id/cancel`) en gardant ce qui a déjà été trouvé. Au redémarrage, une recherche qui tournait est
+marquée « interrompue » et n'est jamais relancée seule (bouton « Relancer ») ; une recherche qui attendait encore
+n'avait rien fait : le worker la prend. Les vérifications de concurrent et les recherches web, rapides, restent
+directes.
+
+**IA locale sur une carte plus petite que le modèle.** Le moteur met le plus de couches possible sur la carte, puis le
+reste en mémoire. Si le contexte ne rentre plus à côté, il recharge le modèle avec un cinquième de couches en moins sur
+la carte, jusqu'à cinq fois. Réglages indique combien de couches sont sur la carte. Un modèle dense plus gros que la
+carte (le 27B sur une carte de 12 Go) reste lent : une partie calcule sur le processeur.
+
 ## 6. Lancer l'application
 
 | Commande | Rôle |
