@@ -1,3 +1,4 @@
+import type { VerdictValue } from "@/engine/report/verdict";
 import type { Assumption } from "./assumption";
 import type { CountryCode, CurrencyCode } from "./country";
 import type { ChannelCost, CompetitionAnalysis, DemandAnalysis, MarketContext, SalesPotential } from "./market";
@@ -96,4 +97,6 @@ export interface AnalysisSummary {
   readonly createdAt: string;
   /** Best country by score, if any country could be scored. */
   readonly topCountry?: { readonly code: CountryCode; readonly score: number; readonly confidence: number };
+  /** The verdict the report opens with. Always the one its country's report states. */
+  readonly verdict?: { readonly value: VerdictValue; readonly country: CountryCode; readonly confidence: number };
 }

@@ -1,0 +1,69 @@
+/* Settings: memory bars and model cards. Plain global stylesheet, like store-charts.css. */
+
+.memory-track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--surface-2);
+}
+
+.memory-used,
+.memory-ai {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 999px;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.memory-used {
+  background-color: var(--ink-muted);
+  opacity: 0.45;
+}
+
+/* The AI's share sits over the rest: the bright part is what EZ-Shop takes. */
+.memory-ai {
+  background-color: var(--craie);
+}
+
+.memory-ai-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background-color: var(--craie);
+}
+
+.model-card {
+  background-color: color-mix(in oklab, var(--surface-2) 35%, transparent);
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.model-fit-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.model-card[data-fit="fast"] .model-fit-dot {
+  background-color: var(--verdict-oui);
+}
+
+.model-card[data-fit="split"] .model-fit-dot,
+.model-card[data-fit="cpu"] .model-fit-dot {
+  background-color: var(--verdict-surveiller);
+}
+
+.model-card[data-fit="too_big"] .model-fit-dot {
+  background-color: var(--verdict-non);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-used,
+  .memory-ai,
+  .model-card {
+    transition: none;
+  }
+}

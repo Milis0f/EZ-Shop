@@ -142,6 +142,26 @@ describe("startInstall", () => {
   });
 });
 
+describe("downloading another model", () => {
+  it("shows its progress apart, leaving the configured model's state alone", async () => {
+    const hanging = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    writeFileSync(path.join(dir, "installed.gguf"), CONTENT);
+    const installed = { ...env, LOCAL_AI_MODEL_PATH: path.join(dir, "installed.gguf") };
+    const status = await startInstall(installed, deps({ fetch: hanging as unknown as typeof fetch }), "qwen3.5-2b");
+    expect(status).toMatchObject({ state: "installed", download: { model: "qwen3.5-2b", phase: "downloading" } });
+    await vi.waitFor(() => expect(hanging).toHaveBeenCalled());
+    expect(String(hanging.mock.calls[0]?.[0])).toBe("https://models.example/m.gguf");
+    // One download at a time: asking for another model meanwhile changes nothing.
+    expect((await startInstall(installed, deps(), "qwen3.5-4b")).download?.model).toBe("qwen3.5-2b");
+    expect(await cancelInstall(installed)).toMatchObject({ state: "installed", download: null });
+  });
+});
+
 describe("sha256OfFile", () => {
   it("hashes a file", async () => {
     const file = path.join(dir, "f");

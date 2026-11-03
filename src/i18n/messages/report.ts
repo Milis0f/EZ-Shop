@@ -133,6 +133,7 @@ export const en = {
     connect: "Connect",
     actionAria: "{action} {source} in Data sources",
     notYet: "Not available yet",
+    noData: "Nothing on this product",
   },
   journal: {
     title: "Source log",
@@ -324,6 +325,7 @@ export const fr: Shape = {
     connect: "Brancher",
     actionAria: "{action} {source} dans Sources de données",
     notYet: "Pas encore disponible",
+    noData: "Rien sur ce produit",
   },
   journal: {
     title: "Journal des sources",
@@ -510,6 +512,7 @@ export const es: Shape = {
     connect: "Conectar",
     actionAria: "{action} {source} en Fuentes de datos",
     notYet: "Aún no disponible",
+    noData: "Nada sobre este producto",
   },
   journal: {
     title: "Registro de fuentes",

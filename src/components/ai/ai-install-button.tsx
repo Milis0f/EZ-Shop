@@ -60,7 +60,7 @@ export function AiInstallButton({ className }: { readonly className?: string }) 
           {m.errors[status.error]}
         </p>
       )}
-      {!busy && status.state !== "failed" && <p className="text-xs text-muted-foreground">{t(m.hint, { size: gb(ANNOUNCED_GB * BYTES_PER_GB) })}</p>}
+      {!busy && status.state !== "failed" && <p className="text-xs text-muted-foreground">{t(m.hint, { size: gb(status.totalBytes > 0 ? status.totalBytes : ANNOUNCED_GB * BYTES_PER_GB) })}</p>}
     </div>
   );
 }

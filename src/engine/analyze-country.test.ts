@@ -186,8 +186,21 @@ describe("analyzeCountry — margins and disabled statistics", () => {
     }
   });
 
-  it("uses scoring model 2026.10-v3", () => {
-    expect(SCORING_MODEL_VERSION).toBe("2026.10-v3");
+  it("uses scoring model 2026.10-v4", () => {
+    expect(SCORING_MODEL_VERSION).toBe("2026.10-v4");
+  });
+
+  it("does not count the switched-off criteria against the coverage", () => {
+    const result = analyzeCountry(signals({ keywordMetrics: kpDatum(series) }), options());
+    const criteria = result.scoring.criteria;
+    const counted = criteria.filter((c) => c.id !== "video_interest" && c.id !== "market_margin");
+    const scoredWeight = counted.filter((c) => c.status === "scored").reduce((s, c) => s + c.weight, 0);
+    const expected = scoredWeight / counted.reduce((s, c) => s + c.weight, 0);
+    if (!isKnown(result.scoring.score)) throw new Error("score expected");
+    expect(result.scoring.score.value.coverage).toBeCloseTo(expected, 3);
+    const coverage = result.scoring.confidence.factors.find((f) => f.id === "coverage");
+    expect(coverage?.value).toBeCloseTo(expected, 3);
+    expect(criteria.find((c) => c.id === "video_interest")?.status).toBe(DATA_INSUFFICIENT);
   });
 });
 

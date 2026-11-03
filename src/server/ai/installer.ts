@@ -7,22 +7,26 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { getEnv, type ServerEnv } from "@/config/env";
 import type { AiInstallStatus } from "@/domain/web";
+import { AI_MODELS, aiModel, DEFAULT_AI_MODEL_ID, modelOfPath, modelPathFor, type AiModelId, type AiModelSpec } from "./models";
 
 /**
- * Installs the local model from the app: a free download from Hugging Face, with resume, a disk-space
- * check and a SHA-256 check before the file is put in place. One download per process.
+ * Installs a local model of the catalogue from the app: a free download from Hugging Face, with resume,
+ * a disk-space check and a SHA-256 check before the file is put in place. One download per process.
  */
 
-export const MODEL_URL = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf";
-export const MODEL_SHA256 = "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8";
+const DEFAULT_SPEC = aiModel(DEFAULT_AI_MODEL_ID);
+export const MODEL_URL = DEFAULT_SPEC.url;
+export const MODEL_SHA256 = DEFAULT_SPEC.sha256;
 /** Announced before the server states the real size. */
-export const MODEL_BYTES_ESTIMATE = 5_700_000_000;
+export const MODEL_BYTES_ESTIMATE = DEFAULT_SPEC.bytes;
 const SPARE_DISK_BYTES = 1_000_000_000;
 
 type Phase = "idle" | "downloading" | "verifying" | "failed";
 type InstallError = NonNullable<AiInstallStatus["error"]>;
 
 interface InstallState {
+  /** The model being downloaded, or last downloaded; null for the configured file of the owner's own. */
+  model: AiModelId | null;
   phase: Phase;
   downloadedBytes: number;
   totalBytes: number;
@@ -51,7 +55,7 @@ const DEFAULT_DEPS: InstallDeps = {
 const STATE_KEY = Symbol.for("ez-shop.local-ai-installer");
 const globalForInstall = globalThis as unknown as { [STATE_KEY]?: InstallState };
 
-const initialState = (): InstallState => ({ phase: "idle", downloadedBytes: 0, totalBytes: MODEL_BYTES_ESTIMATE, error: null });
+const initialState = (): InstallState => ({ model: null, phase: "idle", downloadedBytes: 0, totalBytes: MODEL_BYTES_ESTIMATE, error: null });
 
 function state(): InstallState {
   globalForInstall[STATE_KEY] ??= initialState();
@@ -74,13 +78,46 @@ async function fileSize(file: string): Promise<number | null> {
   }
 }
 
+/** The model the configured path points to, and where a download of a catalogue model goes. */
+function targetOf(env: ServerEnv, id?: AiModelId): { readonly spec: AiModelSpec; readonly id: AiModelId | null; readonly file: string } {
+  if (id) return { spec: aiModel(id), id, file: path.resolve(/*turbopackIgnore: true*/ process.cwd(), modelPathFor(aiModel(id))) };
+  const configured = modelOfPath(env.LOCAL_AI_MODEL_PATH);
+  // A path outside the catalogue still gets the default model, as before there was a choice.
+  return { spec: configured ?? DEFAULT_SPEC, id: configured?.id ?? null, file: modelPathOf(env) };
+}
+
 export async function installStatus(env: ServerEnv = getEnv()): Promise<AiInstallStatus> {
   const s = state();
-  const base = { downloadedBytes: s.downloadedBytes, totalBytes: s.totalBytes, error: s.error };
+  const active = modelOfPath(env.LOCAL_AI_MODEL_PATH)?.id ?? null;
+  const busy = s.phase === "downloading" || s.phase === "verifying";
+  // A download for another model than the configured one leaves the configured model's state alone.
+  const forActive = s.model === null || s.model === active;
+  const download = busy || s.phase === "failed" ? { model: s.model, phase: s.phase as "downloading" | "verifying" | "failed", downloadedBytes: s.downloadedBytes, totalBytes: s.totalBytes, error: s.error } : null;
+  // At rest, the size announced is the configured model's own.
+  const size = (modelOfPath(env.LOCAL_AI_MODEL_PATH) ?? DEFAULT_SPEC).bytes;
+  const base = { downloadedBytes: forActive ? s.downloadedBytes : 0, totalBytes: forActive && busy ? s.totalBytes : size, error: forActive ? s.error : null, model: active, download };
   if (!env.LOCAL_AI_ENABLED) return { ...base, state: "disabled" };
-  if (s.phase === "downloading" || s.phase === "verifying") return { ...base, state: s.phase };
+  if (busy && forActive) return { ...base, state: s.phase as "downloading" | "verifying" };
   if ((await fileSize(modelPathOf(env))) !== null) return { ...base, state: "installed", error: null };
-  return { ...base, state: s.phase === "failed" ? "failed" : "missing" };
+  return { ...base, state: s.phase === "failed" && forActive ? "failed" : "missing" };
+}
+
+/** The models of the catalogue already on this computer, in EZ-Shop's models folder or at the configured path. */
+export async function installedModels(env: ServerEnv = getEnv()): Promise<AiModelId[]> {
+  const configured = modelOfPath(env.LOCAL_AI_MODEL_PATH);
+  const found = await Promise.all(
+    AI_MODELS.map(async (spec) => {
+      const own = (await fileSize(path.resolve(/*turbopackIgnore: true*/ process.cwd(), modelPathFor(spec)))) !== null;
+      const atPath = configured?.id === spec.id && (await fileSize(modelPathOf(env))) !== null;
+      return own || atPath ? [spec.id] : [];
+    }),
+  );
+  return found.flat();
+}
+
+/** Whether a model of the catalogue is on this computer, at the path EZ-Shop would configure for it. */
+export async function hasModelFile(id: AiModelId): Promise<boolean> {
+  return (await fileSize(path.resolve(/*turbopackIgnore: true*/ process.cwd(), modelPathFor(aiModel(id))))) !== null;
 }
 
 export async function sha256OfFile(file: string): Promise<string> {
@@ -95,7 +132,7 @@ class InstallFailure extends Error {
   }
 }
 
-async function download(target: string, s: InstallState, deps: InstallDeps, signal: AbortSignal): Promise<void> {
+async function download(target: string, s: InstallState, deps: InstallDeps, signal: AbortSignal, estimate: number): Promise<void> {
   const part = `${target}.part`;
   await mkdir(path.dirname(target), { recursive: true });
   const existing = (await fileSize(part)) ?? 0;
@@ -123,7 +160,7 @@ async function download(target: string, s: InstallState, deps: InstallDeps, sign
   const resuming = response.status === 206;
   const offset = resuming ? existing : 0;
   const announced = Number(response.headers.get("content-length") ?? 0);
-  const total = announced > 0 ? announced + offset : MODEL_BYTES_ESTIMATE;
+  const total = announced > 0 ? announced + offset : estimate;
   s.downloadedBytes = offset;
   s.totalBytes = total;
 
@@ -146,10 +183,10 @@ async function download(target: string, s: InstallState, deps: InstallDeps, sign
   }
 }
 
-async function run(target: string, s: InstallState, deps: InstallDeps, signal: AbortSignal): Promise<void> {
+async function run(target: string, s: InstallState, deps: InstallDeps, signal: AbortSignal, estimate: number): Promise<void> {
   const part = `${target}.part`;
   try {
-    await download(target, s, deps, signal);
+    await download(target, s, deps, signal, estimate);
     s.phase = "verifying";
     if ((await sha256OfFile(part)) !== deps.sha256) {
       await unlink(part).catch(() => undefined);
@@ -171,16 +208,24 @@ async function run(target: string, s: InstallState, deps: InstallDeps, signal: A
   }
 }
 
-/** Starts the download unless one is running or the model is there. Returns at once. */
-export async function startInstall(env: ServerEnv = getEnv(), overrides: Partial<InstallDeps> = {}): Promise<AiInstallStatus> {
+/**
+ * Starts the download of a model of the catalogue (the configured one by default) unless a download is
+ * running or the file is there. Returns at once.
+ */
+export async function startInstall(env: ServerEnv = getEnv(), overrides: Partial<InstallDeps> = {}, id?: AiModelId): Promise<AiInstallStatus> {
   const s = state();
-  const current = await installStatus(env);
-  if (current.state !== "missing" && current.state !== "failed") return current;
+  if (s.phase === "downloading" || s.phase === "verifying") return installStatus(env);
+  const target = targetOf(env, id);
+  if (!env.LOCAL_AI_ENABLED && !id) return installStatus(env);
+  if ((await fileSize(target.file)) !== null) return installStatus(env);
   const abort = new AbortController();
+  s.model = target.id;
   s.phase = "downloading";
   s.error = null;
+  s.downloadedBytes = 0;
+  s.totalBytes = target.spec.bytes;
   s.abort = abort;
-  s.running = run(modelPathOf(env), s, { ...DEFAULT_DEPS, ...overrides }, abort.signal).finally(() => {
+  s.running = run(target.file, s, { ...DEFAULT_DEPS, url: target.spec.url, sha256: target.spec.sha256, ...overrides }, abort.signal, target.spec.bytes).finally(() => {
     s.abort = undefined;
     s.running = undefined;
   });

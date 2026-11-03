@@ -32,6 +32,8 @@ export interface FactSheet {
 }
 
 export interface FactSheetOptions {
+  /** Last resort for many countries: only the facts of `minimalLines`, and only the gaps they all share. */
+  readonly minimal?: boolean;
   /** Language of the sheet, and so of the reading. French (the sheet before i18n) by default. */
   readonly locale?: Locale;
   /** Leaves out advertising costs, revenue, assumptions and secondary signals, for analyses with many countries. */
@@ -272,13 +274,28 @@ function economicsLines(c: CountryAnalysis, s: Section): void {
   }
 }
 
-function countrySection(c: CountryAnalysis, writer: Writer, currency: string, flagMock: boolean, brief: boolean): Section {
+/** The few facts that still fit for many countries: verdict, margin, score, confidence, demand, competition. */
+function minimalLines(c: CountryAnalysis, s: Section): void {
+  const { writer } = s;
+  const { w } = writer;
+  if (c.signals?.marginAtPlannedPrice && isKnown(c.signals.marginAtPlannedPrice)) s.add(w.s.marginAtPrice, c.signals.marginAtPlannedPrice, (v) => writer.pct(v));
+  if (isKnown(c.scoring.score)) s.add(w.s.score, c.scoring.score, (v) => t(w.s.outOf100, { value: writer.int(v.total) }));
+  s.lines.push(`${writer.line(w.s.confidenceLine, t(w.s.outOf100, { value: writer.int(c.scoring.confidence.score) }))} [${w.kind.derived}]`);
+  if (isKnown(c.demand.avgMonthlySearches)) s.add(w.s.searchesAverage, c.demand.avgMonthlySearches, (v) => writer.amount(v));
+  if (isKnown(c.competition.current)) s.add(w.s.competitionNow, c.competition.current, (v) => t(w.s.competitionValue, { level: w.competition[v.level], index: writer.int(v.index) }));
+}
+
+function countrySection(c: CountryAnalysis, writer: Writer, currency: string, flagMock: boolean, brief: boolean, minimal = false): Section {
   const { scoring } = c;
   const { w } = writer;
   const s = new Section(writer, flagMock);
   const verdict = verdictFor(c);
   s.lines.push(writer.line(w.s.verdictLine, verdictWord(verdict.value, writer.locale)));
   for (const factor of verdict.blocking) s.lines.push(writer.line(w.s.blockingLine, val(writer.clean(reasonText(factor.cause, writer.locale), 240))));
+  if (minimal) {
+    minimalLines(c, s);
+    return s;
+  }
   economicsLines(c, s);
   s.add(w.s.score, scoring.score, (v) => t(w.s.outOf100, { value: writer.int(v.total) }));
   s.lines.push(
@@ -338,7 +355,7 @@ export function buildFactSheet(analysis: AnalysisResult, options: FactSheetOptio
   const brief = options.brief ?? false;
   const flagMock = analysis.dataMode !== "mock";
   const currency = analysis.economics.currency;
-  const countries = analysis.countries.map((c) => ({ c, s: countrySection(c, writer, currency, flagMock, brief) }));
+  const countries = analysis.countries.map((c) => ({ c, s: countrySection(c, writer, currency, flagMock, brief, options.minimal) }));
 
   // Gaps shared by every country are written once, not once per country.
   const counts = new Map<string, number>();

@@ -63,7 +63,7 @@ export function scoreCountry(ctx: ScoringContext, options: ScoringOptions = {}):
   const modelVersion = options.modelVersion ?? SCORING_MODEL_VERSION;
 
   const evaluated = evaluateCriteria(ctx, criteria, weights);
-  const totalWeight = evaluated.reduce((s, e) => s + e.result.weight, 0);
+  const totalWeight = evaluated.filter((e) => !e.criterion.disabled).reduce((s, e) => s + e.result.weight, 0);
   const scored = evaluated.filter((e) => e.evaluation.status === "scored");
   const scoredWeight = scored.reduce((s, e) => s + e.result.weight, 0);
   const coverage = totalWeight > 0 ? scoredWeight / totalWeight : 0;

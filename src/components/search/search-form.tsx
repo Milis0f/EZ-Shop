@@ -5,9 +5,9 @@ import { useActionState, useState, type ReactNode } from "react";
 import { submitAnalysis } from "@/app/actions";
 import { INITIAL_SEARCH_STATE } from "@/app/search-form-state";
 import { PendingButton } from "@/components/motion/pending-button";
+import { readSent, usePlanetAnalysis, type SentAnalysis } from "@/components/planet/planet-hooks";
 import { LANGUAGE_CODES } from "@/domain/country";
 import { useLocale, useMessages } from "@/i18n/client";
-import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 import { CountryPicker } from "./country-picker";
 import { inputLanguageFor, languageName } from "./display-names";
@@ -27,8 +27,10 @@ function Group({ title, children }: { readonly title: string; readonly children:
 /** The advanced form: the same fields as the simple mode, plus translations and the full country choice. */
 export function SearchForm() {
   const [state, action, pending] = useActionState(submitAnalysis, INITIAL_SEARCH_STATE);
+  const [sent, setSent] = useState<SentAnalysis>({ product: "", countries: [] });
   const locale = useLocale();
   const m = useMessages("home").form;
+  usePlanetAnalysis(pending, sent, m.pendingHint);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [language, setLanguage] = useState<string>(() => inputLanguageFor(locale));
@@ -37,10 +39,10 @@ export function SearchForm() {
   const errors = state.fieldErrors ?? {};
 
   const link = readSupplierInput(url, locale);
-  const productName = resolveProductName(name, link);
+  const productName = resolveProductName(name);
 
   return (
-    <form action={action} className="space-y-5" aria-busy={pending}>
+    <form action={action} onSubmit={(event) => setSent(readSent(event.currentTarget))} className="space-y-5" aria-busy={pending}>
       <input type="hidden" name="productName" value={productName} />
 
       <Group title={m.groupProduct}>
@@ -48,16 +50,16 @@ export function SearchForm() {
           <Field
             id="productName"
             label={m.nameLabel}
-            help={link.kind === "product" ? t(m.nameHelpWithLink, { name: link.defaultName }) : m.nameHelp}
+            help={link.kind === "product" ? m.nameHelpWithLink : m.nameHelp}
             typed={false}
           >
             <input
               id="productName"
-              required={link.kind !== "product"}
+              required
               minLength={2}
               maxLength={80}
               autoComplete="off"
-              placeholder={link.kind === "product" ? link.defaultName : m.namePlaceholder}
+              placeholder={m.namePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               aria-describedby="productName-help"

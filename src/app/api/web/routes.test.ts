@@ -56,11 +56,11 @@ describe("POST /api/web/research", () => {
 });
 
 describe("POST /api/web/competitor", () => {
-  it("passes the address and the supplier choice, which defaults to no", async () => {
+  it("passes the address and the choices: no supplier search, a deep check, by default", async () => {
     await competitor.POST(post("/api/web/competitor", { url: "https://shop.example/p" }));
-    expect(analyzeCompetitor).toHaveBeenCalledWith("https://shop.example/p", false, "en");
-    await competitor.POST(post("/api/web/competitor", { url: "https://shop.example/p", searchSupplier: true }));
-    expect(analyzeCompetitor).toHaveBeenLastCalledWith("https://shop.example/p", true, "en");
+    expect(analyzeCompetitor).toHaveBeenCalledWith("https://shop.example/p", { searchSupplier: false, deep: true }, "en");
+    await competitor.POST(post("/api/web/competitor", { url: "https://shop.example/p", searchSupplier: true, deep: false }));
+    expect(analyzeCompetitor).toHaveBeenLastCalledWith("https://shop.example/p", { searchSupplier: true, deep: false }, "en");
   });
 
   it("refuses a bad body", async () => {

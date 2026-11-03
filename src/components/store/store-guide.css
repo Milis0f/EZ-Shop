@@ -1,0 +1,97 @@
+/* Step-by-step connection guides of "My store". Plain global stylesheet, like store-charts.css. */
+
+.guide-progress {
+  display: inline-block;
+  width: 72px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--surface-2);
+}
+
+.guide-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background-color: var(--verdict-oui);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* The thread joining one step to the next. */
+.guide-step::before {
+  content: "";
+  position: absolute;
+  top: 30px;
+  bottom: 4px;
+  left: 13px;
+  width: 1px;
+  background-color: var(--line);
+}
+
+.guide-step:last-child::before {
+  display: none;
+}
+
+.guide-dot {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background-color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+
+.guide-dot-done {
+  border-color: var(--verdict-oui);
+  background-color: color-mix(in oklab, var(--verdict-oui) 16%, var(--surface));
+  color: var(--verdict-oui);
+}
+
+.guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out);
+}
+
+.guide-chip:hover {
+  border-color: var(--ink-muted);
+  background-color: var(--surface-2);
+}
+
+.guide-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.guide-chip-quiet {
+  color: var(--ink-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-progress > span,
+  .guide-dot,
+  .guide-chip {
+    transition: none;
+  }
+}

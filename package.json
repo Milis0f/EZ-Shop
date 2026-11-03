@@ -19,7 +19,8 @@
     "db:migrate": "node node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "node node_modules/drizzle-kit/bin.cjs studio",
     "search:setup": "node scripts/searxng.mjs setup",
-    "search:start": "node scripts/searxng.mjs start"
+    "search:start": "node scripts/searxng.mjs start",
+    "shopify:check": "node scripts/shopify-check.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.9",

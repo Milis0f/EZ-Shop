@@ -1,5 +1,7 @@
 import { apiError, apiErrorFrom, apiMessages, apiOk } from "@/server/api-response";
 import { cancelInstall, installStatus, startInstall } from "@/server/ai/installer";
+import { isAiModelId } from "@/server/ai/models";
+import { getEnv } from "@/config/env";
 import { checkJsonPost } from "@/server/request-guard";
 import { GUARD_MESSAGE_KEY, requestLocale } from "@/server/request-locale";
 
@@ -23,9 +25,20 @@ async function guarded(request: Request, action: () => ReturnType<typeof install
   }
 }
 
-/** POST /api/ai/install — starts the download of the free model. */
-export function POST(request: Request) {
-  return guarded(request, () => startInstall());
+/** The model asked for in the body, when it is one of the catalogue; anything else means the configured one. */
+async function askedModel(request: Request) {
+  try {
+    const body = (await request.clone().json()) as { model?: unknown };
+    return isAiModelId(body.model) ? body.model : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** POST /api/ai/install — starts the download of a free model: `{ "model": id }`, or the configured one. */
+export async function POST(request: Request) {
+  const model = await askedModel(request);
+  return guarded(request, () => (model ? startInstall(getEnv(), {}, model) : startInstall()));
 }
 
 /** DELETE /api/ai/install — stops it; the next start resumes where it stopped. */

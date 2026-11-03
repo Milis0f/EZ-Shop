@@ -54,7 +54,7 @@ export const en = {
     unsupportedNumber: "The AI cited a number that is not in the analysis data: reading discarded.",
     disabled: "Local AI is turned off (LOCAL_AI_ENABLED=false).",
     modelMissing: "Model not found ({file}). Put the GGUF file where LOCAL_AI_MODEL_PATH points.",
-    loadFailed: "The local AI engine could not start ({error}). You can try again in a minute.",
+    loadFailed: "The local AI engine could not start ({error}). The computer may be short of free memory, for instance when another EZ-Shop window already holds a model: close it and try again in a minute, or pick a lighter model in Settings.",
     stuck: "The local AI engine did not stop after a time limit was reached. You can try again in a minute.",
   },
 } as const;
@@ -109,7 +109,7 @@ export const fr: Shape = {
     unsupportedNumber: "L'IA a cité un nombre absent des données de l'analyse : relecture écartée.",
     disabled: "IA locale désactivée (LOCAL_AI_ENABLED=false).",
     modelMissing: "Modèle introuvable ({file}). Place le fichier GGUF à l'endroit indiqué par LOCAL_AI_MODEL_PATH.",
-    loadFailed: "Le moteur d'IA locale n'a pas pu démarrer ({error}). Nouvel essai possible dans une minute.",
+    loadFailed: "Le moteur d'IA locale n'a pas pu démarrer ({error}). L'ordinateur manque peut-être de mémoire libre, par exemple quand une autre fenêtre d'EZ-Shop garde déjà un modèle chargé : ferme-la et réessaie dans une minute, ou choisis un modèle plus léger dans les Réglages.",
     stuck: "Le moteur d'IA locale ne s'est pas arrêté après un délai dépassé. Nouvel essai possible dans une minute.",
   },
 };
@@ -162,7 +162,7 @@ export const es: Shape = {
     unsupportedNumber: "La IA ha citado un número que no figura en los datos del análisis: lectura descartada.",
     disabled: "IA local desactivada (LOCAL_AI_ENABLED=false).",
     modelMissing: "Modelo no encontrado ({file}). Coloca el archivo GGUF donde indica LOCAL_AI_MODEL_PATH.",
-    loadFailed: "El motor de IA local no ha podido arrancar ({error}). Puedes volver a intentarlo dentro de un minuto.",
+    loadFailed: "El motor de IA local no ha podido arrancar ({error}). Puede que al ordenador le falte memoria libre, por ejemplo si otra ventana de EZ-Shop ya tiene un modelo cargado: ciérrala e inténtalo de nuevo dentro de un minuto, o elige un modelo más ligero en Ajustes.",
     stuck: "El motor de IA local no se ha detenido tras agotar el tiempo. Puedes volver a intentarlo dentro de un minuto.",
   },
 };

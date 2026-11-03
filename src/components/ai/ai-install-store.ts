@@ -18,14 +18,15 @@ function publish(next: AiInstallStatus): void {
   status = next;
   listeners.forEach((listener) => listener());
   clearTimeout(timer);
-  if (next.state === "downloading" || next.state === "verifying") timer = setTimeout(() => void request("GET"), POLL_MS);
+  const busy = (state: string | undefined) => state === "downloading" || state === "verifying";
+  if (busy(next.state) || busy(next.download?.phase)) timer = setTimeout(() => void request("GET"), POLL_MS);
 }
 
-async function request(method: "GET" | "POST" | "DELETE"): Promise<void> {
+async function request(method: "GET" | "POST" | "DELETE", model?: string): Promise<void> {
   try {
     const response = await fetch(ENDPOINT, {
       method,
-      ...(method === "GET" ? {} : { headers: { "Content-Type": "application/json" }, body: "{}" }),
+      ...(method === "GET" ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(model ? { model } : {}) }),
     });
     const parsed = aiInstallStatusSchema.safeParse(((await response.json()) as { data?: unknown }).data);
     if (parsed.success) publish(parsed.data);
@@ -47,7 +48,10 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export const startAiInstall = (): Promise<void> => request("POST");
+/** Downloads the configured model, or another model of the catalogue named by its id. */
+export const startAiInstall = (model?: string): Promise<void> => request("POST", model);
+/** Asks the state again, after a setting changed it (the AI turned on or off). */
+export const refreshAiInstall = (): Promise<void> => request("GET");
 export const stopAiInstall = (): Promise<void> => request("DELETE");
 
 /** Null until the server has answered: no button flashes for an AI that is already there. */

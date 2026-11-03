@@ -6,11 +6,13 @@ import { submitAnalysis } from "@/app/actions";
 import { INITIAL_SEARCH_STATE } from "@/app/search-form-state";
 import { Expand } from "@/components/motion/expand";
 import { PendingButton } from "@/components/motion/pending-button";
+import { readSent, usePlanetAnalysis, type SentAnalysis } from "@/components/planet/planet-hooks";
 import { SegmentedControl } from "@/components/motion/segmented-control";
 import { COUNTRY_CODES } from "@/domain/country";
 import { useFormat, useLocale, useMessages } from "@/i18n/client";
 import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
+import "@/components/marketing/marketing.css";
 import { countryName, inputLanguageFor } from "./display-names";
 import { controlClass, DETAIL_FIELDS, InlineAlert, PriceFields, ProductFields, useDetailValues } from "./product-details";
 import { isAddressLike, readSupplierInput, resolveProductName } from "./supplier-input";
@@ -46,6 +48,7 @@ export function SimpleSearch() {
   const [scope, setScope] = useState<Scope>("FR");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const details = useDetailValues();
+  const [sent, setSent] = useState<SentAnalysis>({ product: "", countries: [] });
   const locale = useLocale();
   const m = useMessages("home").simple;
   const f = useFormat();
@@ -55,10 +58,11 @@ export function SimpleSearch() {
     { value: "world", label: m.scopeWorld },
   ] as const;
   const worldCount = f.int(COUNTRY_CODES.length);
+  usePlanetAnalysis(pending, sent, scope === "world" ? t(m.pendingWorld, { count: worldCount }) : m.pendingFrance);
 
   const input = readSupplierInput(capsule, locale);
   const asUrl = input.kind === "product" || input.kind === "guidance" || isAddressLike(capsule);
-  const productName = asUrl ? resolveProductName(typedName, input) : capsule.trim();
+  const productName = asUrl ? resolveProductName(typedName) : capsule.trim();
   const errors = state.fieldErrors ?? {};
   const detailErrors = Object.keys(errors).some((key) => DETAIL_ERROR_FIELDS.has(key));
   const capsuleError = errors.supplierUrl ?? (asUrl ? undefined : errors.productName);
@@ -78,7 +82,7 @@ export function SimpleSearch() {
   );
 
   return (
-    <form action={action} className="mx-auto w-full max-w-3xl pt-[8vh] pb-6 text-center sm:pt-[12vh]" aria-busy={pending}>
+    <form action={action} onSubmit={(event) => setSent(readSent(event.currentTarget))} className="w-full" aria-busy={pending}>
       <input type="hidden" name="inputLanguage" value={inputLanguageFor(locale)} />
       <input type="hidden" name="productName" value={productName} />
       {asUrl && <input type="hidden" name="supplierUrl" value={capsule.trim()} />}
@@ -90,13 +94,17 @@ export function SimpleSearch() {
         {m.prompt}
       </label>
 
+      <div className="capsule-light mt-3">
       <div
         className={cn(
-          "@container mt-5 flex items-center gap-3 rounded-pill border border-line bg-surface py-2 pr-2 pl-5 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] sm:pl-8",
+          "@container flex items-center gap-3 rounded-pill border border-line bg-background py-2 pr-2 pl-5 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] sm:pl-8",
           "hover:border-foreground/15 has-[input:focus-visible]:border-foreground/30 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-4 has-[input:focus-visible]:outline-ring",
           capsuleError && "border-[var(--verdict-non)]",
         )}
       >
+        <span aria-hidden className="font-mono text-lg text-muted-foreground select-none sm:text-xl">
+          ❯
+        </span>
         <input
           id="simple-product"
           type="text"
@@ -111,16 +119,17 @@ export function SimpleSearch() {
           onChange={(e) => setCapsule(e.target.value)}
           aria-invalid={Boolean(capsuleError) || undefined}
           aria-describedby="simple-product-reading"
-          className="h-12 min-w-0 flex-1 truncate bg-transparent font-display text-[clamp(1rem,calc((100cqi-12rem)/20),1.5rem)] font-medium tracking-[-0.02em] text-foreground placeholder:text-[var(--kind-missing)] focus-visible:outline-none sm:h-14"
+          className="h-12 min-w-0 flex-1 truncate bg-transparent font-mono text-[clamp(0.9375rem,calc((100cqi-12rem)/24),1.25rem)] font-medium tracking-[-0.04em] text-foreground placeholder:text-[var(--kind-missing)] focus-visible:outline-none sm:h-14"
         />
         {submit("max-sm:hidden h-14 px-8")}
       </div>
+      </div>
       {submit("mt-3 h-14 w-full sm:hidden")}
 
-      <SupplierLinkChip id="simple-product-reading" input={input} className="mt-3" />
+      <SupplierLinkChip id="simple-product-reading" input={input} className="mt-3 justify-start empty:mt-0 empty:min-h-0" />
 
       {asUrl && input.kind !== "guidance" && (
-        <div className="animate-slide-down mx-auto mt-2 max-w-sm">
+        <div className="animate-slide-down mt-2 max-w-sm">
           <label htmlFor="simple-name" className="sr-only">
             {m.nameLabel}
           </label>
@@ -129,20 +138,21 @@ export function SimpleSearch() {
             type="text"
             maxLength={80}
             autoComplete="off"
-            required={input.kind !== "product"}
-            placeholder={input.kind === "product" ? input.defaultName : m.nameLabel}
+            required
+            minLength={2}
+            placeholder={m.nameLabel}
             value={typedName}
             onChange={(e) => setTypedName(e.target.value)}
             aria-invalid={Boolean(errors.productName) || undefined}
-            className={cn(controlClass, "text-center")}
+            className={controlClass}
           />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {input.kind === "product" ? m.nameOptional : m.nameRequired}
+            {input.kind === "product" ? m.nameFromLink : m.nameRequired}
           </p>
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <SegmentedControl options={scopes} value={scope} onChange={setScope} aria-label={m.scopeLabel} disabled={pending} />
         <button
           type="button"
@@ -181,11 +191,11 @@ export function SimpleSearch() {
         </div>
       </Expand>
 
-      <div aria-live="polite" className="mt-4 min-h-5 text-sm text-muted-foreground">
+      <div aria-live="polite" className="mt-4 min-h-5 text-sm text-muted-foreground empty:mt-0 empty:min-h-0">
         {pending ? (scope === "world" ? t(m.pendingWorld, { count: worldCount }) : m.pendingFrance) : ""}
       </div>
 
-      <div className="mx-auto max-w-xl space-y-2">
+      <div className="max-w-xl space-y-2">
         {capsuleError && <InlineAlert>{capsuleError}</InlineAlert>}
         {asUrl && errors.productName && <InlineAlert>{errors.productName}</InlineAlert>}
         {errors.countries && <InlineAlert>{errors.countries}</InlineAlert>}

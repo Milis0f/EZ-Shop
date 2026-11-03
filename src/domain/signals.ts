@@ -108,6 +108,8 @@ export interface ImportTaxes {
   readonly vatRatePct: number | null;
   /** Duty actually owed on one unit at the analysed value, in EUR, and why. */
   readonly dutyPerUnitEur: number | null;
+  /** Duties are known to apply on top of `dutyPerUnitEur` and cannot be computed: a margin would be too good. */
+  readonly dutiesIncomplete?: boolean;
   readonly dutyBasis: DutyBasis;
   /** Customs value used for the per-unit duty, in EUR. */
   readonly customsValueEur: number | null;

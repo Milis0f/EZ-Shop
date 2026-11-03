@@ -14,7 +14,7 @@ import {
   type ProviderResult,
   type ProviderStatus,
 } from "../contracts";
-import { httpJson } from "../http";
+import { type ErrorDescription, httpJson } from "../http";
 
 /**
  * Meta Ad Library API (Graph API `ads_archive`).
@@ -25,9 +25,27 @@ import { httpJson } from "../http";
  */
 
 const REQUIRED_ENV = ["META_GRAPH_API_VERSION", "META_AD_LIBRARY_ACCESS_TOKEN"] as const satisfies ReadonlyArray<keyof ServerEnv>;
-const PAGE_LIMIT = 500;
-const MAX_PAGES_PER_TERM = 6;
-const MAX_TERMS = 3;
+/**
+ * Meta's Ad Library allows about 200 calls an hour and often refuses large pages. At most 6 calls per
+ * country keeps an 18-country analysis near 100 calls; beyond that the counts are marked as truncated.
+ */
+const PAGE_LIMIT = 200;
+const MAX_PAGES_PER_TERM = 3;
+const MAX_TERMS = 2;
+
+/** Graph API errors come as HTTP 400 with a code: an expired token and a rate limit must not read the same. */
+export function describeMetaError(_status: number, body: string): ErrorDescription | undefined {
+  let code: unknown;
+  try {
+    code = (JSON.parse(body) as { error?: { code?: unknown } }).error?.code;
+  } catch {
+    return undefined;
+  }
+  if (code === 190 || code === 102) return { reason: "token_expired_or_invalid", code: "unauthorized" };
+  if (code === 10 || code === 200 || code === 2332004) return { reason: "permission_denied", code: "unauthorized" };
+  if (code === 4 || code === 17 || code === 32 || code === 613) return { reason: "rate_limit", code: "rate_limited" };
+  return undefined;
+}
 
 export const metaAdLibraryMeta: ProviderMeta = {
   id: "meta-ad-library",
@@ -124,7 +142,7 @@ export class MetaAdLibraryProvider implements AdLibraryProvider {
 
     for (let page = 0; url && page < MAX_PAGES_PER_TERM; page += 1) {
       // The label never includes the URL: it carries the access token.
-      const raw = await httpJson(url, `Meta ads_archive (${query.country})`, { timeoutMs: this.timeoutMs });
+      const raw = await httpJson(url, `Meta ads_archive (${query.country})`, { timeoutMs: this.timeoutMs, describeError: describeMetaError });
       if (!raw.ok) return raw;
       const parsed = pageSchema.safeParse(raw.data);
       if (!parsed.success) return fail("invalid_response", "Meta ads_archive: unexpected response shape");

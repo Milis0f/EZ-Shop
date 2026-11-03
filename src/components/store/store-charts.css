@@ -1,0 +1,89 @@
+/* Charts of "My store". Plain global stylesheet, like web-visuals.css. */
+
+.store-chart {
+  /* Fixed series order, validated against the panel surface (#0f0f12): CVD ΔE 9.4, normal ΔE 20.9, contrast ≥ 3:1. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+}
+
+.store-chart [data-slot="1"] {
+  --series: var(--series-1);
+}
+.store-chart [data-slot="2"] {
+  --series: var(--series-2);
+}
+.store-chart [data-slot="3"] {
+  --series: var(--series-3);
+}
+
+.store-chart-key {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--series);
+}
+
+.store-chart-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.store-chart-wash {
+  fill: var(--series);
+  opacity: 0.1;
+}
+
+.store-chart-grid {
+  stroke: var(--line);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.store-chart-cross {
+  stroke: var(--ink-muted);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.store-chart-dot {
+  fill: var(--series);
+  stroke: var(--surface);
+  stroke-width: 2px;
+}
+
+.store-chart-axis {
+  fill: var(--ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.store-chart-tip {
+  background-color: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+}
+
+.store-funnel-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--surface-2);
+}
+
+.store-funnel-fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--craie);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-funnel-fill {
+    transition: none;
+  }
+}

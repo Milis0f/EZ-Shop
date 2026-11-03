@@ -2,7 +2,8 @@ import "server-only";
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import { getEnv, type ServerEnv } from "@/config/env";
-import { AiAnswerIncompleteError, type EngineFailure, type AiJsonRequest, type AiJsonSchema, type AiModelInfo, type EngineLoadResult, type LocalAiEngine } from "./types";
+import { aiModel, DEFAULT_AI_MODEL_ID, modelInfoOf } from "./models";
+import { AiAnswerIncompleteError, type EngineFailure, type AiJsonRequest, type AiJsonSchema, type AiModelInfo, type AiToolRequest, type EngineLoadResult, type LocalAiEngine } from "./types";
 
 /**
  * Local LLM engine (node-llama-cpp, prebuilt GPU binaries, GGUF model on disk).
@@ -22,7 +23,8 @@ type LlamaModel = Awaited<ReturnType<Llama["loadModel"]>>;
 type LlamaContext = Awaited<ReturnType<LlamaModel["createContext"]>>;
 type JsonGrammar = Awaited<ReturnType<Llama["createGrammarForJsonSchema"]>>;
 
-export const LOCAL_AI_MODEL_INFO: AiModelInfo = { name: "Qwen3.5-9B (Q4_K_M)", license: "Apache-2.0" };
+/** The default model's name and licence; another model of the catalogue shows its own. */
+export const LOCAL_AI_MODEL_INFO: AiModelInfo = { name: aiModel(DEFAULT_AI_MODEL_ID).name, license: aiModel(DEFAULT_AI_MODEL_ID).license };
 
 const CONTEXT_SIZE = 8192;
 const TEMPERATURE = 0.2;
@@ -46,6 +48,10 @@ export function deadlineFor(maxTokens: number): number {
 
 interface EngineState {
   engine?: LocalAiEngine;
+  /** The native objects behind `engine`, kept to read their memory use and to free them on a switch. */
+  runtime?: LoadedRuntime;
+  /** Resolves once the generations queued on `engine` are done. */
+  idle?: () => Promise<unknown>;
   loading?: Promise<EngineLoadResult>;
   failure?: { readonly reason: string; readonly code: EngineFailure; readonly retryAt: number };
 }
@@ -98,29 +104,32 @@ function withCeiling(work: Promise<unknown>, ms: number, onLate: () => void): Pr
 /** Runs tasks one at a time; a task's `settled` keeps the queue closed until its generation really stopped. */
 function createSerialQueue() {
   let tail: Promise<unknown> = Promise.resolve();
-  return function enqueue<T>(start: () => Promise<{ result: Promise<T>; settled: Promise<unknown> }>): Promise<T> {
+  function enqueue<T>(start: () => Promise<{ result: Promise<T>; settled: Promise<unknown> }>): Promise<T> {
     const started = tail.then(start);
     tail = started.then(
       (s) => s.settled,
       () => undefined,
     );
     return started.then((s) => s.result);
-  };
+  }
+  return { enqueue, idle: () => tail };
 }
 
 interface LoadedRuntime {
   readonly llama: Llama;
+  readonly model: LlamaModel;
   readonly context: LlamaContext;
   readonly chatWrapper: ChatWrapper;
   readonly LlamaChatSession: ChatSessionClass;
+  readonly defineFunction?: NodeLlamaCpp["defineChatSessionFunction"];
 }
 
 /**
  * `onStuck` runs when a generation still has not stopped `STOP_GRACE_MS` after its deadline: the
  * queue is released anyway and the engine must be dropped (the caller reloads it later).
  */
-function createEngine(runtime: LoadedRuntime, onStuck: () => void): LocalAiEngine {
-  const enqueue = createSerialQueue();
+function createEngine(runtime: LoadedRuntime, info: AiModelInfo, queue: ReturnType<typeof createSerialQueue>, onStuck: () => void): LocalAiEngine {
+  const { enqueue } = queue;
   const grammars = new Map<string, Promise<JsonGrammar>>();
 
   function grammarFor(schema: AiJsonSchema): Promise<JsonGrammar> {
@@ -169,9 +178,33 @@ function createEngine(runtime: LoadedRuntime, onStuck: () => void): LocalAiEngin
     }
   }
 
+  /** A free answer with tools: node-llama-cpp runs the calls the model asks for and feeds their results back. */
+  async function generateWithTools(request: AiToolRequest, signal: AbortSignal): Promise<unknown> {
+    const define = runtime.defineFunction;
+    if (!define) throw new Error("Tools are not available in this engine.");
+    const functions = Object.fromEntries(
+      request.tools.map((tool) => [tool.name, define({ description: tool.description, params: tool.params as never, handler: (params: unknown) => tool.handler(params) })]),
+    );
+    const sequence = runtime.context.getSequence();
+    try {
+      const session = new runtime.LlamaChatSession({ contextSequence: sequence, chatWrapper: runtime.chatWrapper, systemPrompt: request.system });
+      try {
+        return await session.prompt(request.user, { functions, maxTokens: request.maxTokens, temperature: TEMPERATURE, budgets: { thoughtTokens: 0 }, signal });
+      } finally {
+        session.dispose({ disposeSequence: false });
+      }
+    } finally {
+      await sequence.dispose();
+    }
+  }
+
   async function start(request: AiJsonRequest): Promise<{ result: Promise<unknown>; settled: Promise<unknown> }> {
+    return startWork(request, (signal) => generate(request, signal));
+  }
+
+  async function startWork(request: { readonly maxTokens: number; readonly signal?: AbortSignal; readonly deadlineMs?: number }, work: (signal: AbortSignal) => Promise<unknown>): Promise<{ result: Promise<unknown>; settled: Promise<unknown> }> {
     request.signal?.throwIfAborted();
-    const deadline = deadlineFor(request.maxTokens);
+    const deadline = request.deadlineMs ?? deadlineFor(request.maxTokens);
     const timeout = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<never>((_, reject) => {
@@ -184,30 +217,35 @@ function createEngine(runtime: LoadedRuntime, onStuck: () => void): LocalAiEngin
     // Never reported on its own: it only matters through the race below.
     timedOut.catch(() => undefined);
     const signal = request.signal ? AbortSignal.any([request.signal, timeout.signal]) : timeout.signal;
-    const work = generate(request, signal).finally(() => clearTimeout(timer));
+    const running = work(signal).finally(() => clearTimeout(timer));
     return {
       // The caller gets its answer at the deadline even if the native generation is slow to stop.
-      result: Promise.race([work, timedOut]),
-      settled: withCeiling(work.catch(() => undefined), deadline + STOP_GRACE_MS, onStuck),
+      result: Promise.race([running, timedOut]),
+      settled: withCeiling(running.catch(() => undefined), deadline + STOP_GRACE_MS, onStuck),
     };
   }
 
   return {
-    model: LOCAL_AI_MODEL_INFO,
+    model: info,
     completeJson: (request) => enqueue(() => start(request)),
+    runWithTools: runtime.defineFunction ? (request) => enqueue(() => startWork(request, (signal) => generateWithTools(request, signal))) as Promise<string> : undefined,
   };
 }
 
-async function loadRuntime(modelPath: string): Promise<LoadedRuntime> {
-  const { getLlama, LlamaChatSession, QwenChatWrapper } = await import("node-llama-cpp");
+async function loadRuntime(modelPath: string, gpu: boolean): Promise<LoadedRuntime> {
+  const { getLlama, LlamaChatSession, QwenChatWrapper, defineChatSessionFunction } = await import("node-llama-cpp");
   // Prebuilt binaries only (Vulkan / CUDA / CPU): never compile llama.cpp from a web request.
-  const llama = await getLlama({ build: "never" });
+  const llama = await getLlama(gpu ? { build: "never" } : { build: "never", gpu: false });
   try {
-    const model = await llama.loadModel({ modelPath });
+    // A model larger than the card keeps room there for its context: the layers that do not fit go to memory.
+    const model = await llama.loadModel({ modelPath, gpuLayers: { fitContext: { contextSize: CONTEXT_SIZE } } });
     try {
-      const context = await model.createContext({ contextSize: CONTEXT_SIZE, sequences: 1 });
+      // The full context when the card holds it; else the largest that fits, never under half.
+      const context = await model
+        .createContext({ contextSize: CONTEXT_SIZE, sequences: 1 })
+        .catch(() => model.createContext({ contextSize: { min: CONTEXT_SIZE / 2, max: CONTEXT_SIZE }, sequences: 1 }));
       const chatWrapper = new QwenChatWrapper({ variation: "3.5", thoughts: "discourage" });
-      return { llama, context, chatWrapper, LlamaChatSession };
+      return { llama, model, context, chatWrapper, LlamaChatSession, defineFunction: defineChatSessionFunction };
     } catch (error) {
       await model.dispose().catch(() => undefined);
       throw error;
@@ -219,20 +257,28 @@ async function loadRuntime(modelPath: string): Promise<LoadedRuntime> {
   }
 }
 
-async function load(state: EngineState, modelPath: string): Promise<EngineLoadResult> {
+async function load(state: EngineState, modelPath: string, gpu: boolean): Promise<EngineLoadResult> {
   if (!(await isFile(modelPath))) return missingModel(modelPath);
   try {
-    const runtime = await loadRuntime(modelPath);
-    const engine = createEngine(runtime, () => {
+    const runtime = await loadRuntime(modelPath, gpu);
+    const queue = createSerialQueue();
+    const engine = createEngine(runtime, modelInfoOf(modelPath), queue, () => {
       console.error("[ai] generation did not stop after its deadline: engine dropped");
-      if (state.engine === engine) state.engine = undefined;
+      if (state.engine === engine) {
+        state.engine = undefined;
+        state.runtime = undefined;
+      }
       state.failure = { reason: STUCK_REASON, code: { code: "stuck" }, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
       void runtime.llama.dispose().catch(() => undefined);
     });
     state.engine = engine;
+    state.runtime = runtime;
+    state.idle = queue.idle;
     state.failure = undefined;
     return { ok: true, engine };
   } catch (error) {
+    // The whole error in the server log (it may name a path); the visitor only gets its name.
+    console.error("[ai] engine could not start", error);
     const { reason, code } = loadFailure(error);
     state.failure = { reason, code, retryAt: Date.now() + LOAD_FAILURE_COOLDOWN_MS };
     return { ok: false, reason, failure: code };
@@ -248,16 +294,51 @@ export function getLocalAiEngine(env: ServerEnv = getEnv()): Promise<EngineLoadR
 
   const modelPath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.LOCAL_AI_MODEL_PATH);
   const state = engineState();
-  // One model in VRAM: a loaded engine is kept even if LOCAL_AI_MODEL_PATH changes (restart to switch models).
+  // One model in memory: a loaded engine is kept until `releaseLocalAiEngine` (the settings page calls it on a switch).
   if (state.engine) return Promise.resolve({ ok: true, engine: state.engine });
   if (state.loading) return state.loading;
   if (state.failure && Date.now() < state.failure.retryAt) {
     return Promise.resolve({ ok: false, reason: state.failure.reason, failure: state.failure.code });
   }
 
-  const loading = load(state, modelPath).finally(() => {
+  const loading = load(state, modelPath, env.LOCAL_AI_GPU !== "off").finally(() => {
     state.loading = undefined;
   });
   state.loading = loading;
   return loading;
+}
+
+/**
+ * Frees the loaded model once its queued generations are done, so the next call loads the model and
+ * the graphics setting now configured. Calls arriving meanwhile load the new model.
+ */
+export async function releaseLocalAiEngine(): Promise<void> {
+  const state = engineState();
+  await state.loading?.catch(() => undefined);
+  const runtime = state.runtime;
+  const idle = state.idle;
+  state.engine = undefined;
+  state.runtime = undefined;
+  state.idle = undefined;
+  state.failure = undefined;
+  if (!runtime) return;
+  await idle?.().catch(() => undefined);
+  await runtime.llama.dispose().catch(() => undefined);
+}
+
+/** The memory the loaded model takes right now, read from its backend; null when no model is loaded. */
+export async function localAiMemory(): Promise<{ readonly vram: number; readonly ram: number; readonly gpu: string | false } | null> {
+  const runtime = engineState().runtime;
+  if (!runtime) return null;
+  try {
+    const usage = await runtime.llama.getLlamaMemoryUsage();
+    return { vram: usage.gpuVram, ram: usage.cpuRam, gpu: runtime.llama.gpu };
+  } catch {
+    return null;
+  }
+}
+
+/** The backend of the loaded model, to read the graphics card without starting a second one. */
+export function loadedLlama(): Llama | null {
+  return engineState().runtime?.llama ?? null;
 }

@@ -1,0 +1,465 @@
+/*
+ * The planet's places: around it on the home page, folded into a ring of light on the other pages.
+ * Geometry comes from the variables the planet itself uses (marketing.css), so the buttons stay on its orbit
+ * at every size. Plain global stylesheet, like ai-aura.css.
+ */
+
+.orbit-hub {
+  /* Distance from the planet's centre to the buttons: its radius plus a margin. */
+  --orbit-r: calc(var(--planet-size) * var(--hub-scale) / 2 + 5.25rem);
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: var(--hub-y);
+  width: calc(var(--orbit-r) * 2);
+  aspect-ratio: 1;
+  border: 1px dashed color-mix(in oklab, #fff 11%, transparent);
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  animation:
+    orbit-ring-in 1400ms var(--ease-out) 200ms both,
+    orbit-turn 160s linear infinite;
+}
+
+.orbit-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orbit-place {
+  position: absolute;
+  left: calc(50% + var(--sin) * var(--orbit-r));
+  top: calc(var(--hub-y) - var(--cos) * var(--orbit-r));
+  z-index: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  animation: orbit-out 900ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+  animation-delay: calc(350ms + var(--i, 0) * 110ms);
+}
+
+/* The open place comes above its neighbours. */
+.orbit-place:hover,
+.orbit-place:focus-within,
+.orbit-place[data-open] {
+  z-index: 3;
+}
+
+.orbit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.875rem;
+  padding: 0 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background-color: color-mix(in oklab, var(--surface) 82%, transparent);
+  backdrop-filter: blur(10px);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform var(--dur-base) var(--ease-spring),
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-slow) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out);
+}
+
+.orbit-place:hover .orbit-button,
+.orbit-place:focus-within .orbit-button,
+.orbit-place[data-open] .orbit-button {
+  transform: scale(1.06);
+  border-color: color-mix(in oklab, #fff 45%, transparent);
+  background-color: color-mix(in oklab, var(--surface-2) 90%, transparent);
+  box-shadow: 0 0 28px color-mix(in oklab, #fff 16%, transparent);
+}
+
+.orbit-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* ---------- The choices of a place ---------- */
+
+.orbit-panel {
+  position: absolute;
+  width: max-content;
+  min-width: 16rem;
+  max-width: 19rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-spring),
+    visibility 0s linear var(--dur-base);
+}
+
+.orbit-place:hover .orbit-panel,
+.orbit-place:focus-within .orbit-panel,
+.orbit-place[data-open] .orbit-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-spring),
+    visibility 0s;
+}
+
+/* The padding bridges the gap between the button and the card, so the pointer can travel across it. */
+.orbit-place[data-side="below"] .orbit-panel {
+  top: 100%;
+  left: 50%;
+  padding-top: 0.75rem;
+  transform: translate(-50%, -6px) scale(0.96);
+}
+
+.orbit-place[data-side="right"] .orbit-panel {
+  top: 50%;
+  left: 100%;
+  padding-left: 0.75rem;
+  transform: translate(-6px, -50%) scale(0.96);
+}
+
+.orbit-place[data-side="left"] .orbit-panel {
+  top: 50%;
+  right: 100%;
+  padding-right: 0.75rem;
+  transform: translate(6px, -50%) scale(0.96);
+}
+
+.orbit-place[data-side="above-right"] .orbit-panel {
+  bottom: 100%;
+  left: 0;
+  padding-bottom: 0.75rem;
+  transform: translateY(6px) scale(0.96);
+}
+
+.orbit-place[data-side="above-left"] .orbit-panel {
+  bottom: 100%;
+  right: 0;
+  padding-bottom: 0.75rem;
+  transform: translateY(6px) scale(0.96);
+}
+
+.orbit-place:is(:hover, :focus-within, [data-open])[data-side="below"] .orbit-panel {
+  transform: translate(-50%, 0) scale(1);
+}
+
+.orbit-place:is(:hover, :focus-within, [data-open])[data-side="right"] .orbit-panel {
+  transform: translate(0, -50%) scale(1);
+}
+
+.orbit-place:is(:hover, :focus-within, [data-open])[data-side="left"] .orbit-panel {
+  transform: translate(0, -50%) scale(1);
+}
+
+.orbit-place:is(:hover, :focus-within, [data-open]):is([data-side="above-right"], [data-side="above-left"]) .orbit-panel {
+  transform: translateY(0) scale(1);
+}
+
+.orbit-panel-list {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0.4rem;
+  list-style: none;
+  border: 1px solid color-mix(in oklab, #fff 14%, transparent);
+  border-radius: var(--radius-tile);
+  background-color: color-mix(in oklab, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 0 40px color-mix(in oklab, #fff 7%, transparent);
+}
+
+.orbit-panel-list > li {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.orbit-place:is(:hover, :focus-within, [data-open]) .orbit-panel-list > li {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(60ms + var(--j, 0) * 45ms);
+}
+
+.orbit-option {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: calc(var(--radius-tile) - 0.4rem);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.orbit-option:hover,
+.orbit-option:focus-visible {
+  background-color: var(--surface-2);
+}
+
+.orbit-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.orbit-option-label {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.orbit-option-hint {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* ---------- Under the planet: the AI when it is not there ---------- */
+
+.orbit-ai {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--hub-y) + var(--planet-size) * var(--hub-scale) / 2 + 1.25rem);
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-tile);
+  background-color: color-mix(in oklab, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  pointer-events: auto;
+  transform: translateX(-50%);
+  animation: enter-up 900ms var(--ease-out) 900ms both;
+}
+
+.orbit-ai-quiet {
+  padding: 0.6rem 1rem;
+}
+
+@keyframes orbit-out {
+  from {
+    opacity: 0;
+    left: 50%;
+    top: var(--hub-y);
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+}
+
+@keyframes orbit-ring-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+}
+
+@keyframes orbit-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* Phones: the planet on top, its places in a grid under it, their choices opening in place. */
+@media (max-width: 719px) {
+  .orbit-hub {
+    position: relative;
+    min-height: 100dvh;
+    padding: calc(var(--hub-y) + var(--planet-size) * var(--hub-scale) / 2 + 1.5rem) 0 2rem;
+    pointer-events: auto;
+  }
+  .orbit-ring {
+    display: none;
+  }
+  .orbit-items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .orbit-place {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    animation-name: enter-up;
+  }
+  .orbit-place[data-open] {
+    grid-column: 1 / -1;
+  }
+  .orbit-button {
+    width: 100%;
+    justify-content: center;
+  }
+  .orbit-place:hover .orbit-button,
+  .orbit-place:focus-within .orbit-button,
+  .orbit-place[data-open] .orbit-button {
+    transform: none;
+  }
+  .orbit-panel,
+  .orbit-place:is(:hover, :focus-within) .orbit-panel {
+    position: static;
+    display: none;
+    width: auto;
+    max-width: none;
+    padding: 0.5rem 0 0;
+    transform: none;
+  }
+  .orbit-place[data-open] .orbit-panel {
+    display: block;
+    transform: none;
+  }
+  .orbit-ai {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 1.5rem auto 0;
+    transform: none;
+  }
+}
+
+/* ---------- Away from home: the ring of light at the top left ---------- */
+
+.orbit-dock {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  z-index: 40;
+}
+
+.orbit-dock-ring {
+  position: relative;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: conic-gradient(from var(--eclipse-angle, 0deg), #fff, oklch(0.9 0.07 250), #fff 35%, oklch(0.91 0.07 330), #fff 68%, oklch(0.93 0.07 170), #fff);
+  box-shadow: 0 0 22px color-mix(in oklab, #fff 28%, transparent);
+  animation: eclipse-turn 12s linear infinite;
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.orbit-dock-ring:hover {
+  transform: scale(1.08);
+}
+
+.orbit-dock-ring:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.orbit-dock-core {
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 45%, #111116, #000 70%);
+}
+
+.orbit-dock-toggle {
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background-color: color-mix(in oklab, var(--surface) 80%, transparent);
+  backdrop-filter: blur(10px);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  cursor: pointer;
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.orbit-dock-toggle:hover,
+.orbit-dock[data-open] .orbit-dock-toggle {
+  border-color: color-mix(in oklab, #fff 40%, transparent);
+}
+
+.orbit-dock-panel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 0;
+  width: 17rem;
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  padding: 0.4rem;
+  border: 1px solid color-mix(in oklab, #fff 14%, transparent);
+  border-radius: var(--radius-tile);
+  background-color: color-mix(in oklab, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 0 40px color-mix(in oklab, #fff 7%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top left;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-spring),
+    visibility 0s linear var(--dur-base);
+}
+
+/* A bridge over the gap, so the pointer reaches the panel. */
+.orbit-dock-panel::before {
+  content: "";
+  position: absolute;
+  inset: -0.75rem 0 auto;
+  height: 0.75rem;
+}
+
+.orbit-dock:is(:hover, :focus-within, [data-open]) .orbit-dock-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-spring),
+    visibility 0s;
+}
+
+.orbit-dock-group {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.orbit-dock:is(:hover, :focus-within, [data-open]) .orbit-dock-group {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(40ms + var(--j, 0) * 40ms);
+}
+
+.orbit-dock-link {
+  display: block;
+  padding: 0.4rem 0.75rem 0.4rem 2.1rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.orbit-dock-link:hover,
+.orbit-dock-link:focus-visible {
+  background-color: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-ring,
+  .orbit-place,
+  .orbit-ai,
+  .orbit-dock-ring {
+    animation: none !important;
+  }
+}

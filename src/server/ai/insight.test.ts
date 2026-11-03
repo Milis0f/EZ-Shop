@@ -284,14 +284,17 @@ describe("getAnalysisInsight", () => {
     expect(JSON.stringify(request.schema)).toContain(`"enum":${JSON.stringify(codes)}`);
   });
 
-  it("does not load the model when the fact sheet cannot fit in its context", async () => {
+  it.each(["fr", "en", "es"] as const)("fits the 18 countries in the model's context (%s)", async (locale) => {
     const all = await mockAnalysis(["FR", "BE", "CH", "LU", "DE", "AT", "NL", "ES", "IT", "PT", "IE", "PL", "SE", "DK", "GB", "US", "CA", "AU"]);
-    const { deps, loadEngine } = fakeEngine(goodAnswer);
+    const { deps, completeJson } = fakeEngine(goodAnswer);
 
-    const result = await getAnalysisInsight(all, deps);
+    const result = await getAnalysisInsight(all, { ...deps, locale });
 
-    expect(result).toMatchObject({ status: "unavailable", reason: expect.stringContaining("trop longue pour l'IA locale (18 pays") });
-    expect(loadEngine).not.toHaveBeenCalled();
+    expect(result).not.toMatchObject({ status: "unavailable" });
+    const request = completeJson.mock.calls[0]?.[0];
+    expect(request).toBeDefined();
+    // System prompt, sheet and answer together stay within the 8 192 tokens, at the measured 2.9 characters a token.
+    expect(((request?.system.length ?? 0) + (request?.user.length ?? 0)) / 2.9 + (request?.maxTokens ?? 0)).toBeLessThan(8192);
   });
 });
 

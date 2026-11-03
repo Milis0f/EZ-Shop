@@ -11,7 +11,8 @@ import type { TopicInterestProvider, TranslationProvider } from "@/providers/con
  *
  * When the name is exactly a Wikipedia article, the same concept's title in the other language comes
  * first: "casquette" gives "Mütze" through Wikidata, which people curate, and memory-based translators
- * can give "Deckel" (lid). The translator handles everything else.
+ * can give "Deckel" (lid). The translator handles everything else, including a longer name whose head
+ * noun alone is an article: "gourde inox" must not become "Trinkflasche" and lose its "inox".
  */
 export async function addMachineTranslations(
   product: ProductQuery,
@@ -26,7 +27,9 @@ export async function addMachineTranslations(
 
   const issues: CollectionIssue[] = [];
   const concept = topic ? await topic.resolveEntity([product.displayName], product.inputLanguage) : null;
-  const wikidataId = concept?.ok ? concept.data.wikidataId : null;
+  // The article may be the name's head noun only (the lookup also tries it): its title then translates part of the name.
+  const wholeName = concept?.ok && normalizeTerm(concept.data.article) === normalizeTerm(product.displayName);
+  const wikidataId = wholeName && concept?.ok ? concept.data.wikidataId : null;
   const fromConcept = async (language: LanguageCode): Promise<string | null> => {
     const title = wikidataId && topic ? await topic.conceptTitle(wikidataId, language) : null;
     // "Cap (headgear)": the disambiguation is not part of the name.

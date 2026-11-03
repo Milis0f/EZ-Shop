@@ -6,7 +6,7 @@
  * absolute — a country's score does not depend on which other countries are compared.
  */
 
-export const SCORING_MODEL_VERSION = "2026.10-v3";
+export const SCORING_MODEL_VERSION = "2026.10-v4";
 
 export const CRITERION_IDS = [
   "demand_volume",

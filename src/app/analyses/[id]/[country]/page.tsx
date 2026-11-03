@@ -1,3 +1,4 @@
+import { PlanetScene } from "@/components/planet/planet-hooks";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -25,6 +26,8 @@ import type { Locale } from "@/i18n/config";
 import { formatInt, formatPct } from "@/i18n/format";
 import { getLocale } from "@/i18n/server";
 import { t } from "@/i18n/translate";
+import { DatabaseNotice } from "@/components/data/database-notice";
+import { LocalDatabaseError } from "@/server/db/client";
 import { getAnalysis } from "@/server/services";
 import { engineText } from "@/components/data/engine-text";
 
@@ -39,7 +42,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const code = raw.toUpperCase();
   if (!isCountryCode(code)) return { title: m.country.notFound };
   await connection();
-  const analysis = await getAnalysis(id);
+  const analysis = await getAnalysis(id).catch(() => null);
   return { title: analysis ? `${analysis.product.displayName}, ${countryName(code, locale)}` : m.page.notFound };
 }
 
@@ -95,7 +98,13 @@ async function CountryContent({ params, locale }: PageProps & { locale: Locale }
   const code = raw.toUpperCase();
   if (!isCountryCode(code)) notFound();
   await connection();
-  const analysis = await getAnalysis(id);
+  let analysis: Awaited<ReturnType<typeof getAnalysis>>;
+  try {
+    analysis = await getAnalysis(id);
+  } catch (error: unknown) {
+    if (error instanceof LocalDatabaseError) return <DatabaseNotice />;
+    throw error;
+  }
   const c = analysis?.countries.find((x) => x.country === code);
   if (!analysis || !c) notFound();
 
@@ -111,6 +120,7 @@ async function CountryContent({ params, locale }: PageProps & { locale: Locale }
 
   return (
     <>
+      <PlanetScene focus={code} countries={[code]} verdict={verdict.value} confidence={scoring.confidence.score} />
       <Link
         href={`/analyses/${analysis.id}`}
         className="interactive group inline-flex max-w-full items-center gap-2 rounded-pill border border-line bg-surface py-2 pr-4 pl-3 text-sm text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground"
@@ -123,7 +133,7 @@ async function CountryContent({ params, locale }: PageProps & { locale: Locale }
         <LegacyMockNotice dataMode={analysis.dataMode} />
         <div className="grid grid-cols-1 items-center gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_auto] min-[900px]:gap-10">
           <div className="min-w-0">
-            <h1 className="flex flex-wrap items-center gap-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h1 className="page-title flex flex-wrap items-center gap-3">
               {countryName(code, locale)}
               <CountryTag code={code} className="text-xs" />
             </h1>

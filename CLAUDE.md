@@ -12,6 +12,7 @@ Cette application est une web app de recherche produit pre-launch pour e-commerc
 - Elle ne doit jamais dépendre de ventes réelles du propriétaire du projet.
 - Elle ne doit jamais utiliser Shopify orders, Meta Pixel, Google Analytics, ni historique publicitaire personnel.
 - Elle doit utiliser uniquement des données externes historiques, observées ou prévisionnelles.
+- Exception décidée par le propriétaire (2026-11-02) : l'espace « Ma boutique » (`/store`) lit sa propre boutique Shopify, ses statistiques de visites Shopify et ses propres comptes publicitaires (Meta, Google Ads), et l'IA locale peut en tirer des conseils pour cette boutique. Ces données restent dans cet espace : elles n'entrent jamais dans un score, un verdict ni une analyse pré-lancement.
 - L’analyse doit se faire uniquement au niveau pays.
 - Ne jamais produire d’analyse par région, département, ville ou code postal.
 - Si une donnée manque ou n’est pas suffisamment fiable, afficher `DATA_INSUFFICIENT`.

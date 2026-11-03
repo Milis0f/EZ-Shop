@@ -106,7 +106,7 @@ export async function collectCountry(
     languageMismatch ? untranslated<SuggestionsObservation>() : set.suggest.getSuggestions(countryQuery),
     languageMismatch
       ? untranslated<ContentObservation>()
-      : set.content.getContent({ ...countryQuery, publishedAfter: new Date(now.getTime() - CONTENT_LOOKBACK_DAYS * 86_400_000).toISOString() }),
+      : set.content.getContent({ ...countryQuery, publishedAfter: `${new Date(now.getTime() - CONTENT_LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z` }),
     languageMismatch ? untranslated<ListingsObservation>() : set.marketplace.getListings(countryQuery),
     topicMemo.get(topicKey) as Promise<ProviderResult<TopicInterestObservation>>,
   ]);

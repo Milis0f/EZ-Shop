@@ -1,18 +1,25 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ConfidenceMeter, ScoreMeter } from "@/components/analysis/meters";
-import { CountryTag } from "@/components/data/country-tag";
-import { formatDate, formatInt } from "@/i18n/format";
+import { VERDICT_COLOR } from "@/components/analysis/verdict-colors";
+import { TermBar } from "@/components/marketing/term";
+import { verdictWord } from "@/engine/report/localize";
+import { formatDate, formatInt, formatPct } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
-import { plural } from "@/i18n/translate";
+import { plural, t } from "@/i18n/translate";
+import { DatabaseNotice } from "@/components/data/database-notice";
+import { LocalDatabaseError } from "@/server/db/client";
 import { listRecentAnalyses } from "@/server/services";
 import { countryName } from "./display-names";
 
-/** The last analyses as round tiles: product, date, best country with its score and confidence. */
-export async function RecentAnalyses() {
+/** How many stay on the home page: enough to pick up a recent one without burying the rest. */
+const SHOWN = 6;
+
+/** The last analyses as rows: product, date, and the same verdict its report opens with. */
+export async function RecentAnalyses({ limit = SHOWN }: { readonly limit?: number } = {}) {
   await connection();
-  const [analyses, locale] = await Promise.all([listRecentAnalyses(12), getLocale()]);
+  const [analyses, locale] = await Promise.all([listRecentAnalyses(limit).catch((error: unknown) => (error instanceof LocalDatabaseError ? null : Promise.reject(error))), getLocale()]);
+  if (analyses === null) return <DatabaseNotice />;
   const m = await getMessages("home", locale).then((home) => home.recent);
 
   if (analyses.length === 0) {
@@ -24,45 +31,44 @@ export async function RecentAnalyses() {
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 min-[900px]:grid-cols-3">
+    <div className="term overflow-hidden">
+      <TermBar title="~/analyses — ls" />
+    <ul className="divide-y divide-line">
       {analyses.map((a) => (
         <li key={a.id} className="min-w-0">
           <Link
             href={`/analyses/${a.id}`}
-            className="interactive group flex h-full flex-col gap-4 rounded-tile border border-line bg-surface p-5 hover:border-foreground/20 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="interactive group flex h-full items-center gap-4 px-5 py-3.5 hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:px-6"
           >
-            <span className="flex items-start justify-between gap-3">
-              <span className="min-w-0">
-                <span className="block truncate font-medium">{a.productName}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {plural(locale, a.countryCount, m.countries, { date: formatDate(a.createdAt, locale), count: formatInt(a.countryCount, locale) })}
-                  {a.dataMode === "mock" && <span className="ml-2">{m.oldMock}</span>}
-                  {a.status === "failed" && <span className="ml-2 text-foreground">{m.failed}</span>}
-                </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-mono text-[0.9375rem] font-medium tracking-[-0.03em]">{a.productName}</span>
+              <span className="mt-0.5 block truncate font-mono text-xs tracking-[-0.02em] text-muted-foreground">
+                {plural(locale, a.countryCount, m.countries, { date: formatDate(a.createdAt, locale), count: formatInt(a.countryCount, locale) })}
+                {a.dataMode === "mock" && <span className="ml-2">{m.oldMock}</span>}
+                {a.status === "failed" && <span className="ml-2 text-foreground">{m.failed}</span>}
               </span>
-              <ChevronRight
-                aria-hidden
-                strokeWidth={1.5}
-                className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:text-foreground"
-              />
             </span>
-            {a.topCountry ? (
-              <span className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
-                <span className="flex min-w-0 items-center">
-                  <CountryTag code={a.topCountry.code} />
-                  <span className="truncate">{countryName(a.topCountry.code, locale)}</span>
+            {a.verdict ? (
+              <span className="shrink-0 text-right">
+                <span className="block font-mono text-sm font-medium tracking-[-0.03em]" style={{ color: VERDICT_COLOR[a.verdict.value] }}>
+                  {verdictWord(a.verdict.value, locale)}
                 </span>
-                <span className="flex items-center gap-4">
-                  <ScoreMeter value={a.topCountry.score} />
-                  <ConfidenceMeter value={a.topCountry.confidence} />
+                <span className="tabular mt-0.5 block text-xs text-muted-foreground">
+                  {t(m.verdictDetail, { country: countryName(a.verdict.country, locale), confidence: formatPct(Math.round(a.verdict.confidence), locale) })}
                 </span>
               </span>
             ) : (
-              <span className="mt-auto text-sm text-muted-foreground">{m.noCountry}</span>
+              <span className="shrink-0 text-sm text-muted-foreground">{m.noCountry}</span>
             )}
+            <ChevronRight
+              aria-hidden
+              strokeWidth={1.5}
+              className="size-4 shrink-0 text-muted-foreground transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:text-foreground"
+            />
           </Link>
         </li>
       ))}
     </ul>
+    </div>
   );
 }

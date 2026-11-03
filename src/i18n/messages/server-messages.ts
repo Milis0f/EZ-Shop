@@ -73,6 +73,7 @@ export const en = {
   api: {
     invalidInput: "Invalid input.",
     internalError: "Internal error.",
+    databaseDamaged: "The local database of analyses (.data/pglite) can no longer be opened: its files were damaged, usually by the computer or the server stopping in the middle of a write. Nothing was erased. It has to be repaired or replaced before analyses can be saved or read again.",
     invalidJson: "Invalid JSON body.",
     notFound: "Analysis not found.",
     unsupportedMediaType: "Content-Type application/json required.",
@@ -151,6 +152,7 @@ export const fr: Shape = {
   api: {
     invalidInput: "Entrée invalide.",
     internalError: "Erreur interne.",
+    databaseDamaged: "La base locale des analyses (.data/pglite) ne s'ouvre plus : ses fichiers ont été abîmés, le plus souvent par un arrêt de l'ordinateur ou du serveur au milieu d'une écriture. Rien n'a été effacé. Elle doit être réparée ou remplacée avant de pouvoir enregistrer ou relire des analyses.",
     invalidJson: "Corps JSON invalide.",
     notFound: "Analyse introuvable.",
     unsupportedMediaType: "Content-Type application/json requis.",
@@ -226,6 +228,7 @@ export const es: Shape = {
   api: {
     invalidInput: "Entrada no válida.",
     internalError: "Error interno.",
+    databaseDamaged: "La base local de análisis (.data/pglite) ya no se puede abrir: sus archivos se dañaron, casi siempre porque el ordenador o el servidor se detuvo a mitad de una escritura. No se ha borrado nada. Hay que repararla o sustituirla antes de poder guardar o leer análisis.",
     invalidJson: "Cuerpo JSON no válido.",
     notFound: "Análisis no encontrado.",
     unsupportedMediaType: "Se requiere Content-Type application/json.",

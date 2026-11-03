@@ -213,18 +213,20 @@ export const LICENCE_PENDING = "Statistique dérivée désactivée en attendant 
 
 const licencePending = (source: string): CriterionEvaluation => ({ status: "DATA_INSUFFICIENT", explanation: LICENCE_PENDING, missing: [source] });
 
-/** YouTube median views: disabled pending the licence check (weight kept, scoring 2026.10-v3). */
+/** YouTube median views: disabled pending the licence check (weight kept, left out of the coverage). */
 const videoInterest: Criterion = {
   id: "video_interest",
   label: "Intérêt vidéo (YouTube)",
+  disabled: true,
   timeSensitive: true,
   evaluate: () => licencePending("youtube-data"),
 };
 
-/** Margin at the median eBay price: disabled pending the licence check (weight kept, scoring 2026.10-v3). */
+/** Margin at the median eBay price: disabled pending the licence check (weight kept, left out of the coverage). */
 const marketMargin: Criterion = {
   id: "market_margin",
   label: "Marge au prix du marché",
+  disabled: true,
   timeSensitive: false,
   evaluate: () => licencePending("ebay-browse"),
 };

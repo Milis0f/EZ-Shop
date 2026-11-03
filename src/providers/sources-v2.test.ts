@@ -277,14 +277,15 @@ describe("eBay Browse", () => {
 describe("YouTube Data API", () => {
   const env = { ...baseEnv, YOUTUBE_API_KEY: SECRET } as ServerEnv;
 
-  it("counts videos for the country and reads their views, keeping the key out of every reference", async () => {
+  it("counts videos for the country without asking for view counts, keeping the key out of every reference", async () => {
     const calls = stubFetch((url) =>
       url.includes("/search?")
         ? json({ pageInfo: { totalResults: 1200 }, items: [{ id: { videoId: "a" }, snippet: { publishedAt: "2026-09-01T00:00:00Z" } }, { id: { videoId: "b" }, snippet: { publishedAt: "2026-01-01T00:00:00Z" } }] })
         : json({ items: [{ id: "a", statistics: { viewCount: "5000" } }, { id: "b", statistics: { viewCount: "15000" } }] }),
     );
     const result = await new YouTubeProvider(env, new MemoryCacheRepository(), 500).getContent({ terms: ["chaussettes"], country: "FR", language: "fr", publishedAfter: "2025-10-15T00:00:00Z" });
-    expect(result).toMatchObject({ ok: true, data: { totalResults: 1200, videos: [{ id: "a", views: 5000 }, { id: "b", views: 15000 }] } });
+    expect(result).toMatchObject({ ok: true, data: { totalResults: 1200, videos: [{ id: "a", views: null }, { id: "b", views: null }] } });
+    expect(calls).toHaveLength(1);
     expect(calls[0].url).toContain("regionCode=FR");
     expect(JSON.stringify(result)).not.toContain(SECRET);
   });

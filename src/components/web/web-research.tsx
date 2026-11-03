@@ -1,11 +1,13 @@
 "use client";
 
+import { AiAura } from "@/components/ai/ai-aura";
+import { AiBadge } from "@/components/ai/ai-badge";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n/client";
 import { t } from "@/i18n/translate";
 import { cn } from "@/lib/utils";
 import { declineWebResearch, runWebResearch, useWebResearch } from "./web-research-store";
-import { WebReadingBlock, WebSourceList } from "./web-results";
+import { WebPrices, WebReadingBlock, WebSourceList } from "./web-results";
 
 /** Results of a search already asked for. */
 export function WebResearchResult({ query }: { readonly query: string }) {
@@ -14,9 +16,12 @@ export function WebResearchResult({ query }: { readonly query: string }) {
 
   if (view.kind === "searching") {
     return (
-      <p role="status" className="py-4 text-center text-sm text-muted-foreground">
-        {m.searching}
-      </p>
+      <AiAura state="thinking" surfaceClassName="p-5 sm:p-6">
+        <AiBadge label={m.badge} state="thinking" />
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
+          {m.searching}
+        </p>
+      </AiAura>
     );
   }
   if (view.kind === "error") {
@@ -49,7 +54,8 @@ export function WebResearchResult({ query }: { readonly query: string }) {
   return (
     <div className="flex flex-col gap-5">
       <p className="text-xs text-muted-foreground">{m.notVerified}</p>
-      <WebReadingBlock reading={response.reading} badge={m.badge} />
+      <WebReadingBlock reading={response.reading} badge={m.badge} sources={response.sources} />
+      <WebPrices prices={response.prices} summary={response.priceSummary} />
       <div>
         <h4 className="text-sm font-medium">{m.sources}</h4>
         <WebSourceList sources={response.sources} />

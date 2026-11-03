@@ -66,7 +66,6 @@ const searchSchema = z.object({
   pageInfo: z.object({ totalResults: z.number() }),
   items: z.array(z.object({ id: z.object({ videoId: z.string().optional() }), snippet: z.object({ publishedAt: z.string() }).optional() })),
 });
-const videosSchema = z.object({ items: z.array(z.object({ id: z.string(), statistics: z.object({ viewCount: z.string().optional() }).optional() })) });
 
 export class YouTubeProvider implements ContentProvider, ConnectionTestable {
   readonly meta = youtubeMeta;
@@ -126,15 +125,6 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
     if (!parsed.success) return fail("invalid_response", "YouTube search: unexpected response shape");
     const hits = parsed.data.items.flatMap((i) => (i.id.videoId ? [{ id: i.id.videoId, publishedAt: i.snippet?.publishedAt ?? "" }] : []));
 
-    let views = new Map<string, number>();
-    if (hits.length > 0) {
-      const stats = await this.call("/videos", { part: "statistics", id: hits.map((h) => h.id).join(",") }, "YouTube videos", fresh, (payload) => videosSchema.safeParse(payload).success);
-      const parsedStats = stats.ok ? videosSchema.safeParse(stats.data) : null;
-      if (parsedStats?.success) {
-        views = new Map(parsedStats.data.items.flatMap((v) => (v.statistics?.viewCount ? [[v.id, Number(v.statistics.viewCount)] as const] : [])));
-      }
-    }
-
     const source: SourceRef = {
       sourceId: this.meta.id,
       origin: "live",
@@ -146,7 +136,8 @@ export class YouTubeProvider implements ContentProvider, ConnectionTestable {
     };
     return ok({
       totalResults: parsed.data.pageInfo.totalResults,
-      videos: hits.map((h) => ({ ...h, views: views.get(h.id) ?? null })),
+      // View counts are not asked for: unused while derived statistics are off, and YouTube limits how long they may be kept.
+      videos: hits.map((h) => ({ ...h, views: null })),
       source,
     });
   }

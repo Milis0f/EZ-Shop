@@ -113,6 +113,7 @@ export function computeImportTaxes(inputs: TaxInputs): Datum<ImportTaxes> {
           : `Droit ad valorem au taux le plus élevé de la fourchette (${d.ratePctMin} à ${d.ratePctMax} %), par prudence.`,
       );
       if (regime === "us") notes.push("États-Unis : plus de franchise depuis le 29 août 2025, droits dus dès le premier dollar.");
+      if (regime === "us" && origin === "CN") notes.push("Origine Chine : droits additionnels américains (section 301 et autres) non calculés, à ajouter à ce droit.");
     }
   }
 
@@ -123,6 +124,7 @@ export function computeImportTaxes(inputs: TaxInputs): Datum<ImportTaxes> {
       lowValueDutyEur,
       vatRatePct,
       dutyPerUnitEur,
+      ...(regime === "us" && origin === "CN" && duties && isKnown(duties) ? { dutiesIncomplete: true } : {}),
       dutyBasis: basis,
       customsValueEur: value === null ? null : round(value, 2),
       notes,

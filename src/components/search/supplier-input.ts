@@ -13,15 +13,14 @@ export const PLATFORM_LABELS: Readonly<Record<SupplierPlatform, string>> = {
 
 /** Ids longer than this are shortened in the chip; the full id stays in the default name and the title. */
 const CHIP_ID_DIGITS = 7;
-const PRODUCT_NAME_MAX = 80;
 
 /** What the search capsule (or the advanced link field) holds, as the form needs it. */
 export type SupplierInput =
   | { readonly kind: "empty" }
   /** Plain text: a product name. */
   | { readonly kind: "name" }
-  /** A recognised product page: posted as `supplierUrl`, the name defaults to `defaultName`. */
-  | { readonly kind: "product"; readonly chipLabel: string; readonly defaultName: string; readonly productId: string }
+  /** A recognised product page: posted as `supplierUrl`, next to the name the owner types. */
+  | { readonly kind: "product"; readonly chipLabel: string; readonly productId: string }
   /** An address that cannot be used as is (short link, not a product page, not web): its guidance, localized. */
   | { readonly kind: "guidance"; readonly message: string };
 
@@ -29,11 +28,6 @@ export type SupplierInput =
 export function supplierChipLabel(platform: SupplierPlatform, productId: string, locale: Locale): string {
   const id = productId.length > CHIP_ID_DIGITS + 3 ? `${productId.slice(0, CHIP_ID_DIGITS)}…` : productId;
   return t(messagesFor("home", locale).supplier.chip, { platform: PLATFORM_LABELS[platform], id });
-}
-
-/** « AliExpress product 1005006… » in full, used as the product name until the owner types one. */
-export function defaultProductName(platform: SupplierPlatform, productId: string, locale: Locale): string {
-  return t(messagesFor("home", locale).supplier.defaultName, { platform: PLATFORM_LABELS[platform], id: productId }).slice(0, PRODUCT_NAME_MAX);
 }
 
 /** The guidance for an address that cannot be used, from the parser's reason code. */
@@ -62,7 +56,6 @@ export function readSupplierInput(value: string, locale: Locale): SupplierInput 
         kind: "product",
         productId: parsed.productId,
         chipLabel: supplierChipLabel(parsed.platform, parsed.productId, locale),
-        defaultName: defaultProductName(parsed.platform, parsed.productId, locale),
       };
     case "short_link":
     case "invalid":
@@ -79,9 +72,5 @@ export function isAddressLike(value: string): boolean {
   return text !== "" && !/\s/.test(text) && (/^[a-z][a-z0-9+.-]*:/i.test(text) || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+[/?#]/i.test(text));
 }
 
-/** The name the form posts: what the owner typed, else the default name of a recognised page, else nothing. */
-export function resolveProductName(typedName: string, input: SupplierInput): string {
-  const typed = typedName.trim();
-  if (typed !== "") return typed;
-  return input.kind === "product" ? input.defaultName : "";
-}
+/** The name the form posts: only what the owner typed. Supplier pages are never read, so a link can't say what the product is. */
+export const resolveProductName = (typedName: string): string => typedName.trim();

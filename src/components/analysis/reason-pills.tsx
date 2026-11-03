@@ -6,7 +6,7 @@ import type { Verdict } from "@/engine/report/verdict";
 import { useLocale, useMessages } from "@/i18n/client";
 import type { Locale } from "@/i18n/config";
 import { cn } from "@/lib/utils";
-import { VERDICT_COLOR } from "./verdict-orb";
+import { VERDICT_COLOR } from "./verdict-colors";
 
 interface Reason {
   /** Engine code of the reason (stable across locales). */

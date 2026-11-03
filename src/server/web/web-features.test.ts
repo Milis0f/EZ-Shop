@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { competitorResponseSchema, webResearchResponseSchema } from "@/domain/web";
 import type { AiJsonRequest, EngineLoadResult } from "@/server/ai/types";
-import { readWithAi } from "./ai-reading";
-import { analyzeCompetitor, observeHtml, parseShopifyProduct, shopifyHandleUrl } from "./competitor";
-import { decodeEntities, deliveryText, detectApps, isLongDelivery, isShopifyPage, jsonLdProduct, metaContent, pageText, pageTitle } from "./html-extract";
-import { runWebResearch } from "./research";
+import { chartUnitHolds, keepSupportedFigures, readPagesWithAi, readWithAi } from "./ai-reading";
+import { analyzeCompetitor, parseShopifyProduct, shopifyHandleUrl } from "./competitor";
+import { decodeEntities, deliveryText, detectApps, isLongDelivery, isProductPage, isShopifyPage, jsonLdProduct, metaContent, observeHtml, pageText, pageTitle, productLinksIn, relevantExcerpt, reviewWidgets } from "./html-extract";
+import { runWebResearch, summarisePrices, withoutContradictedPrices } from "./research";
 import type { FetchDeps } from "./safe-fetch";
-import { ensureSearxng, parseSearchResponse, searchWeb, type SearchDeps } from "./searxng";
+import { ensureSearxng, mergeHits, parseSearchResponse, searchWeb, type SearchDeps } from "./searxng";
+import { median, parseCatalogue, priceBands } from "./shop-catalogue";
 
 const env = { SEARXNG_URL: "http://127.0.0.1:8888", SEARXNG_AUTOSTART: true } as ServerEnv;
 
@@ -98,6 +99,10 @@ describe("html extraction", () => {
     expect(deliveryText(`${filler} policy shipped within 1-6 business days`)?.startsWith("policy")).toBe(true);
   });
 
+  it("keeps a delivery excerpt to its own sentence", () => {
+    expect(deliveryText('jours ouvrés pour les produits "Express 48h" - de 5 à 12 jours ouvrés pour les produits "Standard" ensuite')).toBe("de 5 à 12 jours ouvrés pour les produits");
+  });
+
   it("finds no delivery in unrelated numbers", () => {
     expect(deliveryText("Sizes 7-15 available, 3 colours")).toBeNull();
     expect(isLongDelivery(null)).toBe(false);
@@ -182,7 +187,7 @@ describe("AI reading of web text", () => {
 
   it("returns a summary whose numbers come from the material", async () => {
     const { reading } = engineAnswering({ summary: "Le tube coûte 12,50 € le mètre.", keyPoints: ["Diamètre 100 mm"] });
-    expect(await readWithAi("Search: tube", material, "fr", reading)).toEqual({ summary: { summary: "Le tube coûte 12,50 € le mètre.", keyPoints: ["Diamètre 100 mm"] }, note: null });
+    expect(await readWithAi("Search: tube", material, "fr", reading)).toEqual({ summary: { summary: "Le tube coûte 12,50 € le mètre.", keyPoints: ["Diamètre 100 mm"], stats: [], tables: [], charts: [] }, note: null });
   });
 
   it("drops a summary citing a number absent from the material", async () => {
@@ -197,7 +202,7 @@ describe("AI reading of web text", () => {
       .mockResolvedValueOnce({ summary: "Le tube coûte 12,50 €.", keyPoints: [] });
     const loadEngine = async (): Promise<EngineLoadResult> => ({ ok: true, engine: { model: { name: "f", license: "x" }, completeJson } });
     const result = await readWithAi("t", material, "fr", { loadEngine });
-    expect(result).toEqual({ summary: { summary: "Le tube coûte 12,50 €.", keyPoints: [] }, note: null });
+    expect(result).toEqual({ summary: { summary: "Le tube coûte 12,50 €.", keyPoints: [], stats: [], tables: [], charts: [] }, note: null });
     expect(completeJson).toHaveBeenCalledTimes(2);
     expect(completeJson.mock.calls[1]?.[0].user).toContain("do not write them: 5000");
   });
@@ -286,7 +291,7 @@ describe("competitor check", () => {
   const shop = site({ "https://shop.example/products/cap": shopHtml, "https://shop.example/products/cap.js": { body: shopJson, type: "application/json" } });
 
   it("reads a Shopify product: facts from its JSON, reviews and delivery from the page", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", false, "en", { env, fetch: shop, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(competitorResponseSchema.safeParse(result).success).toBe(true);
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.platform).toBe("shopify");
@@ -298,12 +303,12 @@ describe("competitor check", () => {
   });
 
   it("never carries a sales figure", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", false, "en", { env, fetch: shop, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(JSON.stringify(result).toLowerCase()).not.toContain("sales");
   });
 
   it("adds https when the address has no scheme", async () => {
-    const result = await analyzeCompetitor("shop.example/products/cap", false, "en", { env, fetch: shop, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 });
     expect(result.status).toBe("ready");
   });
 
@@ -316,7 +321,7 @@ describe("competitor check", () => {
       { url: "https://www.temu.com/blue-cap-g-601.html", title: "Blue cap, adjustable" },
     ]);
     const { reading, completeJson } = engineAnswering({ summary: "A cap.", keyPoints: [] });
-    const result = await analyzeCompetitor("https://shop.example/products/cap", true, "en", { env, fetch: shop, search, reading, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search, reading, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.suppliers?.map((s) => s.url)).toEqual(["https://www.aliexpress.com/item/1005001.html", "https://www.temu.com/blue-cap-g-601.html"]);
     expect(result.signals).toContain("marketplace_copy");
@@ -328,7 +333,7 @@ describe("competitor check", () => {
       { url: "https://www.aliexpress.com/popular.html", title: "Blue Cap Wholesalers Directory" },
       { url: "https://www.aliexpress.com/item/9.html", title: "Soap dish" },
     ]);
-    const result = await analyzeCompetitor("https://shop.example/products/cap", true, "en", { env, fetch: shop, search, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.suppliers).toEqual([]);
     expect(result.supplierSearch).toBe("done");
@@ -337,19 +342,19 @@ describe("competitor check", () => {
 
   it("does not search when not asked", async () => {
     const search = searchDeps([]);
-    await analyzeCompetitor("https://shop.example/products/cap", false, "en", { env, fetch: shop, search, reading: noModel, now: () => 0 });
+    await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: shop, search, reading: noModel, now: () => 0, paceMs: 0 });
     expect(search.fetch).not.toHaveBeenCalled();
   });
 
   it("reports a supplier search that could not run, and still answers", async () => {
-    const result = await analyzeCompetitor("https://shop.example/products/cap", true, "en", { env, fetch: shop, search: searchDeps([], { up: false }), reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: true, deep: false }, "en", { env, fetch: shop, search: searchDeps([], { up: false }), reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.supplierSearch).toBe("search_not_installed");
   });
 
   it("reads an ordinary site without any Shopify call", async () => {
     const plain = site({ "https://brand.example/item": `<title>Item</title><meta property="product:price:amount" content="49,90"><meta property="product:price:currency" content="GBP">` });
-    const result = await analyzeCompetitor("https://brand.example/item", false, "en", { env, fetch: plain, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://brand.example/item", { searchSupplier: false, deep: false }, "en", { env, fetch: plain, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.platform).toBe("other");
     expect(result.observed).toMatchObject({ name: "Item", priceMin: 49.9, currency: "GBP", variants: null, variantsInStock: null });
@@ -358,7 +363,7 @@ describe("competitor check", () => {
 
   it("keeps page facts when the Shopify JSON is refused", async () => {
     const partial = site({ "https://shop.example/products/cap": shopHtml });
-    const result = await analyzeCompetitor("https://shop.example/products/cap", false, "en", { env, fetch: partial, reading: noModel, now: () => 0 });
+    const result = await analyzeCompetitor("https://shop.example/products/cap", { searchSupplier: false, deep: false }, "en", { env, fetch: partial, reading: noModel, now: () => 0, paceMs: 0 });
     if (result.status !== "ready") throw new Error("expected ready");
     expect(result.observed).toMatchObject({ name: "Cap", reviewCount: 37, variants: null });
   });
@@ -368,13 +373,317 @@ describe("competitor check", () => {
     ["ftp://shop.example/x", "invalid_url"],
     ["https://shop.example/missing", "http_error"],
   ])("blocks %s", async (url, code) => {
-    expect(await analyzeCompetitor(url, false, "en", { env, fetch: shop, reading: noModel, now: () => 0 })).toEqual({ status: "blocked", code });
+    expect(await analyzeCompetitor(url, { searchSupplier: false, deep: false }, "en", { env, fetch: shop, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code });
   });
 
   it("refuses what is not a page, and respects robots.txt", async () => {
     const pdf = site({ "https://a.example/f": { body: "%PDF", type: "application/pdf" } });
-    expect(await analyzeCompetitor("https://a.example/f", false, "en", { env, fetch: pdf, reading: noModel, now: () => 0 })).toEqual({ status: "blocked", code: "not_a_page" });
+    expect(await analyzeCompetitor("https://a.example/f", { searchSupplier: false, deep: false }, "en", { env, fetch: pdf, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "not_a_page" });
     const closed = site({ "https://a.example/robots.txt": "User-agent: *\nDisallow: /", "https://a.example/p": "<p>x</p>" });
-    expect(await analyzeCompetitor("https://a.example/p", false, "en", { env, fetch: closed, reading: noModel, now: () => 0 })).toEqual({ status: "blocked", code: "robots" });
+    expect(await analyzeCompetitor("https://a.example/p", { searchSupplier: false, deep: false }, "en", { env, fetch: closed, reading: noModel, now: () => 0, paceMs: 0 })).toEqual({ status: "blocked", code: "robots" });
+  });
+});
+
+describe("AI figures", () => {
+  const pages = ["Tube PVC 12,50 € le mètre chez A", "Tube PVC 14,90 € chez B, 1,234 pièces"];
+  const base = { summary: "Deux prix.", keyPoints: [], stats: [], tables: [], charts: [] };
+
+  it("keeps a figure found on the page it cites, and refuses it on another page", () => {
+    const kept = keepSupportedFigures(
+      { ...base, stats: [{ label: "Prix A", value: "12,50 €", source: 1 }, { label: "Prix B", value: "14,90 €", source: 1 }] },
+      pages,
+      "fr",
+    );
+    expect(kept.summary.stats.map((s) => s.label)).toEqual(["Prix A"]);
+    expect(kept.refused).toEqual(["14,90"]);
+  });
+
+  it("drops a tile with no figure and a source that does not exist", () => {
+    const kept = keepSupportedFigures({ ...base, stats: [{ label: "Marque", value: "Acme", source: 1 }, { label: "Prix", value: "12,50 €", source: 9 }] }, pages, "fr");
+    expect(kept.summary.stats).toEqual([]);
+  });
+
+  it("keeps the rows of a table the pages support, and removes a table left too thin", () => {
+    const table = { title: "Prix", columns: ["Vendeur", "Prix"], rows: [{ cells: ["A", "12,50 €"], source: 1 }, { cells: ["B", "14,90 €"], source: 2 }, { cells: ["C", "99 €"], source: 2 }, { cells: ["bad width"], source: 1 }] };
+    const kept = keepSupportedFigures({ ...base, tables: [table] }, pages, "fr");
+    expect(kept.summary.tables[0]?.rows.map((r) => r.cells[0])).toEqual(["A", "B"]);
+    expect(kept.refused).toEqual(["99"]);
+    expect(keepSupportedFigures({ ...base, tables: [{ ...table, rows: table.rows.slice(0, 1) }] }, pages, "fr").summary.tables).toEqual([]);
+  });
+
+  it("checks chart values as plain numbers, in either reading of a separator", () => {
+    const chart = { title: "Prix", unit: "€", points: [{ label: "A", value: 12.5, source: 1 }, { label: "B", value: 14.9, source: 2 }, { label: "Stock", value: 1234, source: 2 }, { label: "Faux", value: 77, source: 1 }] };
+    const kept = keepSupportedFigures({ ...base, charts: [chart] }, pages, "fr");
+    expect(kept.summary.charts[0]?.points.map((p) => p.label)).toEqual(["A", "B", "Stock"]);
+    expect(kept.refused).toEqual(["77"]);
+  });
+
+  it("refuses a chart that hides different currencies behind one unit", () => {
+    expect(chartUnitHolds("currency", ["12 €", "1,299 dh"])).toBe(false);
+    expect(chartUnitHolds("€", ["12 €", "1,299 dh"])).toBe(false);
+    expect(chartUnitHolds("€", ["12 €", "14 EUR"])).toBe(true);
+    expect(chartUnitHolds("USD Billion", ["$583.5B", "$514.3B"])).toBe(true);
+    expect(chartUnitHolds("pièces", ["12", "14"])).toBe(true);
+  });
+
+  it("shows a figure once: the chart wins over a tile and a table saying the same", () => {
+    const chart = { title: "Prix", unit: "€", points: [{ label: "A", value: 12.5, source: 1 }, { label: "B", value: 14.9, source: 2 }] };
+    const table = { title: "Prix", columns: ["Vendeur", "Prix"], rows: [{ cells: ["A", "12,50 €"], source: 1 }, { cells: ["B", "14,90 €"], source: 2 }] };
+    const kept = keepSupportedFigures({ ...base, stats: [{ label: "Prix A", value: "12,50 €", source: 1 }], tables: [table], charts: [chart] }, pages, "fr");
+    expect(kept.summary.charts).toHaveLength(1);
+    expect(kept.summary.stats).toEqual([]);
+    expect(kept.summary.tables).toEqual([]);
+  });
+
+  it("removes a key point that repeats the sentence or a figure, and a column naming the source", () => {
+    const table = { title: "Prix", columns: ["Vendeur", "Prix", "Source"], rows: [{ cells: ["A", "12,50 €", "1"], source: 1 }, { cells: ["B", "14,90 €", "2"], source: 2 }] };
+    const kept = keepSupportedFigures({ ...base, keyPoints: ["Deux prix.", "A coûte 12,50 €.", "Livraison lente."], tables: [table] }, pages, "fr");
+    expect(kept.summary.keyPoints).toEqual(["Livraison lente."]);
+    expect(kept.summary.tables[0]?.columns).toEqual(["Vendeur", "Prix"]);
+    expect(kept.summary.tables[0]?.rows[0]?.cells).toEqual(["A", "12,50 €"]);
+  });
+
+  it("requires the figures only when several pages hold counted figures", async () => {
+    const { completeJson, reading } = engineAnswering(base);
+    await readPagesWithAi("tube", pages, "fr", reading);
+    expect(JSON.stringify(completeJson.mock.calls[0]?.[0].schema)).toContain("minItems");
+    await readPagesWithAi("tube", ["Un texte sans chiffre", "Un autre"], "fr", reading);
+    expect(JSON.stringify(completeJson.mock.calls[1]?.[0].schema)).not.toContain("minItems");
+  });
+
+  it("removes a table whose columns are not named", () => {
+    const rows = [{ cells: ["12,50 €", "A"], source: 1 }, { cells: ["14,90 €", "B"], source: 2 }];
+    expect(keepSupportedFigures({ ...base, tables: [{ title: "Prix", columns: ["value", "value"], rows }] }, pages, "fr").summary.tables).toEqual([]);
+    expect(keepSupportedFigures({ ...base, tables: [{ title: "Prix", columns: ["Prix", "Valeur"], rows }] }, pages, "fr").summary.tables).toEqual([]);
+    expect(keepSupportedFigures({ ...base, tables: [{ title: "Prix", columns: ["Prix", "Vendeur"], rows }] }, pages, "fr").summary.tables).toHaveLength(1);
+  });
+
+  it("removes a chart with fewer than two points", () => {
+    const chart = { title: "Prix", unit: "€", points: [{ label: "A", value: 12.5, source: 1 }] };
+    expect(keepSupportedFigures({ ...base, charts: [chart] }, pages, "fr").summary.charts).toEqual([]);
+  });
+
+  it("keeps the text after the second try and loses only the wrong figure", async () => {
+    const { completeJson, reading } = engineAnswering({ ...base, stats: [{ label: "Prix A", value: "12,50 €", source: 1 }, { label: "Inventé", value: "500 €", source: 1 }] });
+    const result = await readPagesWithAi("tube", pages, "fr", reading);
+    expect(completeJson).toHaveBeenCalledTimes(2);
+    expect(completeJson.mock.calls[1]?.[0].user).toContain("do not write them: 500");
+    expect(result.summary?.stats.map((s) => s.label)).toEqual(["Prix A"]);
+  });
+
+  it("keeps the checked figures when only the sentence is wrong", async () => {
+    const { reading } = engineAnswering({ ...base, summary: "Un marché de 5000 milliards.", keyPoints: ["Autre point"], stats: [{ label: "Prix", value: "12,50 €", source: 1 }] });
+    const result = await readPagesWithAi("tube", pages, "fr", reading);
+    expect(result.summary).toMatchObject({ summary: "", keyPoints: [], stats: [{ label: "Prix" }] });
+  });
+
+  it("still rejects a sentence with an invented number", async () => {
+    const { reading } = engineAnswering({ ...base, summary: "Il s'en vend 5000." });
+    expect((await readPagesWithAi("tube", pages, "fr", reading)).note).toBe("ai_rejected");
+  });
+
+  it("numbers the pages for the model", async () => {
+    const { completeJson, reading } = engineAnswering(base);
+    await readPagesWithAi("tube", pages, "fr", reading);
+    expect(completeJson.mock.calls[0]?.[0].user).toContain("[2] Tube PVC 14,90");
+  });
+});
+
+describe("page reading helpers", () => {
+  it("prefers the passages holding the search words and prices over the menus", () => {
+    const menu = "Accueil Boutique Contact Compte Panier ".repeat(40);
+    const excerpt = relevantExcerpt(`${menu} Le tube PVC coûte 12,50 € le mètre. ${menu}`, "tube PVC", 400);
+    expect(excerpt).toContain("12,50 €");
+    expect(excerpt.length).toBeLessThanOrEqual(400);
+  });
+
+  it("returns a short text whole", () => {
+    expect(relevantExcerpt("court", "x", 100)).toBe("court");
+  });
+
+  it("tells a product page from a home page", () => {
+    expect(isProductPage(`<meta property="og:type" content="product">`)).toBe(true);
+    expect(isProductPage(`<script type="application/ld+json">{"@type":"Product","name":"Cap"}</script>`)).toBe(true);
+    expect(isProductPage(`<meta property="og:type" content="website"><title>Shop</title>`)).toBe(false);
+  });
+
+  it("finds the same site's product links, once each", () => {
+    const html = `<a href="/products/cap?v=1">a</a><a href='/products/cap'>b</a><a href="https://other.example/products/x">c</a><a href="/about">d</a><a href="/fr/product/bag">e</a>`;
+    expect(productLinksIn(html, new URL("https://s.example/"))).toEqual(["https://s.example/products/cap", "https://s.example/fr/product/bag"]);
+  });
+
+  it("reads the product's own review widget, not a shop-wide counter or a related product's badge", () => {
+    const html = `<div class='jdgm-prev-badge' data-average-rating='4.90' data-number-of-reviews='88'></div>
+<span class='jdgm-all-reviews-text__text' data-score="4.69" data-number-of-reviews="13"></span>
+<div class='jdgm-rev-widg' data-average-rating='0.00' data-number-of-reviews='0'></div>`;
+    expect(reviewWidgets(html)).toEqual({ product: { count: 0, rating: null }, shop: { count: 13, rating: 4.69 } });
+    expect(observeHtml(html)).toMatchObject({ reviewCount: 0, rating: null, shopReviewCount: 13, shopRating: 4.69 });
+  });
+
+  it("ignores a stylesheet that mentions the same attributes", () => {
+    expect(reviewWidgets(`<style>.jdgm-rev-widg[data-average-rating='0.00']{display:none}</style>`).product).toBeNull();
+  });
+
+  it("decodes the dashes and accents of page titles", () => {
+    expect(decodeEntities("Lampe &ndash; Lustria &ecirc;")).toBe("Lampe – Lustria ê");
+  });
+
+  it("removes from a chart a price its page contradicts, such as a crossed-out one", () => {
+    const declared = { url: "u", domain: "d", name: "n", price: 94, currency: "EUR", rating: null, reviewCount: null };
+    const chart = { title: "Prix", unit: "€", points: [{ label: "A", value: 59.9, source: 1 }, { label: "B", value: 39.9, source: 2 }, { label: "Barré", value: 149, source: 3 }] };
+    const reading = { summary: { summary: "s", keyPoints: [], stats: [], tables: [], charts: [chart] }, note: null };
+    const kept = withoutContradictedPrices(reading, [null, null, declared]);
+    expect(kept.summary?.charts[0]?.points.map((p) => p.label)).toEqual(["A", "B"]);
+    expect(withoutContradictedPrices(reading, [declared, declared, declared]).summary?.charts).toEqual([]);
+    const other = { ...chart, unit: "pièces" };
+    expect(withoutContradictedPrices({ ...reading, summary: { ...reading.summary, charts: [other] } }, [declared, declared, declared]).summary?.charts).toEqual([other]);
+  });
+
+  it("tells the AI the price a page declares", async () => {
+    const { completeJson, reading } = engineAnswering({ summary: "s", keyPoints: [], stats: [], tables: [], charts: [] });
+    const shop = site({ "https://a.example/p": `<title>Cap</title><meta property="product:price:amount" content="19.90"><meta property="product:price:currency" content="EUR"><p>avant 49,90 €</p>` });
+    await runWebResearch("cap", "fr", { env, search: searchDeps([{ url: "https://a.example/p", title: "Cap" }]), fetch: shop, reading, now: () => 0 });
+    expect(completeJson.mock.calls[0]?.[0].user).toContain("Price in the page's product data: 19.9 EUR");
+  });
+
+  it("merges searches in turn, without duplicates", () => {
+    const hit = (url: string) => ({ url, title: "", snippet: "" });
+    expect(mergeHits([[hit("a"), hit("b")], [hit("a"), hit("c")]]).map((h) => h.url)).toEqual(["a", "b", "c"]);
+  });
+
+  it("summarises the prices of the most frequent currency only", () => {
+    const price = (value: number, currency: string | null) => ({ url: "u", domain: "d", name: "n", price: value, currency, rating: null, reviewCount: null });
+    expect(summarisePrices([price(10, "EUR"), price(20, "EUR"), price(40, "EUR"), price(999, "USD"), price(1, null)])).toEqual({ currency: "EUR", count: 3, min: 10, median: 20, max: 40 });
+    expect(summarisePrices([price(10, "EUR"), price(999, "USD")])).toBeNull();
+  });
+});
+
+describe("shop catalogue", () => {
+  const now = Date.parse("2026-10-30T00:00:00Z");
+  const product = (handle: string, vendor: string, price: string, published: string, extra: Record<string, unknown> = {}) => ({ title: handle, handle, vendor, published_at: published, variants: [{ price, compare_at_price: null, available: true, ...extra }] });
+
+  it("counts products and prices, and marks a full page as at least that many", () => {
+    const body = JSON.stringify({
+      products: [
+        product("a", "Nike", "100.00", "2026-10-20T00:00:00Z"),
+        product("b", "Nike", "200.00", "2026-01-01T00:00:00Z", { compare_at_price: "250.00" }),
+        product("c", "Adidas", "300.00", "2025-05-05T00:00:00Z", { available: false }),
+      ],
+    });
+    const catalogue = parseCatalogue(body, "https://s.example", now);
+    expect(catalogue).toMatchObject({ counted: 3, capped: false, priceMin: 100, priceMedian: 200, priceMax: 300, discounted: 1, inStock: 2, addedLast90Days: 1, oldestPublishedAt: "2025-05-05T00:00:00Z" });
+    expect(catalogue?.brands[0]).toEqual({ name: "Nike", count: 2 });
+    expect(catalogue?.newest[0]?.url).toBe("https://s.example/products/a");
+    expect(parseCatalogue(body, "https://s.example", now, 3)?.capped).toBe(true);
+  });
+
+  it("gives nothing for what is not a catalogue", () => {
+    expect(parseCatalogue("<html>", "https://s.example", now)).toBeNull();
+    expect(parseCatalogue(JSON.stringify({ products: [] }), "https://s.example", now)).toBeNull();
+  });
+
+  it("makes round price bands that hold every product", () => {
+    const prices = [100, 180, 220, 460];
+    const bands = priceBands(prices);
+    expect(bands.reduce((sum, band) => sum + band.count, 0)).toBe(prices.length);
+    expect(bands[0]?.from).toBe(100);
+    expect(priceBands([50, 50])).toEqual([]);
+  });
+
+  it("keeps a few very dear products from squeezing the others into one band", () => {
+    const prices = [...Array.from({ length: 95 }, (_, i) => 50 + i * 3), 900, 1000, 1100, 1200, 1275];
+    const bands = priceBands(prices);
+    expect(bands.length).toBeGreaterThanOrEqual(4);
+    expect(bands.reduce((sum, band) => sum + band.count, 0)).toBe(prices.length);
+    expect(bands.at(-1)?.to).toBeGreaterThan(1275);
+  });
+
+  it("computes a median", () => {
+    expect(median([3, 1, 2])).toBe(2);
+    expect(median([1, 2, 3, 4])).toBe(2.5);
+    expect(median([])).toBeNull();
+  });
+});
+
+describe("a page that is not a product", () => {
+  const home = `<html><head><title>L'AUTHENTIK Sneakers</title><meta property="og:type" content="website"><meta property="og:title" content="L'AUTHENTIK Sneakers"><script src="https://cdn.shopify.com/a.js"></script><script>Shopify.currency = {"active":"EUR","rate":"1.0"};</script></head><body><a href="/products/samba">x</a></body></html>`;
+  const catalogue = JSON.stringify({ products: [{ title: "Samba", handle: "samba", vendor: "Adidas", published_at: "2026-10-01T00:00:00Z", variants: [{ price: "220.00", available: true }] }] });
+
+  it("never shows the shop's name as a product, reads the catalogue and briefs the AI on the shop", async () => {
+    const { completeJson, reading } = engineAnswering({ summary: "Une boutique de baskets.", keyPoints: [] });
+    const shop = site({ "https://s.example/": home, "https://s.example/products.json?limit=250&page=1": { body: catalogue, type: "application/json" } });
+    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: true, deep: false }, "fr", { env, fetch: shop, search: searchDeps([]), reading, now: () => 0, paceMs: 0 });
+    expect(competitorResponseSchema.safeParse(result).success).toBe(true);
+    if (result.status !== "ready") throw new Error("expected ready");
+    expect(result.pageKind).toBe("not_product");
+    expect(result.observed.name).toBeNull();
+    expect(result.catalogue?.counted).toBe(1);
+    expect(result.supplierSearch).toBe("not_asked");
+    expect(completeJson.mock.calls[0]?.[0].user).toContain("products read in its catalogue: 1");
+  });
+
+  it("offers the links it finds and leaves the AI out when there is nothing to read", async () => {
+    const loadEngine = vi.fn(noModel.loadEngine);
+    const shop = site({ "https://s.example/": home });
+    const result = await analyzeCompetitor("https://s.example/", { searchSupplier: false, deep: false }, "fr", { env, fetch: shop, reading: { loadEngine }, now: () => 0, paceMs: 0 });
+    if (result.status !== "ready") throw new Error("expected ready");
+    expect(result.catalogue).toBeNull();
+    expect(result.productLinks).toEqual(["https://s.example/products/samba"]);
+    expect(result.reading).toEqual({ summary: null, note: null });
+    expect(loadEngine).not.toHaveBeenCalled();
+  });
+});
+
+describe("a shop that limits reads", () => {
+  const product = JSON.stringify({ title: "Cap", variants: [{ available: true }] });
+  const page = `<title>Cap</title><meta property="og:type" content="product"><script src="https://cdn.shopify.com/a.js"></script>`;
+
+  /** Answers 429 to the product JSON a given number of times, and counts robots.txt reads. */
+  const limitedSite = (refusals: number) => {
+    let left = refusals;
+    let robots = 0;
+    const fetchImpl = vi.fn(async (input: string) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) {
+        robots += 1;
+        return new Response("User-agent: *\nDisallow: /admin", { headers: { "content-type": "text/plain" } });
+      }
+      if (url.endsWith("/products/cap")) return new Response(page, { headers: { "content-type": "text/html" } });
+      if (url.endsWith("/products/cap.js")) {
+        if (left > 0) {
+          left -= 1;
+          return new Response("", { status: 429 });
+        }
+        return new Response(product, { headers: { "content-type": "application/json" } });
+      }
+      return new Response("", { status: 404 });
+    });
+    return { deps: { lookup: async () => ["93.184.216.34"], fetch: fetchImpl as unknown as typeof fetch }, robotsReads: () => robots };
+  };
+  const run = (deps: FetchDeps, sleep: (ms: number) => Promise<void>) => analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep });
+
+  it("waits and reads again, and reads robots.txt only once", async () => {
+    const sleep = vi.fn(async () => undefined);
+    const { deps, robotsReads } = limitedSite(2);
+    const result = await run(deps, sleep);
+    if (result.status !== "ready") throw new Error("expected ready");
+    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(result.limited).toBe(false);
+    expect(result.observed.variants).toBe(1);
+    expect(robotsReads()).toBe(1);
+  });
+
+  it("says so when the shop keeps refusing, instead of passing it off as missing data", async () => {
+    const { deps } = limitedSite(99);
+    const result = await run(deps, async () => undefined);
+    if (result.status !== "ready") throw new Error("expected ready");
+    expect(result.limited).toBe(true);
+    expect(result.observed.variants).toBeNull();
+    expect(competitorResponseSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("names the refusal when the page itself is limited", async () => {
+    const deps: FetchDeps = { lookup: async () => ["93.184.216.34"], fetch: vi.fn(async (input: string) => (String(input).endsWith("/robots.txt") ? new Response("") : new Response("", { status: 429 }))) as unknown as typeof fetch };
+    expect(await analyzeCompetitor("https://s.example/products/cap", { searchSupplier: false, deep: false }, "fr", { env, fetch: deps, reading: noModel, now: () => 0, paceMs: 0, sleep: async () => undefined })).toEqual({ status: "blocked", code: "rate_limited" });
   });
 });

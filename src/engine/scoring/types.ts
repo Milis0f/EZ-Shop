@@ -48,6 +48,8 @@ export type CriterionEvaluation =
 export interface Criterion {
   readonly id: CriterionId;
   readonly label: string;
+  /** Switched off on purpose: no data could ever fill it, so it does not count in the coverage. */
+  readonly disabled?: boolean;
   /** Fast-moving signal (demand, competition, ads) — used by the freshness factor. */
   readonly timeSensitive: boolean;
   evaluate(ctx: ScoringContext): CriterionEvaluation;

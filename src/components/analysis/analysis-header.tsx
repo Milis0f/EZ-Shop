@@ -14,7 +14,7 @@ export function AnalysisHeader({ analysis, locale }: { analysis: AnalysisResult;
 
   return (
     <header className="animate-enter mb-10">
-      <h1 className="font-display text-[34px] leading-[1.08] font-bold tracking-[-0.035em] break-words sm:text-[48px]">{analysis.product.displayName}</h1>
+      <h1 className="font-mono text-[32px] leading-[1.1] font-semibold tracking-[-0.06em] break-words sm:text-[44px]">{analysis.product.displayName}</h1>
       <dl className="mt-6 grid gap-x-10 gap-y-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-y-3">
         <dt className="text-muted-foreground">{m.terms}</dt>
         <dd className="mb-2 flex flex-wrap gap-x-4 gap-y-1 sm:mb-0">

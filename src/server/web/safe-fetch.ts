@@ -9,7 +9,7 @@ import { USER_AGENT } from "@/providers/http";
  * resolved address public, and each redirect checked again. Answers are read up to a size limit.
  */
 
-export type FetchFailure = "invalid_url" | "private_address" | "robots" | "http_error" | "not_a_page" | "too_large" | "unreachable";
+export type FetchFailure = "invalid_url" | "private_address" | "robots" | "http_error" | "rate_limited" | "not_a_page" | "too_large" | "unreachable";
 
 export type FetchResult =
   | { readonly ok: true; readonly url: string; readonly contentType: string; readonly body: string }
@@ -149,7 +149,7 @@ export async function fetchPublic(raw: string, deps: FetchDeps = DEFAULT_FETCH_D
     }
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      return { ok: false, code: "http_error" };
+      return { ok: false, code: response.status === 429 ? "rate_limited" : "http_error" };
     }
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
     const body = await readLimited(response);
@@ -209,6 +209,69 @@ export async function isAllowedByRobots(raw: string, deps: FetchDeps = DEFAULT_F
   const robots = await fetchPublic(`${url.origin}/robots.txt`, deps, "text/plain,*/*;q=0.5");
   if (!robots.ok) return true;
   return robotsAllows(parseRobots(robots.body), `${url.pathname}${url.search}`);
+}
+
+/** Waits before reading again after a site answers "too many requests". */
+const PATIENCE_MS: readonly number[] = [1_500, 4_000];
+
+export interface SiteReader {
+  readonly read: (raw: string, accept?: string) => Promise<FetchResult>;
+  /** The site still refused after the waits. */
+  readonly wasLimited: () => boolean;
+}
+
+/**
+ * Reads several pages of one analysis gently: each site's robots.txt once, `minIntervalMs` at least
+ * between two reads of one site, and a pause when the site says it is getting too many requests. Once
+ * it has refused despite the pauses, no more waiting.
+ */
+export function createSiteReader(
+  deps: FetchDeps = DEFAULT_FETCH_DEPS,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  minIntervalMs = 0,
+): SiteReader {
+  const robots = new Map<string, Promise<ReadonlyArray<readonly [boolean, string]>>>();
+  /** When each site may be read next: reads of one site are queued, never sent at once. */
+  const nextAt = new Map<string, Promise<number>>();
+  let limited = false;
+
+  const pace = async (origin: string): Promise<void> => {
+    if (minIntervalMs <= 0) return;
+    const previous = nextAt.get(origin) ?? Promise.resolve(0);
+    const turn = previous.then(async (at) => {
+      const wait = at - Date.now();
+      if (wait > 0) await sleep(wait);
+      return Date.now() + minIntervalMs;
+    });
+    nextAt.set(origin, turn);
+    await turn;
+  };
+
+  const rulesOf = (origin: string) => {
+    const known = robots.get(origin);
+    if (known) return known;
+    const rules = fetchPublic(`${origin}/robots.txt`, deps, "text/plain,*/*;q=0.5").then((page) => (page.ok ? parseRobots(page.body) : []));
+    robots.set(origin, rules);
+    return rules;
+  };
+
+  const read = async (raw: string, accept?: string): Promise<FetchResult> => {
+    const checked = await checkPublicUrl(raw, deps);
+    if (!checked.ok) return checked;
+    const rules = await rulesOf(checked.url.origin);
+    if (!robotsAllows(rules, `${checked.url.pathname}${checked.url.search}`)) return { ok: false, code: "robots" };
+    await pace(checked.url.origin);
+    let page = await fetchPublic(raw, deps, accept);
+    for (const wait of limited ? [] : PATIENCE_MS) {
+      if (page.ok || page.code !== "rate_limited") break;
+      await sleep(wait);
+      page = await fetchPublic(raw, deps, accept);
+    }
+    if (!page.ok && page.code === "rate_limited") limited = true;
+    return page;
+  };
+
+  return { read, wasLimited: () => limited };
 }
 
 /** Reads a page only if the site allows it. */

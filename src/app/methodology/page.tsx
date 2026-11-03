@@ -1,3 +1,4 @@
+import { TermPrompt } from "@/components/marketing/term";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { EpistemicLegend } from "@/components/data/epistemic-legend";
@@ -85,7 +86,8 @@ export default async function MethodologyPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <header className="animate-enter max-w-3xl">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{m.title}</h1>
+        <TermPrompt command="ez-shop methode" className="mb-5" />
+        <h1 className="page-title">{m.title}</h1>
         <p className="mt-4 leading-relaxed text-muted-foreground">{t(m.intro, { version: SCORING_MODEL_VERSION })}</p>
       </header>
 

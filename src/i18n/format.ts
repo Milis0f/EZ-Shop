@@ -78,6 +78,8 @@ export function createFormatters(locale: Locale) {
     ratioPct: (v: number) => formatRatioPct(v, locale),
     money: (v: number, currency?: string) => formatMoney(v, locale, currency),
     date: (iso: string) => formatDate(iso, locale),
+    /** The calendar day of a timestamp, as written in it: no hour, no time zone shift. */
+    day: (iso: string) => formatPeriodEnd(iso.slice(0, 10), locale),
   } as const;
 }
 

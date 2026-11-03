@@ -4,7 +4,7 @@ import type { Verdict } from "@/engine/report/verdict";
 import { verdictWord } from "@/engine/report/localize";
 import { useLocale } from "@/i18n/client";
 import { cn } from "@/lib/utils";
-import { VERDICT_COLOR } from "./verdict-orb";
+import { VERDICT_COLOR } from "./verdict-colors";
 
 /**
  * The verdict of one country as a pill: the dot and the word carry the verdict hue (the only hue of

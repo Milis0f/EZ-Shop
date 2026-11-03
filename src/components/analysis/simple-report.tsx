@@ -3,11 +3,14 @@
 import { WebResearchAsk } from "@/components/web/web-research";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import "@/components/marketing/marketing.css";
 import { AiInsight } from "@/components/analysis/ai-insight";
 import { ReasonPills } from "@/components/analysis/reason-pills";
 import { MissingSourcesPanel, SourceJournalPanel } from "@/components/analysis/source-journal";
-import { VERDICT_COLOR, VerdictOrb } from "@/components/analysis/verdict-orb";
+import { VERDICT_COLOR } from "@/components/analysis/verdict-colors";
+import { PlanetAnchor } from "@/components/planet/planet-hooks";
+import { TermBar, TermPrompt } from "@/components/marketing/term";
 import { DemandChart } from "@/components/country/demand-chart";
 import { engineText } from "@/components/data/engine-text";
 import { ModeToggle } from "@/components/layout/mode-toggle";
@@ -24,7 +27,6 @@ import { INTL_LOCALES } from "@/i18n/config";
 import { formatPct } from "@/i18n/format";
 import type { Messages } from "@/i18n/messages";
 import { t } from "@/i18n/translate";
-import { cn } from "@/lib/utils";
 
 /** The pills follow the orb in the verdict reveal: they start this many steps after it. */
 const PILLS_START_INDEX = 6;
@@ -120,8 +122,10 @@ function MarginPanel({ c, economics, world }: { c: CountryAnalysis; economics: U
   const margin = c.signals?.marginAtPlannedPrice;
   const minimum = c.signals?.minPriceForTargetMargin;
   return (
-    <section aria-labelledby="margin-title" className="panel p-6 sm:p-[26px]">
-      <h2 id="margin-title" className="text-[17px] font-semibold">
+    <section aria-labelledby="margin-title" className="panel overflow-hidden">
+      <TermBar title="marge" />
+      <div className="p-6 sm:p-[26px]">
+      <h2 id="margin-title" className="font-mono text-[17px] font-semibold tracking-[-0.04em]">
         {m.title}
       </h2>
       <p className="mt-1.5 text-sm text-muted-foreground">
@@ -152,6 +156,7 @@ function MarginPanel({ c, economics, world }: { c: CountryAnalysis; economics: U
         >
           {minimum && isKnown(minimum) ? t(m.minimumValue, { price: price(minimum.value.exVatEur) }) : null}
         </MarginTile>
+      </div>
       </div>
     </section>
   );
@@ -215,7 +220,32 @@ function CountryRows({ analysisId, countries }: { analysisId: string; countries:
   );
 }
 
-/** Simple mode: the verdict orb, its reasons, four figures, the history, what is missing, and the margin. */
+const BOARD_ORDER = ["oui", "surveiller", "non"] as const;
+
+/** How the verdicts split across the countries: a calculation on what the rows below state. */
+function VerdictBoard({ countries }: { countries: readonly CountryAnalysis[] }) {
+  const f = useFormat();
+  const counts = BOARD_ORDER.map((value) => ({ value, count: countries.filter((c) => verdictFor(c).value === value).length })).filter((row) => row.count > 0);
+  return (
+    <div className="mt-6">
+      <div aria-hidden className="verdict-board">
+        {counts.map(({ value, count }) => (
+          <span key={value} style={{ flexGrow: count, backgroundColor: VERDICT_COLOR[value] }} />
+        ))}
+      </div>
+      <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+        {counts.map(({ value, count }) => (
+          <div key={value} className="flex items-baseline gap-2">
+            <dd className="tabular font-semibold">{f.int(count)}</dd>
+            <dt style={{ color: VERDICT_COLOR[value] }}>{verdictWord(value, f.locale)}</dt>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/** Simple mode: the answer and its reasons first, then the figures, the AI's reading, the history, the margin and the countries. */
 export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
   const m = useMessages("report");
   const f = useFormat();
@@ -235,61 +265,64 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
   const longDate = new Intl.DateTimeFormat(INTL_LOCALES[f.locale], { dateStyle: "long" });
 
   return (
-    <div className="mx-auto max-w-[1040px] pb-16">
-      <Link href="/" className="group inline-flex items-center gap-1.5 rounded-pill text-sm text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground">
-        <ArrowLeft className="size-4 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover:-translate-x-0.5" strokeWidth={1.5} aria-hidden />
-        {p.newAnalysis}
-      </Link>
+    <div className="mx-auto max-w-6xl pb-16">
+      <div className="relative isolate">
+        <div aria-hidden className="verdict-light" style={{ "--verdict-color": VERDICT_COLOR[verdict.value] } as CSSProperties} />
 
-      <header className="mt-7 text-center">
-        <h1 className="font-display text-[40px] leading-[1.05] font-bold tracking-[-0.035em] [overflow-wrap:anywhere] text-balance sm:text-[64px]">
-          {analysis.product.displayName}
-        </h1>
-        <p className="mt-2.5 text-sm text-muted-foreground">
-          {t(p.analysedOn, {
-            place: world ? t(p.countryCount, { count: f.int(analysis.countries.length) }) : mainName,
-            date: longDate.format(new Date(analysis.createdAt)),
-          })}
-        </p>
-        {machine.length > 0 && (
-          <p className="mx-auto mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-            {p.machineTranslated}{" "}
-            {machine
-              .slice(0, 6)
-              .map((term) => `${term.term} (${f.locale === "en" ? languageName(term.language, f.locale) : languageName(term.language, f.locale).toLowerCase()})`)
-              .join(", ")}
-            {machine.length > 6 ? "…" : ""}
-          </p>
-        )}
-      </header>
+        <Link href="/analyse" className="group inline-flex items-center gap-1.5 rounded-pill text-sm text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground">
+          <ArrowLeft className="size-4 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover:-translate-x-0.5" strokeWidth={1.5} aria-hidden />
+          {p.newAnalysis}
+        </Link>
 
-      <RevealGroup as="section" trigger="mount" step={REVEAL_STEP_MS} aria-label={p.verdictAria} className="mt-11 overflow-x-clip pb-1">
-        <Reveal className="grid place-items-center">
-          <VerdictOrb verdict={verdict} confidence={main.scoring.confidence.score} />
-        </Reveal>
-        {world && (
-          <Reveal as="p" index={PILLS_START_INDEX - 1} className="mt-5 text-center text-sm text-muted-foreground">
-            {t(p.verdictFor, { country: mainName })}
-            {best && best.country !== main.country
-              ? t(p.mostPromising, { country: countryName(best.country, f.locale), verdict: verdictWord(verdictFor(best).value, f.locale) })
-              : ""}
+        <RevealGroup as="section" trigger="mount" step={REVEAL_STEP_MS} aria-label={p.verdictAria} className="mt-8 grid gap-x-12 gap-y-8 pb-1 min-[960px]:grid-cols-[minmax(0,1fr)_auto] min-[960px]:grid-rows-[auto_1fr]">
+          {/* On a phone the answer comes right after the name, before its reasons. */}
+          <div className="min-w-0 max-[959px]:text-center">
+            <Reveal as="div">
+              <TermPrompt command={`ez-shop analyse "${analysis.product.displayName}"`} className="mb-5 max-[959px]:justify-center" />
+              <h1 className="font-mono text-[clamp(2.25rem,5.4vw,4.25rem)] leading-[1.06] font-semibold tracking-[-0.06em] [overflow-wrap:anywhere] text-balance">
+                {analysis.product.displayName}
+              </h1>
+              <p className="mt-4 font-mono text-[13px] tracking-[-0.02em] text-muted-foreground">
+                {t(p.analysedOn, {
+                  place: world ? t(p.countryCount, { count: f.int(analysis.countries.length) }) : mainName,
+                  date: longDate.format(new Date(analysis.createdAt)),
+                })}
+              </p>
+            </Reveal>
+            {world && (
+              <Reveal as="p" index={2} className="mt-5 text-[0.9375rem] leading-relaxed text-muted-foreground">
+                {t(p.verdictFor, { country: mainName })}
+                {best && best.country !== main.country
+                  ? t(p.mostPromising, { country: countryName(best.country, f.locale), verdict: verdictWord(verdictFor(best).value, f.locale) })
+                  : ""}
+              </Reveal>
+            )}
+          </div>
+          <Reveal index={1} className="grid place-items-center min-[960px]:col-start-2 min-[960px]:row-span-2 min-[960px]:row-start-1">
+            <PlanetAnchor
+              label={`${verdictWord(verdict.value, f.locale)}. ${t(m.orb.confidence, { confidence: f.pct(Math.round(main.scoring.confidence.score)) })}`}
+              className="aspect-square w-[min(25rem,86vw)]"
+            />
           </Reveal>
-        )}
-        <ReasonPills verdict={verdict} startIndex={PILLS_START_INDEX} className="mt-7" />
-      </RevealGroup>
-
-      <section aria-label={p.aiAria} className="mx-auto mt-10 max-w-3xl">
-        <AiInsight analysisId={analysis.id} />
-        <WebResearchAsk query={analysis.input.productName} className="mt-4" />
-      </section>
-
-      <div className="mt-10">
-        <KeyFigures c={main} />
+          <ReasonPills verdict={verdict} startIndex={PILLS_START_INDEX} className="min-[960px]:col-start-1 min-[960px]:row-start-2 min-[960px]:mx-0 min-[960px]:content-start min-[960px]:justify-start" />
+        </RevealGroup>
       </div>
 
-      <div className="mt-4 grid gap-4 min-[900px]:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <section aria-labelledby="archives-title" className="panel min-w-0 p-6 sm:p-[26px]">
-          <h2 id="archives-title" className="text-[17px] font-semibold">
+      <RevealGroup step={70} className="mt-12">
+        <Reveal>
+          <KeyFigures c={main} />
+        </Reveal>
+      </RevealGroup>
+
+      <section aria-label={p.aiAria} className="mt-4">
+        <AiInsight analysisId={analysis.id} />
+      </section>
+
+      <RevealGroup step={70} className="mt-4 grid gap-4 min-[900px]:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Reveal as="section" aria-labelledby="archives-title" className="panel min-w-0 overflow-hidden">
+          <TermBar title="historique" />
+          <div className="p-6 sm:p-[26px]">
+          <h2 id="archives-title" className="font-mono text-[17px] font-semibold tracking-[-0.04em]">
             {m.archives.title}
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -306,9 +339,12 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
               <DemandChart basis={history.basis} history={history.series} forecast={forecast} />
             </div>
           )}
-        </section>
-        <MissingSourcesPanel country={main} journal={journal} className="min-w-0" />
-      </div>
+          </div>
+        </Reveal>
+        <Reveal index={1} className="min-w-0">
+          <MissingSourcesPanel country={main} journal={journal} className="h-full min-w-0" />
+        </Reveal>
+      </RevealGroup>
 
       {hasPrices(analysis.economics) && (
         <div className="mt-4">
@@ -321,18 +357,32 @@ export function SimpleReport({ analysis }: { analysis: AnalysisResult }) {
       )}
 
       {world && (
-        <section aria-labelledby="countries-title" className="mt-14">
-          <h2 id="countries-title" className="text-lg font-semibold tracking-tight">
+        <section aria-labelledby="countries-title" className="mt-20">
+          <h2 id="countries-title" className="font-mono text-[clamp(1.375rem,2.8vw,2rem)] leading-tight font-semibold tracking-[-0.05em]">
             {p.countriesTitle}
           </h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">{p.countriesIntro}</p>
-          <div className="mt-5">
+          <p className="mt-2 text-sm text-muted-foreground">{p.countriesIntro}</p>
+          <VerdictBoard countries={analysis.countries} />
+          <div className="mt-6">
             <CountryRows analysisId={analysis.id} countries={ranked} />
           </div>
         </section>
       )}
 
-      <SourceJournalPanel rows={journal} countryCount={analysis.countries.length} className={cn(world ? "mt-10" : "mt-4")} />
+      <WebResearchAsk query={analysis.input.productName} className="mt-10" />
+
+      <SourceJournalPanel rows={journal} countryCount={analysis.countries.length} className="mt-4" />
+
+      {machine.length > 0 && (
+        <p className="mx-auto mt-6 max-w-3xl text-center text-xs leading-relaxed text-muted-foreground">
+          {p.machineTranslated}{" "}
+          {machine
+            .slice(0, 6)
+            .map((term) => `${term.term} (${f.locale === "en" ? languageName(term.language, f.locale) : languageName(term.language, f.locale).toLowerCase()})`)
+            .join(", ")}
+          {machine.length > 6 ? "…" : ""}
+        </p>
+      )}
 
       <div className="mt-14 flex flex-col items-center gap-3 text-center">
         <ModeToggle variant="button" label={p.fullAnalysis} />

@@ -18,12 +18,35 @@ export interface AiJsonRequest {
   readonly schema: AiJsonSchema;
   readonly maxTokens: number;
   readonly signal?: AbortSignal;
+  /** The generation's own deadline, when the caller knows better than the token count (a slow model, a long task). */
+  readonly deadlineMs?: number;
+}
+
+/** A function the model may call while it answers; its result goes back to the model as text. */
+export interface AiTool {
+  readonly name: string;
+  readonly description: string;
+  /** JSON schema of the call's parameters (same subset as AiJsonSchema). */
+  readonly params: AiJsonSchema;
+  readonly handler: (params: unknown) => Promise<string>;
+}
+
+export interface AiToolRequest {
+  readonly system: string;
+  readonly user: string;
+  readonly tools: readonly AiTool[];
+  readonly maxTokens: number;
+  readonly signal?: AbortSignal;
+  /** The whole run's deadline, tool calls included. */
+  readonly deadlineMs?: number;
 }
 
 export interface LocalAiEngine {
   readonly model: AiModelInfo;
   /** Runs one grammar-constrained generation and returns the parsed JSON (still to be validated by the caller). */
   completeJson(request: AiJsonRequest): Promise<unknown>;
+  /** Lets the model call the given tools while it writes a free text answer, which is returned. */
+  runWithTools?(request: AiToolRequest): Promise<string>;
 }
 
 /**

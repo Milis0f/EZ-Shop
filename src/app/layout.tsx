@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Unbounded } from "next/font/google";
+import { Figtree, Geist_Mono, Unbounded } from "next/font/google";
 import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { MODE_INIT_SCRIPT } from "@/components/layout/mode";
@@ -17,7 +17,14 @@ const sans = Figtree({
   weight: ["400", "500", "600"],
 });
 
-/** Display face, only for the logo, the product name and the verdict word (`font-display`). */
+/** The terminal voice: titles, commands, figures and small labels. Sentences stay in the sans face. */
+const mono = Geist_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+/** Display face, only for the verdict word (`font-display`). */
 const display = Unbounded({
   variable: "--font-display",
   subsets: ["latin"],
@@ -61,7 +68,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // data-mode and lang are set by the inline scripts before paint, hence the hydration exception.
     // The layout itself stays static: reading the cookie here would leave no child to suspend
     // (Next 16 Cache Components guidance for <html> attributes).
-    <html lang={INTL_LOCALES[DEFAULT_LOCALE]} className={`${sans.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang={INTL_LOCALES[DEFAULT_LOCALE]} className={`${sans.variable} ${mono.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: MODE_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: LOCALE_INIT_SCRIPT }} />

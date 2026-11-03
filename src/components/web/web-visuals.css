@@ -1,0 +1,41 @@
+/* Bars of the web figures. Plain global stylesheet, like ai-aura.css. */
+
+.web-bar-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--surface-2);
+}
+
+.web-bar-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--craie);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-bar-fill {
+    transition: none;
+  }
+}
+
+/* The parts a competitor check reads, lit one after the other while it runs. */
+.competitor-step {
+  opacity: 0.35;
+  animation: competitor-step 0.6s var(--ease-out) forwards;
+}
+
+@keyframes competitor-step {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .competitor-step {
+    opacity: 1;
+    animation: none;
+  }
+}

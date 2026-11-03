@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultProductName, isAddressLike, readSupplierInput, resolveProductName, supplierChipLabel } from "./supplier-input";
+import { isAddressLike, readSupplierInput, resolveProductName, supplierChipLabel } from "./supplier-input";
 
 const ALIEXPRESS = "https://fr.aliexpress.com/item/1005006123456789.html?spm=a2g0o";
 
@@ -16,17 +16,10 @@ describe("supplierChipLabel", () => {
 describe("localized labels", () => {
   it("follows the interface language", () => {
     expect(supplierChipLabel("aliexpress", "1005006123456789", "en")).toBe("AliExpress, item 1005006…");
-    expect(defaultProductName("temu", "601099512345678", "es")).toBe("Producto Temu 601099512345678");
     expect(readSupplierInput("https://www.temu.com/fr", "en")).toEqual({
       kind: "guidance",
       message: "This Temu link doesn't lead to a product page: paste the address of the product page.",
     });
-  });
-});
-
-describe("defaultProductName", () => {
-  it("names the product after its platform and full id", () => {
-    expect(defaultProductName("temu", "601099512345678", "fr")).toBe("Produit Temu 601099512345678");
   });
 });
 
@@ -41,7 +34,6 @@ describe("readSupplierInput", () => {
       kind: "product",
       productId: "1005006123456789",
       chipLabel: "AliExpress, article 1005006…",
-      defaultName: "Produit AliExpress 1005006123456789",
     });
   });
 
@@ -66,17 +58,12 @@ describe("isAddressLike", () => {
 });
 
 describe("resolveProductName", () => {
-  const product = readSupplierInput(ALIEXPRESS, "fr");
-
-  it("prefers the name the owner typed", () => {
-    expect(resolveProductName("  Lampe lune ", product)).toBe("Lampe lune");
+  it("keeps only what the owner typed", () => {
+    expect(resolveProductName("  Lampe lune ")).toBe("Lampe lune");
   });
 
-  it("falls back to the default name of a recognised page", () => {
-    expect(resolveProductName("", product)).toBe("Produit AliExpress 1005006123456789");
-  });
-
-  it("leaves the name empty otherwise, so the form asks for it", () => {
-    expect(resolveProductName("", readSupplierInput("https://s.click.aliexpress.com/e/_abc", "fr"))).toBe("");
+  it("never invents a name from a link: the form asks for one", () => {
+    expect(resolveProductName("")).toBe("");
+    expect(resolveProductName("   ")).toBe("");
   });
 });

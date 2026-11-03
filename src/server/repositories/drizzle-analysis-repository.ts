@@ -248,6 +248,7 @@ export class DrizzleAnalysisRepository implements AnalysisRepository {
         countryCode: t.countryResults.countryCode,
         opportunityScore: t.countryResults.opportunityScore,
         confidenceScore: t.countryResults.confidenceScore,
+        result: t.countryResults.result,
       })
       .from(t.countryResults)
       .where(inArray(t.countryResults.analysisId, rows.map((r) => r.id)));
@@ -263,6 +264,7 @@ export class DrizzleAnalysisRepository implements AnalysisRepository {
         scores: scores
           .filter((s) => s.analysisId === r.id)
           .map((s) => ({ ...s, countryCode: s.countryCode as CountryCode })),
+        results: scores.filter((s) => s.analysisId === r.id).map((s) => s.result),
       }),
     );
   }

@@ -2,13 +2,19 @@ import type { Locale } from "../config";
 import * as ai from "./ai";
 import * as analysisAdvanced from "./analysis-advanced";
 import * as common from "./common";
+import * as competitorReport from "./competitor-report";
 import * as connectors from "./connectors";
 import * as country from "./country";
+import * as deepResearch from "./deep-research";
 import * as home from "./home";
 import * as methodology from "./methodology";
 import * as report from "./report";
 import * as serverMessages from "./server-messages";
+import * as settings from "./settings";
 import * as shell from "./shell";
+import * as store from "./store";
+import * as storeGuide from "./store-guide";
+import * as storeLive from "./store-live";
 import type { DeepStringShape } from "./types";
 import * as web from "./web";
 
@@ -25,6 +31,12 @@ export const MESSAGES = {
   ai,
   serverMessages,
   web,
+  competitorReport,
+  deepResearch,
+  store,
+  storeLive,
+  storeGuide,
+  settings,
 } as const;
 
 export type Area = keyof typeof MESSAGES;

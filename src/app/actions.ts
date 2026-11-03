@@ -7,6 +7,7 @@ import { localizeInputIssues } from "@/domain/validation-messages";
 import { formatInt } from "@/i18n/format";
 import { getLocale, getMessages } from "@/i18n/server";
 import { t } from "@/i18n/translate";
+import { LocalDatabaseError } from "@/server/db/client";
 import { AnalysisValidationError } from "@/server/pipeline/run-analysis";
 import { ANALYSIS_RATE_LIMIT, checkRateLimit } from "@/server/rate-limit";
 import { createAnalysis } from "@/server/services";
@@ -75,6 +76,7 @@ export async function submitAnalysis(_prev: SearchFormState, formData: FormData)
     id = (await createAnalysis(raw)).id;
   } catch (error: unknown) {
     if (error instanceof AnalysisValidationError) return searchFormStateFrom(localizeInputIssues(error.issues, locale));
+    if (error instanceof LocalDatabaseError) return { error: (await getMessages("serverMessages", locale)).api.databaseDamaged };
     console.error("[submitAnalysis]", error);
     return { error: m.failed };
   }

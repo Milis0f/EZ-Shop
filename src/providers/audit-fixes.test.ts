@@ -7,6 +7,7 @@ import type { TopicInterestProvider, TranslationProvider } from "./contracts";
 import { fail, ok } from "./contracts";
 import { UkTradeTariffProvider } from "./customs/uk-trade-tariff";
 import { GoogleAdsKeywordPlannerProvider } from "./google-ads/adapter";
+import { describeMetaError } from "./meta-ad-library/adapter";
 import { parseHistoricalMetrics } from "./google-ads/parse";
 import { TikTokCommercialContentProvider } from "./tiktok-commercial/adapter";
 import { parseMyMemory } from "./translation/mymemory";
@@ -134,6 +135,15 @@ describe("machine translation", () => {
     expect(term("es")).toBe("deckel");
   });
 
+  it("uses the translator when the article found is only the name's head noun", async () => {
+    const bottle = { displayName: "gourde inox", inputLanguage: "fr", terms: [{ term: "gourde inox", language: "fr", kind: "exact", source: "user" }] } as unknown as ProductQuery;
+    const topic = { resolveEntity: async () => ok({ wikidataId: "Q2", article: "Gourde", englishLabel: "water bottle" }), conceptTitle: vi.fn(async () => "Trinkflasche") } as unknown as TopicInterestProvider;
+    const whole = { translate: vi.fn(async () => ok({ text: "Edelstahl-Trinkflasche", match: 1 })) } as unknown as TranslationProvider;
+    const { product: out } = await addMachineTranslations(bottle, ["DE"], whole, topic);
+    expect(out.terms.find((t) => t.language === "de")?.term).toBe("edelstahl-trinkflasche");
+    expect(topic.conceptTitle).not.toHaveBeenCalled();
+  });
+
   it("uses the translator when the name is no known concept", async () => {
     const topic = { resolveEntity: async () => fail("no_data", "none"), conceptTitle: vi.fn() } as unknown as TopicInterestProvider;
     const { product: out } = await addMachineTranslations(product, ["DE"], translator, topic);
@@ -152,5 +162,26 @@ describe("Google Ads average CPC", () => {
 
   it("asks Google for it", () => {
     expect(GoogleAdsKeywordPlannerProvider.prototype.getKeywordMetrics.toString()).toContain("includeAverageCpc: true");
+  });
+});
+
+describe("Meta Ad Library errors", () => {
+  const answer = (code: number) => JSON.stringify({ error: { code, message: "secret detail", type: "OAuthException" } });
+
+  it.each([
+    [190, "unauthorized"],
+    [10, "unauthorized"],
+    [4, "rate_limited"],
+    [17, "rate_limited"],
+    [613, "rate_limited"],
+  ])("reads code %i as %s, without the message", (code, expected) => {
+    const described = describeMetaError(400, answer(code));
+    expect(described?.code).toBe(expected);
+    expect(JSON.stringify(described)).not.toContain("secret detail");
+  });
+
+  it("leaves unknown errors and non-JSON bodies to the HTTP status", () => {
+    expect(describeMetaError(400, answer(1))).toBeUndefined();
+    expect(describeMetaError(500, "<html>")).toBeUndefined();
   });
 });

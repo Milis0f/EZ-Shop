@@ -1,3 +1,4 @@
+import { TermPrompt } from "@/components/marketing/term";
 import { ArrowUpRight } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
@@ -59,7 +60,8 @@ export default async function ConnectorsPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <header className="animate-enter max-w-3xl">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{m.page.title}</h1>
+        <TermPrompt command="ez-shop sources" className="mb-5" />
+        <h1 className="page-title">{m.page.title}</h1>
         <p className="mt-4 leading-relaxed text-muted-foreground">{m.page.intro}</p>
       </header>
       <Suspense fallback={<ConnectorsSkeleton label={m.page.loading} />}>

@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEnv, type ServerEnv } from "@/config/env";
-import { deadlineFor, getLocalAiEngine, LOCAL_AI_MODEL_INFO } from "./engine";
+import { deadlineFor, getLocalAiEngine, LOCAL_AI_MODEL_INFO, releaseLocalAiEngine } from "./engine";
 import { AiAnswerIncompleteError, type AiJsonRequest, type LocalAiEngine } from "./types";
 
 interface PromptOptions {
@@ -43,6 +43,7 @@ vi.mock("node-llama-cpp", () => ({
   getLlama: fake.getLlama,
   LlamaChatSession: fake.LlamaChatSession,
   QwenChatWrapper: fake.QwenChatWrapper,
+  defineChatSessionFunction: (definition: unknown) => definition,
 }));
 
 const STATE_KEY = Symbol.for("ez-shop.local-ai-engine");
@@ -108,11 +109,33 @@ describe("getLocalAiEngine", () => {
 
   it("loads with prebuilt binaries, the Qwen 3.5 wrapper and one sequence", async () => {
     const engine = await loadedEngine();
-    expect(engine.model).toEqual(LOCAL_AI_MODEL_INFO);
+    // A file outside the catalogue is named by its file name.
+    expect(engine.model).toEqual({ name: "fake-model.gguf", license: "?" });
     expect(fake.getLlama).toHaveBeenCalledWith({ build: "never" });
-    expect(fake.llama.loadModel).toHaveBeenCalledWith({ modelPath: modelFile });
+    expect(fake.llama.loadModel).toHaveBeenCalledWith({ modelPath: modelFile, gpuLayers: { fitContext: { contextSize: 8192 } } });
     expect(fake.model.createContext).toHaveBeenCalledWith(expect.objectContaining({ sequences: 1 }));
     expect(fake.wrapperOptions).toEqual([{ variation: "3.5", thoughts: "discourage" }]);
+  });
+
+  it("names a model of the catalogue, and keeps the graphics card out when asked", async () => {
+    const catalogued = path.join(tempDir, "Qwen3.5-4B-Q4_K_M.gguf");
+    await writeFile(catalogued, "not a real model");
+    const result = await getLocalAiEngine(envWith({ LOCAL_AI_MODEL_PATH: catalogued, LOCAL_AI_GPU: "off" }));
+    expect(result.ok && result.engine.model).toEqual({ name: "Qwen3.5-4B (Q4_K_M)", license: "Apache-2.0" });
+    expect(fake.getLlama).toHaveBeenCalledWith({ build: "never", gpu: false });
+    expect(LOCAL_AI_MODEL_INFO.name).toBe("Qwen3.5-9B (Q4_K_M)");
+  });
+
+  it("frees the model on a switch, then loads again on the next call", async () => {
+    const first = await loadedEngine();
+    await releaseLocalAiEngine();
+    expect(fake.llama.dispose).toHaveBeenCalledTimes(1);
+    const second = await loadedEngine();
+    expect(second).not.toBe(first);
+    expect(fake.llama.loadModel).toHaveBeenCalledTimes(2);
+    await releaseLocalAiEngine();
+    await releaseLocalAiEngine();
+    expect(fake.llama.dispose).toHaveBeenCalledTimes(2);
   });
 
   it("shares one load between concurrent first callers and keeps the engine afterwards", async () => {
@@ -154,8 +177,15 @@ describe("getLocalAiEngine", () => {
     expect(fake.getLlama).toHaveBeenCalledTimes(2);
   });
 
-  it("frees the model when the context cannot be created", async () => {
+  it("tries a smaller context when the full one does not fit", async () => {
     fake.model.createContext.mockRejectedValueOnce(new Error("no memory"));
+    const result = await getLocalAiEngine(envWith({}));
+    expect(result.ok).toBe(true);
+    expect(fake.model.createContext).toHaveBeenLastCalledWith(expect.objectContaining({ contextSize: { min: 4096, max: 8192 } }));
+  });
+
+  it("frees the model when no context can be created", async () => {
+    fake.model.createContext.mockRejectedValueOnce(new Error("no memory")).mockRejectedValueOnce(new Error("no memory"));
     const result = await getLocalAiEngine(envWith({}));
     expect(result).toEqual({ ok: false, reason: expect.stringContaining("(Error)"), failure: { code: "load_failed", error: "Error" } });
     expect(fake.model.dispose).toHaveBeenCalledTimes(1);

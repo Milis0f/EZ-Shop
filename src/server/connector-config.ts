@@ -25,6 +25,11 @@ export function isLoopbackHost(host: string): boolean {
   return name === "localhost" || name.endsWith(".localhost") || name === "::1" || /^127(?:\.\d{1,3}){3}$/.test(name);
 }
 
+/** The request was made on this machine: what only the owner may see (their store, their ads) is read then. */
+export async function isLocalRequest(): Promise<boolean> {
+  return isLoopbackHost((await headers()).get("host") ?? "");
+}
+
 /**
  * Writing .env.local from the browser is a local-development convenience only: never in production,
  * and only for requests addressed to this machine (Next.js also rejects cross-origin server actions).

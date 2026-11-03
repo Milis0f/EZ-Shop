@@ -64,6 +64,7 @@ export class MemoryAnalysisRepository implements AnalysisRepository {
             opportunityScore: isKnown(c.scoring.score) ? c.scoring.score.value.total : null,
             confidenceScore: c.scoring.confidence.score,
           })),
+          results: result?.countries,
         }),
       );
   }

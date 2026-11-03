@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { localizeInputIssues } from "@/domain/validation-messages";
 import { DEFAULT_LOCALE, type Locale } from "@/i18n/config";
 import { messagesFor } from "@/i18n/messages";
+import { LocalDatabaseError } from "./db/client";
 import { AnalysisValidationError } from "./pipeline/run-analysis";
 
 /** Consistent API envelope: { success, data, error }. Internal details never leak to clients. */
@@ -27,6 +28,10 @@ export function apiErrorFrom(error: unknown, locale: Locale = DEFAULT_LOCALE) {
   const m = apiMessages(locale);
   if (error instanceof AnalysisValidationError) {
     return apiError(400, "invalid_input", m.invalidInput, localizeInputIssues(error.issues, locale));
+  }
+  if (error instanceof LocalDatabaseError) {
+    console.error("[api] local database unavailable", error.dataDir);
+    return apiError(503, "database_unavailable", m.databaseDamaged);
   }
   console.error("[api] unexpected error", error);
   return apiError(500, "internal_error", m.internalError);

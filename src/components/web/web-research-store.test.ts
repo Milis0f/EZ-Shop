@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { declineWebResearch, getWebResearchView, resetWebResearchStore, runWebResearch } from "./web-research-store";
 
-const READY = { status: "ready", query: "q", sources: [], reading: { summary: null, note: "ai_missing" }, durationMs: 5 };
+const READY = { status: "ready", query: "q", sources: [], prices: [], priceSummary: null, reading: { summary: null, note: "ai_missing" }, durationMs: 5 };
 const answering = (data: unknown) => vi.fn(async () => Response.json({ success: true, data, error: null })) as unknown as typeof fetch;
 
 beforeEach(resetWebResearchStore);

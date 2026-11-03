@@ -26,6 +26,21 @@ async function createPostgres(url: string): Promise<Database> {
   return drizzle(client, { schema }) as unknown as Database;
 }
 
+/**
+ * The embedded database could not be opened, most often because its files were damaged when the
+ * computer or the server stopped in the middle of a write. Nothing is erased: the folder stays as it
+ * is, to be repaired or replaced by its owner.
+ */
+export class LocalDatabaseError extends Error {
+  override readonly name = "LocalDatabaseError";
+  constructor(
+    readonly dataDir: string,
+    options?: { readonly cause?: unknown },
+  ) {
+    super(`The local database in ${dataDir} could not be opened.`, options);
+  }
+}
+
 async function createPglite(dataDir: string): Promise<Database> {
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
@@ -33,9 +48,15 @@ async function createPglite(dataDir: string): Promise<Database> {
   const absoluteDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), dataDir);
   mkdirSync(absoluteDir, { recursive: true });
   const client = new PGlite(absoluteDir);
-  const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as Database;
+  try {
+    const db = drizzle(client, { schema });
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    return db as unknown as Database;
+  } catch (error: unknown) {
+    // A failed instance left open would hold the folder: the next try would open it twice.
+    await client.close().catch(() => undefined);
+    throw new LocalDatabaseError(dataDir, { cause: error });
+  }
 }
 
 export function getDb(): Promise<Database> {

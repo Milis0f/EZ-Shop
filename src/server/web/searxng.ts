@@ -104,3 +104,19 @@ export async function searchWeb(query: string, locale: Locale, limit: number, en
     return { ok: false, code: "search_failed" };
   }
 }
+
+/** One hit from each search in turn, so that each angle reaches the pages read. */
+export function mergeHits(searches: ReadonlyArray<readonly SearchHit[]>): SearchHit[] {
+  const seen = new Set<string>();
+  const merged: SearchHit[] = [];
+  const longest = Math.max(0, ...searches.map((hits) => hits.length));
+  for (let i = 0; i < longest; i += 1) {
+    for (const hits of searches) {
+      const hit = hits[i];
+      if (!hit || seen.has(hit.url)) continue;
+      seen.add(hit.url);
+      merged.push(hit);
+    }
+  }
+  return merged;
+}

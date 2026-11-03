@@ -47,7 +47,7 @@ const levelOf = (score: number): ConfidenceLevel =>
 
 export function assessConfidence(input: ConfidenceInputs): ConfidenceAssessment {
   const { evaluated, now } = input;
-  const total = evaluated.reduce((s, e) => s + e.result.weight, 0);
+  const total = evaluated.filter((e) => !e.criterion.disabled).reduce((s, e) => s + e.result.weight, 0);
   const scored = evaluated.filter((e) => e.evaluation.status === "scored");
   const coverage = total > 0 ? scored.reduce((s, e) => s + e.result.weight, 0) / total : 0;
 

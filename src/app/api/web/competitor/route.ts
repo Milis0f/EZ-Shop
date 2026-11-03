@@ -7,7 +7,7 @@ import { analyzeCompetitor } from "@/server/web/competitor";
 
 const RATE_LIMIT = { key: "web:competitor", limit: 30, windowMs: 10 * 60_000 } as const;
 
-/** POST /api/web/competitor — reads one public product page. Body: `{ url, searchSupplier }`. */
+/** POST /api/web/competitor — reads a competitor in depth. Body: `{ url, searchSupplier, deep }`. */
 export async function POST(request: Request) {
   const locale = requestLocale(request);
   const m = apiMessages(locale);
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const body = competitorRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return apiError(400, "validation_error", m.invalidInput);
-    return apiOk(await analyzeCompetitor(body.data.url, body.data.searchSupplier, locale));
+    return apiOk(await analyzeCompetitor(body.data.url, { searchSupplier: body.data.searchSupplier, deep: body.data.deep }, locale));
   } catch (error: unknown) {
     return apiErrorFrom(error, locale);
   }

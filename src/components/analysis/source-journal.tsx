@@ -27,6 +27,8 @@ export interface MissingSource {
   readonly criteria: readonly LabelRef[];
   /** Journal state for the country; undefined when the journal has no row (old or mock analysis). */
   readonly status?: JournalStatus;
+  /** The source answered but holds nothing on these terms: nothing to repair. */
+  readonly empty?: boolean;
 }
 
 const lower = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
@@ -36,9 +38,9 @@ const lower = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
  * used is left out (connecting it again would change nothing), and so are criteria disabled pending a licence check.
  */
 export function missingSources(c: CountryAnalysis, journal: readonly JournalRow[], locale: Locale = DEFAULT_LOCALE): MissingSource[] {
-  const stateOf = (id: ProviderId): JournalStatus | undefined => {
+  const rowOf = (id: ProviderId): JournalRow | undefined => {
     const rows = journal.filter((r) => r.providerId === id && r.countries.includes(c.country));
-    return rows.find((r) => r.status === "used")?.status ?? rows[0]?.status;
+    return rows.find((r) => r.status === "used") ?? rows[0];
   };
   const byProvider = new Map<ProviderId, { weight: number; criteria: LabelRef[] }>();
   for (const criterion of c.scoring.criteria) {
@@ -53,8 +55,10 @@ export function missingSources(c: CountryAnalysis, journal: readonly JournalRow[
   }
   return [...byProvider.entries()]
     .map(([providerId, { weight, criteria }]): MissingSource => {
-      const status = stateOf(providerId);
-      return { providerId, name: sourceName(providerId, locale), weight, criteria, ...(status ? { status } : {}) };
+      const row = rowOf(providerId);
+      // A source that answered "nothing on these terms" works: there is nothing to repair.
+      const empty = row?.status === "failed" && row.errorCode === "no_data";
+      return { providerId, name: sourceName(providerId, locale), weight, criteria, ...(row ? { status: row.status } : {}), ...(empty ? { empty } : {}) };
     })
     .filter((s) => s.status !== "used")
     .toSorted((a, b) => b.weight - a.weight || a.name.localeCompare(b.name, INTL_LOCALES[locale]));
@@ -86,7 +90,7 @@ export function MissingSourcesPanel({ country, journal, className }: { country: 
           <p className="mt-1.5 text-sm text-muted-foreground">{m.intro}</p>
           <ul className="mt-4 flex flex-col gap-2.5">
             {sources.map((s) => {
-              const key = s.status ? ACTION[s.status] : "connect";
+              const key = s.empty ? null : s.status ? ACTION[s.status] : "connect";
               const action = key ? m[key] : null;
               const name = s.name;
               return (
@@ -106,7 +110,7 @@ export function MissingSourcesPanel({ country, journal, className }: { country: 
                       {action}
                     </Link>
                   ) : (
-                    <span className="shrink-0 rounded-pill border border-line px-3.5 py-2 text-[13px] text-muted-foreground">{m.notYet}</span>
+                    <span className="shrink-0 rounded-pill border border-line px-3.5 py-2 text-[13px] text-muted-foreground">{s.empty ? m.noData : m.notYet}</span>
                   )}
                 </li>
               );

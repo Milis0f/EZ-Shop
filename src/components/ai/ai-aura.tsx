@@ -12,8 +12,8 @@ interface AiAuraProps extends ComponentProps<"div"> {
 }
 
 /**
- * The single visual signature of anything the local AI wrote: a graphite tile with a 1px iridescent
- * halo and a faint glow. Only AI text goes inside; observed data never does.
+ * The single visual signature of anything the local AI wrote: a graphite tile in a ring of almost
+ * white, faintly iridescent light, with a soft glow around it. Only AI text goes inside; observed data never does.
  */
 export function AiAura({ state, className, surfaceClassName, children, ...props }: AiAuraProps) {
   return (

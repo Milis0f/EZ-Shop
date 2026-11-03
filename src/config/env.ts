@@ -35,6 +35,11 @@ const envSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v ? v : DEFAULT_LOCAL_AI_MODEL_PATH)),
+  // "off" runs the model on the processor only, leaving the graphics card to other programs.
+  LOCAL_AI_GPU: z
+    .enum(["auto", "off", ""])
+    .default("auto")
+    .transform((v) => (v === "off" ? "off" : "auto")),
 
   // Web search: a SearXNG on this machine (free, no key), started on demand. See `npm run search:setup`.
   SEARXNG_URL: z
@@ -72,6 +77,16 @@ const envSchema = z.object({
 
   // YouTube Data API v3 (Google Cloud API key, free daily quota).
   YOUTUBE_API_KEY: optionalSecret,
+
+  // Shopify, the owner's own store ("Ma boutique"): a Dev Dashboard app installed on it. Kept apart from
+  // the pre-launch analysis, which never reads the owner's sales.
+  SHOPIFY_STORE_DOMAIN: optionalSecret,
+  SHOPIFY_CLIENT_ID: optionalSecret,
+  SHOPIFY_CLIENT_SECRET: optionalSecret,
+
+  // Meta Marketing API, the owner's own ad account ("Ma boutique"): a token with ads_read and the account ID.
+  META_ADS_ACCESS_TOKEN: optionalSecret,
+  META_AD_ACCOUNT_ID: optionalSecret,
 
   // eBay Browse API (application keys: App ID = client id, Cert ID = client secret).
   EBAY_CLIENT_ID: optionalSecret,

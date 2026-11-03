@@ -21,7 +21,7 @@ import { AiAnswerIncompleteError, type AiJsonSchema, type EngineLoadResult } fro
  */
 
 /** Bump when the prompt, the schema or the fact sheet changes: cached readings are then regenerated. */
-export const PROMPT_VERSION = "insight-v10";
+export const PROMPT_VERSION = "insight-v11";
 
 /**
  * Rate limits of `POST /api/analyses/:id/ai` (route files may only export handlers). Every request counts
@@ -91,8 +91,8 @@ function insightJsonSchema(countries: readonly CountryCode[]): AiJsonSchema {
 /** Room for the summary, one sentence per country, three steps and the product reading. */
 const maxTokensFor = (countryCount: number): number => Math.min(3_200, 650 + 140 * countryCount);
 
-/** Shortest last: full sheet, brief sheet, brief sheet with countries of identical facts written once. */
-const SHEET_LEVELS: readonly FactSheetOptions[] = [{}, { brief: true }, { brief: true, groupSameCountries: true }];
+/** Shortest last: full, brief, brief with countries of identical facts written once, then the minimal facts. */
+const SHEET_LEVELS: readonly FactSheetOptions[] = [{}, { brief: true }, { brief: true, groupSameCountries: true }, { brief: true, groupSameCountries: true, minimal: true }];
 
 /** The longest fact sheet that fits in the context with the answer, else null. */
 function fittingFactSheet(analysis: AnalysisResult, maxTokens: number, locale: Locale): FactSheet | null {

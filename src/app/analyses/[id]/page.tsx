@@ -1,3 +1,5 @@
+import { PlanetScene } from "@/components/planet/planet-hooks";
+import { rankForSimple } from "@/engine/report/simple-summary";
 import type { Metadata } from "next";
 import { WebResearchAsk } from "@/components/web/web-research";
 import { notFound } from "next/navigation";
@@ -28,6 +30,8 @@ import type { Locale } from "@/i18n/config";
 import { formatDecimal, formatInt } from "@/i18n/format";
 import { getLocale } from "@/i18n/server";
 import { plural } from "@/i18n/translate";
+import { DatabaseNotice } from "@/components/data/database-notice";
+import { LocalDatabaseError } from "@/server/db/client";
 import { getAnalysis } from "@/server/services";
 
 interface PageProps {
@@ -39,7 +43,7 @@ interface PageProps {
 export async function generateMetadata({ params }: Pick<PageProps, "params">): Promise<Metadata> {
   const [{ id }, locale] = await Promise.all([params, getLocale()]);
   await connection();
-  const analysis = await getAnalysis(id);
+  const analysis = await getAnalysis(id).catch(() => null);
   return { title: analysis ? analysis.product.displayName : advancedMessages(locale).page.notFound };
 }
 
@@ -80,7 +84,13 @@ async function AnalysisContent({ params, searchParams, locale }: PageProps & { l
   const [{ id }, { created }] = await Promise.all([params, searchParams]);
   // Stored analyses are read at request time only (never during prerender / prefetch).
   await connection();
-  const analysis = await getAnalysis(id);
+  let analysis: Awaited<ReturnType<typeof getAnalysis>>;
+  try {
+    analysis = await getAnalysis(id);
+  } catch (error: unknown) {
+    if (error instanceof LocalDatabaseError) return <DatabaseNotice />;
+    throw error;
+  }
   if (!analysis) notFound();
 
   const points: MapPoint[] = analysis.countries.flatMap((c) =>
@@ -99,9 +109,13 @@ async function AnalysisContent({ params, searchParams, locale }: PageProps & { l
   );
   const unscored = analysis.countries.length - points.length;
 
+  // The country the simple report opens on: France when analysed, else the most promising one.
+  const opening = analysis.countries.find((c) => c.country === "FR") ?? rankForSimple(analysis.countries)[0] ?? analysis.countries[0];
+
   return (
     <>
       <LegacyMockNotice dataMode={analysis.dataMode} />
+      <PlanetScene focus={opening?.country ?? "FR"} countries={analysis.countries.map((c) => c.country)} verdict={opening ? verdictFor(opening).value : undefined} confidence={opening?.scoring.confidence.score} />
       <div className="simple:block hidden">
         <SimpleReport analysis={analysis} />
       </div>

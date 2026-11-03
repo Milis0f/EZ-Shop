@@ -1,5 +1,7 @@
-import type { AnalysisSummary, AnalysisStatus, DataMode } from "@/domain/analysis";
+import type { AnalysisSummary, AnalysisStatus, CountryAnalysis, DataMode } from "@/domain/analysis";
 import type { CountryCode } from "@/domain/country";
+import { rankForSimple } from "@/engine/report/simple-summary";
+import { verdictFor } from "@/engine/report/verdict";
 
 export interface CountryScoreRow {
   readonly countryCode: CountryCode;
@@ -15,6 +17,19 @@ export interface SummaryInput {
   readonly countryCount: number;
   readonly createdAt: string;
   readonly scores: readonly CountryScoreRow[];
+  readonly results?: readonly CountryAnalysis[];
+}
+
+/** The report's opening verdict: France when analysed, otherwise its most promising country. */
+function openingVerdict(results: readonly CountryAnalysis[] | undefined): AnalysisSummary["verdict"] {
+  if (!results?.length) return undefined;
+  try {
+    const main = results.find((c) => c.country === "FR") ?? rankForSimple(results)[0];
+    return main ? { value: verdictFor(main).value, country: main.country, confidence: main.scoring.confidence.score } : undefined;
+  } catch {
+    // An analysis stored by an older version may not hold every field.
+    return undefined;
+  }
 }
 
 /** Best scored country; ties broken by confidence. */
@@ -33,5 +48,6 @@ export function toSummary(input: SummaryInput): AnalysisSummary {
     topCountry: top
       ? { code: top.countryCode, score: top.opportunityScore, confidence: top.confidenceScore }
       : undefined,
+    verdict: openingVerdict(input.results),
   };
 }

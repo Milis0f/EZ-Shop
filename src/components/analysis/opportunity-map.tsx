@@ -11,7 +11,7 @@ import { verdictWord } from "@/engine/report/localize";
 import type { VerdictValue } from "@/engine/report/verdict";
 import { useFormat } from "@/i18n/client";
 import { t } from "@/i18n/translate";
-import { VERDICT_COLOR } from "./verdict-orb";
+import { VERDICT_COLOR } from "./verdict-colors";
 
 export interface MapPoint {
   readonly code: string;

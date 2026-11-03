@@ -112,6 +112,7 @@ const MISSING_LABELS: Readonly<Record<string, string>> = {
   translated_terms: "Termes traduits",
   origin_country: "Pays d'origine",
   hs_code: "Code douanier (SH)",
+  us_additional_duties: "Droits additionnels américains",
   english_term: "Terme en anglais",
   ebay_national_site: "Site eBay national",
 };

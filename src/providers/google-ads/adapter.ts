@@ -19,7 +19,7 @@ import {
   type ProviderResult,
   type ProviderStatus,
 } from "../contracts";
-import { httpJson } from "../http";
+import { createLimiter, httpJson } from "../http";
 import { sharedResult, type SharedResult } from "../shared-result";
 import { describeAdsError, describeOAuthError, reasonOf } from "./errors";
 import { monthEnum, parseCurrency, parseHistoricalMetrics, parseLanguageConstant } from "./parse";
@@ -81,6 +81,8 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
     private readonly timeoutMs: number,
   ) {}
 
+  private readonly plannerSlot = createLimiter(2);
+
   status(): ProviderStatus {
     const missing = missingEnv(this.env, REQUIRED_ENV);
     if (missing.length > 0) return { state: "not_configured", detail: `Variables manquantes : ${missing.join(", ")}` };
@@ -112,7 +114,8 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
         },
       },
     };
-    const raw = await this.call(token.data, ":generateKeywordHistoricalMetrics", body);
+    // Keyword Planning is throttled per account, and countries are collected in parallel.
+    const raw = await this.plannerSlot(() => this.call(token.data, ":generateKeywordHistoricalMetrics", body));
     if (!raw.ok) return raw;
 
     const source: SourceRef = {
@@ -193,6 +196,7 @@ export class GoogleAdsKeywordPlannerProvider implements KeywordMetricsProvider, 
       },
       body: JSON.stringify(body),
       describeError: describeAdsError,
+      attempts: 3,
     });
   }
 

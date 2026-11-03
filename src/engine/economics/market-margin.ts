@@ -59,6 +59,9 @@ function landedUnitCost(economics: UnitEconomics, taxes: Datum<ImportTaxes>, col
   if (supplierPrice === undefined || shippingCost === undefined) {
     return insufficient("Coût de revient inconnu : saisis le prix fournisseur et les frais de livraison.", [...(supplierPrice === undefined ? ["supplier_price"] : []), ...(shippingCost === undefined ? ["shipping_cost"] : [])]);
   }
+  if (isKnown(taxes) && taxes.value.dutiesIncomplete) {
+    return insufficient("Droits additionnels américains sur l'origine Chine non calculables : coût de revient et marge non estimés.", ["us_additional_duties"]);
+  }
   const inputs: Array<Known<unknown>> = [userValue(supplierPrice, "supplier_price", collectedAt), userValue(shippingCost, "shipping_cost", collectedAt)];
   const duty = isKnown(taxes) ? taxes.value.dutyPerUnitEur : null;
   if (duty !== null && isKnown(taxes)) inputs.push(taxes);
