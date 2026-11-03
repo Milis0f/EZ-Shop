@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adLibrarySchema, bestSellerSchema, domainSignalsSchema, salesEstimateSchema, shopPresenceSchema, shopProfileSchema, shopWatchSchema, sourceUseSchema } from "./competitor";
+import { adLibrarySchema, bestSellerSchema, domainSignalsSchema, salesEstimateSchema, shopPresenceSchema, shopProfileSchema, shopStorefrontSchema, shopWatchSchema, sourceUseSchema } from "./competitor";
 
 /**
  * Contracts of the web features. Everything found on the web stays apart from the analysis: it never
@@ -206,6 +206,8 @@ export const competitorResponseSchema = z.discriminatedUnion("status", [
     /** This product's sales, then the whole shop's, estimated from their reviews. */
     estimates: z.object({ product: salesEstimateSchema.nullable(), shop: salesEstimateSchema.nullable() }).default({ product: null, shop: null }),
     watch: shopWatchSchema.nullable().default(null),
+    /** The shop through its official tokenless Storefront API; null when not asked or not answered. */
+    storefront: shopStorefrontSchema.nullable().default(null),
     sources: z.array(sourceUseSchema).default([]),
   }),
   z.object({ status: z.literal("blocked"), code: z.enum(COMPETITOR_FAILURES) }),

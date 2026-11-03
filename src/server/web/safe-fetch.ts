@@ -159,6 +159,37 @@ export async function fetchPublic(raw: string, deps: FetchDeps = DEFAULT_FETCH_D
   return { ok: false, code: "http_error" };
 }
 
+/**
+ * POST a JSON body to one public URL (a shop's official public API), with the same checks as a GET:
+ * public address, ports 80/443, size limit. A redirect is refused rather than followed: a POST that
+ * moves elsewhere is not the API it claimed to be.
+ */
+export async function postPublicJson(raw: string, body: unknown, deps: FetchDeps = DEFAULT_FETCH_DEPS): Promise<FetchResult> {
+  const checked = await checkPublicUrl(raw, deps);
+  if (!checked.ok) return checked;
+  let response: Response;
+  try {
+    response = await deps.fetch(checked.url.href, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, code: "unreachable" };
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    return { ok: false, code: response.status === 429 ? "rate_limited" : "http_error" };
+  }
+  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+  const text = await readLimited(response);
+  if (text === null) return { ok: false, code: "too_large" };
+  return { ok: true, url: checked.url.href, contentType, body: text };
+}
+
 /** Rules of the `*` group of a robots.txt, as [allow, path prefix or pattern]. */
 export function parseRobots(text: string): ReadonlyArray<readonly [boolean, string]> {
   const rules: Array<readonly [boolean, string]> = [];

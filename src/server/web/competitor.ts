@@ -17,6 +17,7 @@ import { createSiteReader, DEFAULT_FETCH_DEPS, type FetchDeps, type FetchResult 
 import { mergeHits, searchWeb, type SearchDeps } from "./searxng";
 import { parseCataloguePage, readCatalogue, type CatalogueProduct } from "./shop-catalogue";
 import { bestSellerCollection, bestSellersOf, parseCollections, parseShopProfile, presenceOf, productHandlesInOrder } from "./shop-profile";
+import { readStorefront } from "./shop-storefront";
 
 /**
  * Reads a competitor in depth: its product page, and for a Shopify shop its card, catalogue, best
@@ -392,6 +393,8 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
   const { apps, dropship } = detectApps(html);
   const supplierWanted = (options.searchSupplier || options.deep) && observed.name !== null;
   const shopName = shop?.profile?.name ?? null;
+  // The official API, after the shop's pages: same origin, so it waits its turn rather than running alongside.
+  const storefront = shopify && options.deep ? await readStorefront(url.origin, checkedHandle, deps.fetch, deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))), deps.paceMs ?? SHOP_PACE_MS).catch(() => null) : null;
   const [supplierFound, domainRead, adLibrary] = await Promise.all([
     supplierWanted && observed.name ? findSuppliers(observed.name, locale, deps) : Promise.resolve({ suppliers: null, state: "not_asked" as SupplierSearch }),
     domainPending,
@@ -430,6 +433,7 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
     { id: "page", state: "read" },
     { id: "product", state: shopify && pageKind === "product" ? stateOf(productAnswer, parsedProduct !== null) : "skipped" },
     ...(shop?.sources ?? (["profile", "catalogue", "best_sellers", "collections"] as const).map((id) => ({ id, state: "skipped" as const }))),
+    { id: "storefront", state: !shopify || !options.deep ? "skipped" : storefront ? "read" : "absent" },
     ...domainSources(domainRead, options.deep),
     { id: "ad_library", state: adLibrary === null ? "skipped" : adLibrary.state === "done" ? "read" : adLibrary.state === "failed" ? "limited" : "skipped" },
     { id: "suppliers", state: supplierSearch === "done" ? (suppliers?.length ? "read" : "absent") : supplierSearch === "not_asked" ? "skipped" : "limited" },
@@ -460,6 +464,7 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
     adLibrary,
     estimates,
     watch,
+    storefront,
     sources,
   };
 }

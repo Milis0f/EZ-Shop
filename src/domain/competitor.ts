@@ -125,9 +125,25 @@ export const shopWatchSchema = z.object({
 });
 export type ShopWatch = z.infer<typeof shopWatchSchema>;
 
-export const SOURCE_IDS = ["page", "product", "profile", "catalogue", "best_sellers", "collections", "rdap", "archive", "tranco", "ad_library", "suppliers"] as const;
+export const SOURCE_IDS = ["page", "product", "profile", "catalogue", "best_sellers", "collections", "storefront", "rdap", "archive", "tranco", "ad_library", "suppliers"] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 export const SOURCE_STATES = ["read", "partial", "refused", "limited", "absent", "skipped"] as const;
+
+/**
+ * What a Shopify shop's official Storefront API shows without a token: currencies, languages and
+ * countries it sells in, its best-selling order, and the price of the checked product in a few of its
+ * countries, in their currency. Observed offer on the day, never a sale.
+ */
+export const shopStorefrontSchema = z.object({
+  apiVersion: z.string(),
+  baseCurrency: z.string().nullable(),
+  currencies: z.array(z.string()),
+  languages: z.array(z.string()),
+  countries: z.array(z.string()),
+  bestSellers: z.array(z.object({ title: z.string(), handle: z.string(), available: z.boolean(), priceMin: z.number().nullable(), currency: z.string().nullable() })),
+  prices: z.array(z.object({ country: z.string(), currency: z.string(), min: z.number(), max: z.number(), compareAtMax: z.number().nullable(), available: z.boolean() })),
+});
+export type ShopStorefront = z.infer<typeof shopStorefrontSchema>;
 
 /** Every source the check tried, so a gap in the report can be traced to its cause. */
 export const sourceUseSchema = z.object({ id: z.enum(SOURCE_IDS), state: z.enum(SOURCE_STATES) });

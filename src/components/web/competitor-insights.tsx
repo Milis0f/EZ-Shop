@@ -47,6 +47,8 @@ export function ShopTab({ result, onCheck }: { readonly result: Ready; readonly 
         </ReportPanel>
       )}
 
+      {result.storefront && <StorefrontPanel storefront={result.storefront} />}
+
       <ReportPanel bar="boutique — meilleures ventes" title={m.bestTitle} kind="observed" intro={result.bestSellersFrom === "collection" ? t(m.bestCollection, { name: result.bestCollection ?? "" }) : m.bestIntro}>
         {bestSellers.length ? (
           <SimpleTable
@@ -306,5 +308,39 @@ export function VisibilityTab({ result }: { readonly result: Ready }) {
         </ul>
       </ReportPanel>
     </div>
+  );
+}
+
+/** The shop's official Storefront API: where and in what currency it sells, and the product's price by country. */
+function StorefrontPanel({ storefront }: { readonly storefront: NonNullable<Ready["storefront"]> }) {
+  const m = useMessages("competitorReport").shop;
+  const f = useFormat();
+  const amount = (value: number, currency: string) => exactPrice(f, value, currency);
+  return (
+    <ReportPanel bar={`boutique — storefront ${storefront.apiVersion}`} title={m.storefrontTitle} kind="observed" intro={m.storefrontIntro}>
+      <dl className="divide-y divide-line">
+        {storefront.currencies.length > 0 && <Fact label={m.currencies} value={storefront.currencies.join(", ")} />}
+        {storefront.languages.length > 0 && <Fact label={m.languages} value={storefront.languages.join(", ")} />}
+        {storefront.countries.length > 0 && <Fact label={m.countriesCount} value={f.int(storefront.countries.length)} />}
+      </dl>
+      {storefront.prices.length > 0 ? (
+        <div className="mt-4">
+          <SimpleTable
+            columns={[m.country, m.priceRange, m.compareAt, m.availability]}
+            rows={storefront.prices.map((p) => ({
+              key: p.country,
+              cells: [
+                regionName(p.country, f.locale, p.country),
+                p.min === p.max ? amount(p.min, p.currency) : `${amount(p.min, p.currency)} – ${amount(p.max, p.currency)}`,
+                p.compareAtMax !== null ? amount(p.compareAtMax, p.currency) : "—",
+                p.available ? m.inStock : m.soldOut,
+              ],
+            }))}
+          />
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">{m.noPrices}</p>
+      )}
+    </ReportPanel>
   );
 }
