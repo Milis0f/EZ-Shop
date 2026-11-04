@@ -5,6 +5,9 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
+  /* Slots 4 and 5, for shares of one whole: the five pass together (worst CVD ΔE 9.4, normal ΔE 26.5). */
+  --series-4: #a366d6;
+  --series-5: #a8841c;
 }
 
 .store-chart [data-slot="1"] {
@@ -15,6 +18,12 @@
 }
 .store-chart [data-slot="3"] {
   --series: var(--series-3);
+}
+.store-chart [data-slot="4"] {
+  --series: var(--series-4);
+}
+.store-chart [data-slot="5"] {
+  --series: var(--series-5);
 }
 
 .store-chart-key {
@@ -32,6 +41,16 @@
   stroke-linejoin: round;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+}
+
+/* The period before: the same colour, dashed and lighter, so it reads as the reference line. */
+.store-chart-line[data-dashed] {
+  stroke-dasharray: 5 5;
+  opacity: 0.55;
+}
+.store-chart-key[data-dashed] {
+  background: repeating-linear-gradient(90deg, var(--series) 0 4px, transparent 4px 7px);
+  opacity: 0.7;
 }
 
 .store-chart-wash {
@@ -68,6 +87,28 @@
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
 }
 
+/* Lines draw themselves in once, when the chart appears; the period before fades in after. */
+.store-chart-frame .store-chart-line:not([data-dashed]),
+.store-spark-line {
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: store-draw 1.1s var(--ease-out) 0.15s forwards;
+}
+.store-chart-frame .store-chart-line[data-dashed],
+.store-chart-frame .store-chart-wash {
+  animation: store-fade 0.9s var(--ease-out) 0.5s backwards;
+}
+@keyframes store-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes store-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 .store-funnel-track {
   height: 10px;
   overflow: hidden;
@@ -82,8 +123,47 @@
   transition: width var(--dur-slow) var(--ease-out);
 }
 
+.store-donut-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 12;
+}
+.store-donut-slice {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 12;
+  transition:
+    opacity 150ms var(--ease-out),
+    stroke-width 150ms var(--ease-out);
+  animation: store-fade 0.7s var(--ease-out) backwards;
+}
+.store-donut-slice[data-dim] {
+  opacity: 0.3;
+}
+.store-donut-slice:hover {
+  stroke-width: 14;
+}
+.store-donut-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background-color: var(--series);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .store-funnel-fill {
     transition: none;
+  }
+  .store-chart-frame .store-chart-line:not([data-dashed]),
+  .store-spark-line {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .store-chart-frame .store-chart-line[data-dashed],
+  .store-chart-frame .store-chart-wash,
+  .store-donut-slice {
+    animation: none;
   }
 }

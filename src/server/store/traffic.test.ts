@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ServerEnv } from "@/config/env";
 import { clearShopifyTokens } from "./shopify";
-import { assembleTraffic, clearTrafficCache, parseShopifyqlAnswer, readTraffic, TRAFFIC_QUERIES, trafficFailureOf } from "./traffic";
+import { assembleTraffic, clearTrafficCache, parseShopifyqlAnswer, PREVIOUS_QUERIES, readTraffic, TRAFFIC_QUERIES, trafficFailureOf } from "./traffic";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const NOW = Date.parse("2026-11-02T12:00:00Z");
@@ -98,9 +98,18 @@ describe("reading the visits", () => {
     const { calls, deps } = store(() => ({ data: table([{ sessions: "1" }]) }));
     const first = await readTraffic(env, deps);
     expect(first.ok).toBe(true);
-    expect(calls).toHaveLength(Object.keys(TRAFFIC_QUERIES).length);
+    const all = Object.keys(TRAFFIC_QUERIES).length + Object.keys(PREVIOUS_QUERIES).length;
+    expect(calls).toHaveLength(all);
+    expect(first.ok && first.traffic.previous?.totals.sessions).toBe(1);
     await readTraffic(env, deps);
-    expect(calls).toHaveLength(Object.keys(TRAFFIC_QUERIES).length);
+    expect(calls).toHaveLength(all);
+  });
+
+  it("keeps the visits when the period before is refused", async () => {
+    const { deps } = store((query) => (/-60d/.test(query) ? { data: { shopifyqlQuery: null }, errors: [{ message: "x" }] } : { data: table([{ sessions: "4" }]) }));
+    const result = await readTraffic(env, deps);
+    expect(result.ok && result.traffic.totals.sessions).toBe(4);
+    expect(result.ok && result.traffic.previous).toBeNull();
   });
 
   it("reports the first refusal and keeps nothing", async () => {

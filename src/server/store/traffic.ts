@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { ServerEnv } from "@/config/env";
-import type { StoreTraffic, TrafficCounts, TrafficFailure, TrafficResult, TrafficSlice, TrafficSource } from "@/domain/store";
+import type { StoreTraffic, TrafficCounts, TrafficDay, TrafficFailure, TrafficResult, TrafficSlice, TrafficSource, TrafficTotals } from "@/domain/store";
 import { openShopify, type AskShopify, type ShopifyDeps } from "./shopify";
 
 /**
@@ -11,6 +11,8 @@ import { openShopify, type AskShopify, type ShopifyDeps } from "./shopify";
  */
 
 const PERIOD = "SINCE -30d UNTIL today";
+/** The 30 days just before, for the comparison. */
+const BEFORE = "SINCE -60d UNTIL -31d";
 const HUMANS = "WHERE human_or_bot_session = 'human'";
 const COUNTS = "sessions, online_store_visitors, sessions_with_cart_additions, sessions_that_reached_checkout, sessions_that_completed_checkout";
 const CACHE_MS = 5 * 60 * 1000;
@@ -26,6 +28,13 @@ export const TRAFFIC_QUERIES = {
   devices: `FROM sessions SHOW ${COUNTS} ${HUMANS} GROUP BY session_device_type ${PERIOD} ORDER BY sessions DESC LIMIT 8`,
   landing: `FROM sessions SHOW ${COUNTS} ${HUMANS} GROUP BY landing_page_path ${PERIOD} ORDER BY sessions DESC LIMIT 10`,
 } as const;
+
+/** The period before: optional, a refusal leaves the comparison out and never the visits. */
+export const PREVIOUS_QUERIES = {
+  previousTotals: `FROM sessions SHOW ${COUNTS}, pageviews, bounces, average_session_duration ${HUMANS} ${BEFORE}`,
+  previousDays: `FROM sessions SHOW ${COUNTS} ${HUMANS} TIMESERIES day ${BEFORE} ORDER BY day ASC`,
+} as const;
+type PreviousName = keyof typeof PREVIOUS_QUERIES;
 
 type QueryName = keyof typeof TRAFFIC_QUERIES;
 type Row = Readonly<Record<string, unknown>>;
@@ -85,14 +94,22 @@ function slices(rows: readonly Row[], column: string): TrafficSlice[] {
 }
 
 /** Puts the answers together; robots are counted from their own group, the rest are human visits only. */
-export function assembleTraffic(rows: Readonly<Record<QueryName, readonly Row[]>>, now: Date): StoreTraffic {
-  const total = rows.totals[0];
+function totalsOf(total: Row | undefined): TrafficTotals {
   const duration = Number(total?.average_session_duration);
-  const totals = { ...countsOf(total), pageviews: count(total?.pageviews), bounces: count(total?.bounces) };
-  const days = rows.days.flatMap((row) => {
+  const counts = { ...countsOf(total), pageviews: count(total?.pageviews), bounces: count(total?.bounces) };
+  return { ...counts, averageSeconds: counts.sessions > 0 && Number.isFinite(duration) ? duration : null };
+}
+
+function daysOf(rows: readonly Row[]): TrafficDay[] {
+  return rows.flatMap((row) => {
     const day = text(row.day);
     return day && /^\d{4}-\d{2}-\d{2}/.test(day) ? [{ day: day.slice(0, 10), ...countsOf(row) }] : [];
   });
+}
+
+export function assembleTraffic(rows: Readonly<Record<QueryName, readonly Row[]>>, now: Date, before: Readonly<Record<PreviousName, readonly Row[]>> | null = null): StoreTraffic {
+  const totals = totalsOf(rows.totals[0]);
+  const days = daysOf(rows.days);
   const fallbackSince = new Date(now.getTime() - PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const sources: TrafficSource[] = rows.sources
     .map((row) => ({ type: text(row.traffic_type)?.toLowerCase() ?? "unknown", name: text(row.referrer_name), ...countsOf(row) }))
@@ -100,19 +117,20 @@ export function assembleTraffic(rows: Readonly<Record<QueryName, readonly Row[]>
   return {
     since: days[0]?.day ?? fallbackSince,
     until: days.at(-1)?.day ?? now.toISOString().slice(0, 10),
-    totals: { ...totals, averageSeconds: totals.sessions > 0 && Number.isFinite(duration) ? duration : null },
+    totals,
     botSessions: rows.robots.filter((row) => text(row.human_or_bot_session)?.toLowerCase() === "bot").reduce((sum, row) => sum + count(row.sessions), 0),
     byDay: days,
     byCountry: slices(rows.countries, "session_country_code").map((slice) => ({ ...slice, key: slice.key.toUpperCase() })),
     bySource: sources,
     byDevice: slices(rows.devices, "session_device_type").map((slice) => ({ ...slice, key: slice.key.toLowerCase() })),
     byLanding: slices(rows.landing, "landing_page_path"),
+    previous: before ? { totals: totalsOf(before.previousTotals[0]), byDay: daysOf(before.previousDays) } : null,
     readAt: now.toISOString(),
   };
 }
 
-async function run(ask: AskShopify, name: QueryName): Promise<{ ok: true; rows: Row[] } | { ok: false; code: TrafficFailure }> {
-  const answer = await ask(SHOPIFYQL, { query: TRAFFIC_QUERIES[name] });
+async function run(ask: AskShopify, query: string): Promise<{ ok: true; rows: Row[] } | { ok: false; code: TrafficFailure }> {
+  const answer = await ask(SHOPIFYQL, { query });
   if (!answer.ok) return answer;
   return parseShopifyqlAnswer(answer.value.data, answer.value.errors);
 }
@@ -141,11 +159,13 @@ export async function readTraffic(env: ServerEnv, deps: ShopifyDeps = DEFAULT_DE
   if (kept && kept.until > now) return kept.result;
 
   const names = Object.keys(TRAFFIC_QUERIES) as QueryName[];
-  const answers = await Promise.all(names.map((name) => run(opened.value.ask, name)));
+  const answers = await Promise.all(names.map((name) => run(opened.value.ask, TRAFFIC_QUERIES[name])));
   const failed = answers.find((answer) => !answer.ok);
   if (failed && !failed.ok) return { ok: false, code: failed.code };
   const rows = Object.fromEntries(names.map((name, i) => [name, (answers[i] as { rows: Row[] }).rows])) as Record<QueryName, Row[]>;
-  const result: TrafficResult = { ok: true, traffic: assembleTraffic(rows, new Date(now)) };
+  const [previousTotals, previousDays] = await Promise.all([run(opened.value.ask, PREVIOUS_QUERIES.previousTotals), run(opened.value.ask, PREVIOUS_QUERIES.previousDays)]);
+  const before = previousTotals.ok && previousDays.ok ? { previousTotals: previousTotals.rows, previousDays: previousDays.rows } : null;
+  const result: TrafficResult = { ok: true, traffic: assembleTraffic(rows, new Date(now), before) };
   cache().set(opened.value.domain, { until: now + CACHE_MS, result });
   return result;
 }

@@ -4,91 +4,166 @@ import { useState } from "react";
 import { KindMarker } from "@/components/data/kind-marker";
 import { TermBar } from "@/components/marketing/term";
 import { SegmentedControl } from "@/components/motion/segmented-control";
-import { BarList, exactPrice, StatGrid, StatTile } from "@/components/web/web-visuals";
+import { PlanetScene } from "@/components/planet/planet-hooks";
+import { exactPrice } from "@/components/web/web-visuals";
 import "@/components/web/web-visuals.css";
-import type { CountryCode } from "@/domain/country";
-import type { AdsResult, StoreResult, StoreSummary, TrafficResult } from "@/domain/store";
+import { COUNTRY_CODES, type CountryCode } from "@/domain/country";
+import type { AdsResult, StoreSummary } from "@/domain/store";
 import { trafficInsight } from "@/engine/store/traffic";
 import { useFormat, useMessages } from "@/i18n/client";
 import { plural, t } from "@/i18n/translate";
-import { StoreAds } from "./store-ads";
-import { StoreReviewPanel } from "./store-review";
-import { StoreTrafficView } from "./store-traffic";
+import "./store-board.css";
+import { InstagramView, StoreWebPanel, StripeView, Waiting } from "./store-channels";
 import { StoreConnect, type StoreConnections } from "./store-connect";
-import { monthName, regionName, shortList } from "./store-format";
+import { regionName } from "./store-format";
+import { StoreHero } from "./store-hero";
+import { StoreMarketView } from "./store-market";
+import { StoreOverviewBoard } from "./store-overview";
 import { StoreProducts } from "./store-products";
+import { StoreReviewPanel } from "./store-review";
 import { TABS, type Tab } from "./store-tabs";
+import { StoreTrafficView } from "./store-traffic";
+import { StoreAds } from "./store-ads";
+import { useStoreData } from "./use-store-data";
 
 export type { Tab } from "./store-tabs";
 
 export interface StoreDashboardProps {
-  readonly result: StoreResult;
-  readonly summary: StoreSummary | null;
-  readonly connections: StoreConnections;
-  /** Visits of the site over 30 days; null when the store is not read. */
-  readonly traffic: TrafficResult | null;
+  /** What the settings say, before anything is read. */
+  readonly connections: Omit<StoreConnections, "grantedScopes">;
   /** Ad reports read in the last ten minutes. */
   readonly keptAds: Readonly<Record<"meta" | "google", AdsResult | null>>;
-  /** Countries a product of the store can be analysed in before launch: those it ships to that the app covers. */
-  readonly analysisCountries: readonly CountryCode[];
   /** The section the planet's menu opened. */
   readonly initialTab?: Tab;
 }
 
-/** "My store": one section at a time, so the owner's data never piles up into a wall of panels. */
-export function StoreDashboard({ result, summary, connections, traffic, keptAds, analysisCountries, initialTab }: StoreDashboardProps) {
+const isCovered = (code: string): code is CountryCode => (COUNTRY_CODES as readonly string[]).includes(code);
+
+/** "My store": every source read live and at once; one section at a time, so nothing piles up. */
+export function StoreDashboard({ connections: settings, keptAds, initialTab }: StoreDashboardProps) {
   const m = useMessages("store");
+  const board = useMessages("storeBoard");
   const f = useFormat();
-  const [tab, setTab] = useState<Tab>(initialTab ?? (result.ok ? "overview" : "connect"));
+  const data = useStoreData({ planetMessage: board.arrival.planet, stepLabel: (part) => board.arrival.sources[part] });
+  const payload = data.store.status === "done" ? data.store.data : null;
+  const result = payload?.result ?? null;
+  const snapshot = result?.ok ? result.snapshot : null;
+  const summary = payload?.summary ?? null;
+  const traffic = data.traffic.status === "done" ? data.traffic.data : null;
+  const [tab, setTab] = useState<Tab>(initialTab ?? (settings.shopify.configured ? "overview" : "connect"));
   // The menu can open another section while this page is shown.
   const [askedTab, setAskedTab] = useState(initialTab);
   if (askedTab !== initialTab) {
     setAskedTab(initialTab);
     if (initialTab) setTab(initialTab);
   }
-  const tabs = TABS.map((value) => ({ value, label: m.tabs[value] }));
+
+  const connections: StoreConnections = { ...settings, grantedScopes: snapshot ? snapshot.grantedScopes : null };
+  const shipsTo = snapshot ? snapshot.shop.shipsTo.filter(isCovered) : [];
+  const selling = summary ? summary.byCountry.map((row) => row.country).filter((code): code is CountryCode => code !== null && isCovered(code)) : [];
+  const planetCountries = selling.length ? selling : shipsTo;
   const visits = traffic?.ok ? trafficInsight(traffic.traffic).fromAds : null;
+  const loadingStore = data.store.status === "loading";
+  const tabs = TABS.map((value) => ({ value, label: m.tabs[value] }));
 
   return (
     <div className="flex flex-col gap-6">
+      {planetCountries[0] && <PlanetScene focus={planetCountries[0]} countries={planetCountries} />}
+      <StoreHero data={data} />
+
       <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <SegmentedControl options={tabs} value={tab} onChange={setTab} aria-label={m.tabsLabel} className="max-w-none" />
       </div>
 
-      {result.ok && summary ? (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tracking-[-0.02em] text-muted-foreground">
-          <KindMarker kind="observed" />
-          {t(m.readAt, { date: f.date(result.snapshot.readAt), since: f.day(result.snapshot.ordersSince) })}
-          <span>{m.apart}</span>
-        </p>
+      {snapshot && summary ? (
+        <div className="flex flex-col gap-3">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tracking-[-0.02em] text-muted-foreground">
+            <KindMarker kind="observed" />
+            {t(m.readAt, { date: f.date(snapshot.readAt), since: f.day(snapshot.ordersSince) })}
+            <span>{m.apart}</span>
+          </p>
+          {summary.testOnly && <Note>{m.testOnly}</Note>}
+          {snapshot.countriesHidden && <Note>{m.countriesHidden}</Note>}
+          {snapshot.ordersCapped && <Note>{t(m.ordersCapped, { count: f.int(snapshot.orders.length) })}</Note>}
+          {snapshot.productsCapped && <Note>{t(m.productsCapped, { count: f.int(snapshot.products.length) })}</Note>}
+        </div>
       ) : (
-        tab !== "connect" &&
-        tab !== "traffic" && (
+        result &&
+        !result.ok &&
+        !["connect", "traffic", "social", "payments", "ads"].includes(tab) && (
           <p role="status" className="panel p-5 text-sm text-muted-foreground sm:p-6">
-            {m.failures[result.ok ? "api_error" : result.code]}
+            {m.failures[result.code]}
           </p>
         )
       )}
 
-      {result.ok && summary && (
-        <div className="flex flex-col gap-3">
-          {summary.testOnly && <Note>{m.testOnly}</Note>}
-          {result.snapshot.countriesHidden && <Note>{m.countriesHidden}</Note>}
-          {result.snapshot.ordersCapped && <Note>{t(m.ordersCapped, { count: f.int(result.snapshot.orders.length) })}</Note>}
-          {result.snapshot.productsCapped && <Note>{t(m.productsCapped, { count: f.int(result.snapshot.products.length) })}</Note>}
-        </div>
-      )}
-
-      {tab === "overview" && result.ok && summary && <StoreOverview summary={summary} traffic={traffic?.ok ? traffic : null} onOpen={setTab} />}
-      {tab === "traffic" && <StoreTrafficView result={traffic} />}
+      {tab === "overview" &&
+        (loadingStore ? (
+          <OverviewWaiting />
+        ) : (
+          snapshot &&
+          summary && (
+            <div className="flex flex-col gap-4">
+              <StoreOverviewBoard
+                summary={summary}
+                periods={payload?.periods ?? null}
+                traffic={traffic?.ok ? traffic.traffic : null}
+                currency={summary.currency}
+                onOpen={setTab}
+                highlight={<AiCard onOpen={() => setTab("advice")} />}
+              />
+              <div className="grid gap-4 min-[1000px]:grid-cols-2">
+                <InstagramView state={data.instagram} compact />
+                <StripeView state={data.stripe} compact />
+              </div>
+              <StoreWebPanel state={data.web} />
+            </div>
+          )
+        ))}
+      {tab === "traffic" && (data.traffic.status === "loading" ? <Waiting /> : <StoreTrafficView result={traffic} />)}
+      {tab === "market" && <StoreMarketView />}
+      {tab === "social" && <InstagramView state={data.instagram} />}
+      {tab === "payments" && <StripeView state={data.stripe} />}
       {tab === "advice" && <StoreReviewPanel />}
-      {tab === "products" && result.ok && summary && (
-        <StoreProducts summary={summary} taxesIncluded={result.snapshot.shop.taxesIncluded} analysisCountries={analysisCountries} />
-      )}
-      {tab === "countries" && result.ok && summary && <StoreCountries summary={summary} shipsTo={result.snapshot.shop.shipsTo} />}
+      {tab === "products" && snapshot && summary && <StoreProducts summary={summary} taxesIncluded={snapshot.shop.taxesIncluded} analysisCountries={shipsTo} />}
+      {tab === "countries" && snapshot && summary && <StoreCountries summary={summary} shipsTo={snapshot.shop.shipsTo} />}
       {tab === "ads" && <StoreAds connections={connections} kept={keptAds} siteVisits={visits} />}
-      {tab === "connect" && <StoreConnect connections={connections} failure={result.ok ? null : result.code} />}
+      {tab === "connect" && <StoreConnect connections={connections} failure={result && !result.ok ? result.code : null} />}
     </div>
+  );
+}
+
+function OverviewWaiting() {
+  return (
+    <div className="flex flex-col gap-4" aria-hidden>
+      <div className="grid grid-cols-2 gap-3 min-[900px]:grid-cols-3 min-[1180px]:grid-cols-6">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="store-wait !min-h-32" />
+        ))}
+      </div>
+      <div className="grid gap-4 min-[1000px]:grid-cols-2">
+        <div className="store-wait !min-h-64" />
+        <div className="store-wait !min-h-64" />
+      </div>
+    </div>
+  );
+}
+
+function AiCard({ onOpen }: { readonly onOpen: () => void }) {
+  const m = useMessages("storeBoard").ai;
+  return (
+    <section className="store-ai term relative overflow-hidden">
+      <TermBar title="ma-boutique — ia locale" />
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+        <div className="max-w-prose">
+          <h2 className="font-mono text-[17px] font-semibold tracking-[-0.04em]">{m.title}</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{m.intro}</p>
+        </div>
+        <button type="button" onClick={onOpen} className="store-ai-button shrink-0 rounded-pill px-6 py-2.5 text-sm font-semibold">
+          {m.open}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -105,119 +180,6 @@ function Section({ title, bar, children }: { readonly title: string; readonly ba
         <div className="mt-5">{children}</div>
       </div>
     </section>
-  );
-}
-
-function StoreOverview({ summary, traffic, onOpen }: { readonly summary: StoreSummary; readonly traffic: Extract<TrafficResult, { ok: true }> | null; readonly onOpen: (tab: Tab) => void }) {
-  const m = useMessages("store");
-  const live = useMessages("storeLive").traffic;
-  const f = useFormat();
-  const visits = traffic ? trafficInsight(traffic.traffic) : null;
-  const money = (value: number) => exactPrice(f, value, summary.currency);
-  const names = new Map(summary.products.map((p) => [p.id, p.title]));
-  const top = summary.byCountry[0];
-  const insights = [
-    top?.country ? t(m.insights.topCountry, { country: regionName(top.country, f.locale, m.countries.unknown), share: f.pct(Math.round(top.share * 100)) }) : null,
-    summary.shipsWithoutSales.length
-      ? plural(f.locale, summary.shipsWithoutSales.length, m.insights.shipsWithoutSales, { count: f.int(summary.shipsWithoutSales.length), list: shortList(summary.shipsWithoutSales.map((c) => regionName(c, f.locale, c))) })
-      : null,
-    summary.lowStock.length ? t(m.insights.lowStock, { list: shortList(summary.lowStock.map((id) => names.get(id) ?? id)) }) : null,
-    summary.unsold.length ? t(m.insights.unsold, { list: shortList(summary.unsold.map((id) => names.get(id) ?? id)) }) : null,
-  ].filter((line): line is string => line !== null);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <section className="term overflow-hidden">
-        <TermBar title="ma-boutique — ventes" />
-        <StatGrid className="p-5 sm:p-7">
-          <StatTile label={m.kpi.revenue} value={money(summary.revenue)} />
-          <StatTile label={m.kpi.orders} value={f.int(summary.orders)} />
-          <StatTile label={m.kpi.averageOrder} value={summary.averageOrder === null ? "—" : money(summary.averageOrder)} />
-          <StatTile label={m.kpi.units} value={f.int(summary.units)} />
-          <StatTile label={m.kpi.taxes} value={money(summary.taxes)} />
-          <StatTile label={m.kpi.shipping} value={money(summary.shipping)} />
-          <StatTile label={m.kpi.refunds} value={money(summary.refunds)} />
-        </StatGrid>
-      </section>
-
-      {summary.orders === 0 && <Note>{m.noOrders}</Note>}
-
-      {traffic && visits && (
-        <section className="term overflow-hidden">
-          <TermBar title="ma-boutique — visites" />
-          <div className="flex flex-col gap-5 p-5 sm:p-7">
-            <StatGrid>
-              <StatTile label={live.kpi.sessions} value={f.int(traffic.traffic.totals.sessions)} />
-              <StatTile label={live.kpi.carts} value={f.int(traffic.traffic.totals.carts)} />
-              <StatTile label={live.kpi.purchases} value={f.int(traffic.traffic.totals.purchases)} />
-              <StatTile label={live.kpi.conversion} value={visits.conversionRate === null ? "—" : f.ratioPct(Math.round(visits.conversionRate * 1000) / 1000)} />
-            </StatGrid>
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <button type="button" onClick={() => onOpen("traffic")} className="font-medium underline decoration-line underline-offset-4 hover:decoration-foreground">
-                {m.tabs.traffic}
-              </button>
-              <button type="button" onClick={() => onOpen("advice")} className="font-medium underline decoration-line underline-offset-4 hover:decoration-foreground">
-                {m.tabs.advice}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="term overflow-hidden">
-        <TermBar title="ma-boutique — constats" />
-        <div className="p-5 sm:p-7">
-          <h2 className="font-mono text-[17px] font-semibold tracking-[-0.04em]">{m.insightsTitle}</h2>
-          {insights.length ? (
-            <ul className="mt-4 flex flex-col gap-2 text-sm leading-relaxed">
-              {insights.map((line) => (
-                <li key={line} className="flex gap-3">
-                  <span aria-hidden className="font-mono text-muted-foreground">
-                    →
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">{m.insights.none}</p>
-          )}
-        </div>
-      </section>
-
-      <div className="grid gap-4 min-[900px]:grid-cols-2">
-        <Section title={m.monthTitle} bar="ventes — mois">
-          <BarList bars={summary.byMonth.map((row) => ({ key: row.month, label: monthName(row.month, f.locale), value: row.revenue, display: money(row.revenue) }))} />
-        </Section>
-        <Section title={m.countryTitle} bar="ventes — pays">
-          {summary.byCountry.length ? (
-            <BarList
-              bars={summary.byCountry.slice(0, 8).map((row) => ({
-                key: row.country ?? "?",
-                label: `${regionName(row.country, f.locale, m.countries.unknown)} · ${f.pct(Math.round(row.share * 100))}`,
-                value: row.revenue,
-                display: money(row.revenue),
-              }))}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">{m.noOrders}</p>
-          )}
-        </Section>
-      </div>
-
-      <Section title={m.productTitle} bar="ventes — produits">
-        {summary.products.some((p) => p.units > 0) ? (
-          <BarList
-            bars={summary.products
-              .filter((p) => p.units > 0)
-              .slice(0, 8)
-              .map((p) => ({ key: p.id, label: `${p.title} · ${f.int(p.units)}`, value: p.revenue, display: money(p.revenue) }))}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">{summary.products.length ? m.noOrders : m.noProducts}</p>
-        )}
-      </Section>
-    </div>
   );
 }
 

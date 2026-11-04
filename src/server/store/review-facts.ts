@@ -1,4 +1,5 @@
-import type { AdsReport, StoreSnapshot, StoreSummary, StoreTraffic } from "@/domain/store";
+import type { AdsReport, InstagramReport, StoreSnapshot, StoreSummary, StoreTraffic, StoreWeb, StripeReport } from "@/domain/store";
+import type { Change, SalesPeriods } from "@/engine/store/periods";
 import { costPerPurchase, roas } from "@/engine/store/summary";
 import { trafficInsight } from "@/engine/store/traffic";
 
@@ -14,6 +15,12 @@ export interface ReviewMaterial {
   readonly traffic: StoreTraffic | null;
   readonly meta: AdsReport | null;
   readonly google: AdsReport | null;
+  /** The last 30 days against the 30 before. */
+  readonly periods?: SalesPeriods | null;
+  readonly instagram?: InstagramReport | null;
+  readonly stripe?: StripeReport | null;
+  /** The store as the web sees it. */
+  readonly web?: StoreWeb | null;
 }
 
 const LIST = 6;
@@ -64,6 +71,38 @@ function adsLines(report: AdsReport): string {
   return `${name}, last 30 days, as the platform attributes them: spend ${money(t.spend, c)}; impressions ${t.impressions}${optional("people reached", t.reach)}; clicks ${t.clicks}${optional("link clicks", t.linkClicks)}${optional("landing page views", t.landingViews)}${optional("adds to cart", t.addToCart)}${optional("checkouts started", t.checkouts)}; purchases ${t.purchases === null ? "n/a" : round(t.purchases, 1)}; purchase value ${money(t.purchaseValue, c)}; return on ad spend ${roas(t) === null ? "n/a" : round(roas(t) ?? 0)}; cost per purchase ${money(costPerPurchase(t), c)}.${top ? ` Biggest campaigns: ${top}.` : ""}`;
 }
 
+const changeText = (c: Change): string =>
+  c.previous === null ? "no period before to compare" : c.ratio === null ? `was ${round(c.previous)}` : `was ${round(c.previous)} (${c.ratio >= 0 ? "+" : ""}${round(c.ratio * 100, 1)}%)`;
+
+function periodLines(p: SalesPeriods, traffic: StoreTraffic | null, currency: string): string[] {
+  const lines = [
+    `Last 30 days against the 30 before: net revenue ${money(p.current.totalRevenue, currency)}, ${changeText(p.revenue)}; orders ${p.current.totalOrders}, ${changeText(p.orders)}; average order ${money(p.current.averageOrder, currency)}, ${changeText(p.averageOrder)}.`,
+  ];
+  const before = traffic?.previous?.totals;
+  if (traffic && before) {
+    const now = traffic.totals;
+    lines.push(`Visits the 30 days before: ${before.sessions} (now ${now.sessions}); visitors ${before.visitors} (now ${now.visitors}); visits with a purchase ${before.purchases} (now ${now.purchases}).`);
+  }
+  return lines;
+}
+
+function instagramLine(r: InstagramReport): string {
+  const n = (v: number | null) => (v === null ? "n/a" : String(v));
+  const posts = r.recent.slice(0, LIST).map((p) => `${p.type} ${p.postedAt.slice(0, 10)}: ${n(p.likes)} likes, ${n(p.comments)} comments`).join("; ");
+  return `Instagram @${r.username}, ${r.since} to ${r.until}: followers ${n(r.followers)}; posts ${n(r.posts)}; accounts reached ${n(r.totals.reach)}; views ${n(r.totals.views)}; accounts engaged ${n(r.totals.accountsEngaged)}; interactions ${n(r.totals.interactions)}; link taps ${n(r.totals.linkTaps)}.${posts ? ` Latest posts: ${posts}.` : ""}`;
+}
+
+function stripeLine(r: StripeReport): string {
+  const c = r.currency;
+  return `Stripe payments, last 30 days: collected ${money(r.current.gross, c)} (30 days before ${money(r.previous.gross, c)}); successful payments ${r.current.payments} (before ${r.previous.payments}); refunded ${money(r.current.refunded, c)}; failed ${r.current.failed}; disputed ${r.current.disputed}.${r.methods.length ? ` Methods: ${r.methods.map((m) => `${m.key} ${m.payments}`).join(", ")}.` : ""}`;
+}
+
+function webLine(w: StoreWeb): string {
+  const s = w.signals;
+  const indicators = (w.visibility?.indicators ?? []).filter((v) => v.value !== null).map((v) => `${v.metric} ${round(v.value ?? 0)}`);
+  return `The store on the web (${w.domain}): visibility level ${w.visibility?.level ?? "not readable"}; Tranco rank ${s?.trancoRank ?? (s?.outsideTranco ? "outside the top million" : "n/a")}; domain registered ${s?.registeredAt?.slice(0, 10) ?? "n/a"}; pages in its sitemaps ${w.siteMap?.urls ?? "n/a"}, product pages ${w.siteMap?.productUrls ?? "n/a"}; technologies seen ${w.technologies.map((t) => t.name).join(", ") || "none"}.${indicators.length ? ` Published indicators: ${indicators.join("; ")}.` : ""}`;
+}
+
 /** The sheet, with a line naming what could not be read so the advice does not pretend to see it. */
 export function reviewFacts(material: ReviewMaterial): string {
   const lines: string[] = [];
@@ -76,6 +115,12 @@ export function reviewFacts(material: ReviewMaterial): string {
   else missing.push("Meta Ads");
   if (material.google) lines.push(adsLines(material.google));
   else missing.push("Google Ads");
+  if (material.periods && material.summary) lines.push(...periodLines(material.periods, material.traffic, material.summary.currency));
+  if (material.instagram) lines.push(instagramLine(material.instagram));
+  else missing.push("Instagram");
+  if (material.stripe) lines.push(stripeLine(material.stripe));
+  else missing.push("Stripe");
+  if (material.web) lines.push(webLine(material.web));
   if (missing.length) lines.push(`Not available: ${missing.join(", ")}.`);
   return lines.join("\n");
 }

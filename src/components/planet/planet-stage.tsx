@@ -130,7 +130,7 @@ export function PlanetStage() {
   // The white halo is the local AI's mark: without the AI, the planet has none.
   const aiStatus = useAiInstall();
   const base = poseFor(pathname);
-  const anchored = !analysis && base === "report" && anchor !== null && stageSize > 0;
+  const anchored = !analysis && (base === "report" || base === "store") && anchor !== null && stageSize > 0;
   const pose: PlanetPose = analysis ? "analysing" : anchored ? "anchored" : base;
 
   // The stage's own size, to scale it onto the report's anchor.

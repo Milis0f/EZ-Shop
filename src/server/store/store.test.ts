@@ -20,7 +20,10 @@ describe("Shopify answers", () => {
       plan: "Basic",
       taxesIncluded: true,
       shipsTo: ["BE", "FR"],
+      primaryUrl: null,
     });
+    expect(parseShop({ name: "B", myshopifyDomain: "b.myshopify.com", currencyCode: "EUR", primaryDomain: { url: "https://boutique.example/" } })?.primaryUrl).toBe("https://boutique.example");
+    expect(parseShop({ name: "B", myshopifyDomain: "b.myshopify.com", currencyCode: "EUR", primaryDomain: { url: "javascript:alert(1)" } })?.primaryUrl).toBeNull();
     expect(parseShop({ name: 1 })).toBeNull();
   });
 

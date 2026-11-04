@@ -16,6 +16,8 @@ export interface TrendSeries {
   readonly values: readonly number[];
   /** Slot of the fixed series order: 1 blue, 2 orange, 3 aqua. */
   readonly slot: 1 | 2 | 3;
+  /** The same measure over the period before: drawn dashed and lighter, in its series' own colour. */
+  readonly dashed?: boolean;
 }
 
 export interface TrendChartProps {
@@ -100,7 +102,7 @@ export function TrendChart({ title, days, series, formatValue, formatDay, tableL
         <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
           {series.map((s) => (
             <li key={s.key} className="flex items-center gap-2">
-              <span aria-hidden className="store-chart-key" data-slot={s.slot} />
+              <span aria-hidden className="store-chart-key" data-slot={s.slot} data-dashed={s.dashed || undefined} />
               {s.label}
             </li>
           ))}
@@ -108,7 +110,7 @@ export function TrendChart({ title, days, series, formatValue, formatDay, tableL
       )}
       <div
         ref={frame}
-        className="relative rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="store-chart-frame relative rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-ring"
         tabIndex={0}
         role="group"
         aria-label={`${title}. ${dayLabel}`}
@@ -138,7 +140,7 @@ export function TrendChart({ title, days, series, formatValue, formatDay, tableL
             />
           )}
           {series.map((s) => (
-            <polyline key={s.key} points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} className="store-chart-line" data-slot={s.slot} />
+            <polyline key={s.key} points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} className="store-chart-line" data-slot={s.slot} data-dashed={s.dashed || undefined} />
           ))}
           {shown !== null && (
             <g>
@@ -159,7 +161,7 @@ export function TrendChart({ title, days, series, formatValue, formatDay, tableL
             <ul className="flex flex-col gap-1">
               {series.map((s) => (
                 <li key={s.key} className="flex items-center gap-2">
-                  <span aria-hidden className="store-chart-key" data-slot={s.slot} />
+                  <span aria-hidden className="store-chart-key" data-slot={s.slot} data-dashed={s.dashed || undefined} />
                   <span className="tabular font-semibold">{formatValue(s.values[shown] ?? 0)}</span>
                   <span className="text-muted-foreground">{s.label}</span>
                 </li>
@@ -215,6 +217,105 @@ export function Funnel({ title, steps }: { readonly title: string; readonly step
           </li>
         ))}
       </ol>
+    </figure>
+  );
+}
+
+/** A small line of a figure's last days, beside the figure itself: no axis, the number is written next to it. */
+export function Sparkline({ values, slot = 1, className }: { readonly values: readonly number[]; readonly slot?: 1 | 2 | 3 | 4 | 5; readonly className?: string }) {
+  const w = 120;
+  const h = 36;
+  if (values.length < 2) return null;
+  const top = Math.max(0, ...values);
+  const x = (i: number) => (i / (values.length - 1)) * w;
+  const y = (v: number) => (top > 0 ? h - 3 - (v / top) * (h - 6) : h - 3);
+  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={`store-chart block h-9 w-full ${className ?? ""}`} aria-hidden>
+      <g data-slot={slot}>
+        <path d={`M0,${h} L${points.join(" L")} L${w},${h} Z`} className="store-chart-wash" />
+        <polyline points={points.join(" ")} className="store-chart-line store-spark-line" />
+      </g>
+    </svg>
+  );
+}
+
+export interface DonutSlice {
+  readonly key: string;
+  readonly label: string;
+  readonly value: number;
+  readonly display: string;
+}
+
+/**
+ * Shares of one whole: at most five slices in the fixed colour order (the caller folds the rest into
+ * the last one), 2px gaps between slices, the total in the middle, and a legend with every value.
+ */
+export function Donut({ title, slices, total, totalLabel }: { readonly title: string; readonly slices: readonly DonutSlice[]; readonly total: string; readonly totalLabel: string }) {
+  const [active, setActive] = useState<number | null>(null);
+  const sum = slices.reduce((acc, slice) => acc + slice.value, 0);
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const gap = slices.length > 1 ? 2.5 : 0;
+  const starts = slices.reduce<number[]>((acc, slice, i) => [...acc, (acc[i] ?? 0) + (sum > 0 ? (slice.value / sum) * circumference : 0)], [0]);
+  const shown = active !== null ? slices[active] : null;
+  return (
+    <figure className="store-chart flex flex-col gap-4">
+      <figcaption className="text-sm font-medium">{title}</figcaption>
+      <div className="flex flex-col items-center gap-5 min-[520px]:flex-row">
+        <div className="relative size-40 shrink-0">
+          <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden>
+            <circle cx="50" cy="50" r={r} className="store-donut-track" />
+            {sum > 0 &&
+              slices.map((slice, i) => {
+                const length = (slice.value / sum) * circumference;
+                const dash = Math.max(0.5, length - gap);
+                return (
+                  <circle
+                    key={slice.key}
+                    cx="50"
+                    cy="50"
+                    r={r}
+                    data-slot={Math.min(5, i + 1)}
+                    className="store-donut-slice"
+                    data-dim={active !== null && active !== i ? "" : undefined}
+                    strokeDasharray={`${dash} ${circumference - dash}`}
+                    strokeDashoffset={-(starts[i] ?? 0)}
+                    onPointerEnter={() => setActive(i)}
+                    onPointerLeave={() => setActive(null)}
+                  />
+                );
+              })}
+          </svg>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="tabular font-mono text-xl font-semibold tracking-[-0.04em]">{shown ? shown.display : total}</span>
+            <span className="max-w-24 truncate text-[11px] text-muted-foreground">{shown ? shown.label : totalLabel}</span>
+          </div>
+        </div>
+        <ul className="flex w-full flex-col gap-1 text-sm">
+          {slices.map((slice, i) => (
+            <li key={slice.key}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 rounded-tile px-2 py-1.5 text-left hover:bg-[var(--surface-2)] focus-visible:bg-[var(--surface-2)] focus-visible:outline-none"
+                onPointerEnter={() => setActive(i)}
+                onPointerLeave={() => setActive(null)}
+                onFocus={() => setActive(i)}
+                onBlur={() => setActive(null)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span aria-hidden className="store-donut-key" data-slot={Math.min(5, i + 1)} />
+                  <span className="truncate">{slice.label}</span>
+                </span>
+                <span className="tabular shrink-0 text-muted-foreground">
+                  {slice.display}
+                  {sum > 0 && <span className="ml-2 text-xs">{Math.round((slice.value / sum) * 100)} %</span>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </figure>
   );
 }

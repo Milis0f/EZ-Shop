@@ -16,6 +16,7 @@ import * as serverMessages from "./server-messages";
 import * as settings from "./settings";
 import * as shell from "./shell";
 import * as store from "./store";
+import * as storeBoard from "./store-board";
 import * as storeGuide from "./store-guide";
 import * as storeLive from "./store-live";
 import type { DeepStringShape } from "./types";
@@ -39,6 +40,7 @@ export const MESSAGES = {
   store,
   storeLive,
   storeGuide,
+  storeBoard,
   settings,
   backup,
   history,

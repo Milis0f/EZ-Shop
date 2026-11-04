@@ -9,6 +9,7 @@ const traffic = (extra: Partial<StoreTraffic> = {}): StoreTraffic => ({
   until: "2026-11-02",
   totals: { sessions: 200, visitors: 150, carts: 20, checkouts: 8, purchases: 4, pageviews: 600, bounces: 90, averageSeconds: 75 },
   botSessions: 12,
+  previous: null,
   byDay: [
     { day: "2026-10-30", ...counts(40) },
     { day: "2026-10-31", ...counts(90, 9, 2) },

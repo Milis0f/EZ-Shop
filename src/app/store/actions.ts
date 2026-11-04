@@ -11,7 +11,11 @@ import { saveSettings } from "@/server/secrets/settings-store";
 import { checkRateLimit } from "@/server/rate-limit";
 import { adsConfigured, readAds } from "@/server/store/ads";
 import { reviewStore } from "@/server/store/review";
-import { readStore } from "@/server/store/shopify";
+import { clearInstagramCache, readInstagram } from "@/server/store/instagram";
+import { readShopInfo, readStore } from "@/server/store/shopify";
+import { clearStripeCache, isRestrictedKey, readStripe } from "@/server/store/stripe";
+import { readStoreWeb } from "@/server/store/web";
+import { salesPeriods } from "@/engine/store/periods";
 import { readTraffic } from "@/server/store/traffic";
 import { isStoreDomain, normaliseStoreDomain } from "@/server/store/shopify";
 import { isLocalRequest } from "@/server/connector-config";
@@ -27,11 +31,11 @@ const REVIEW_RATE_LIMIT = { limit: 3, windowMs: 60_000 } as const;
 /** Printable ASCII without spaces or quotes: what client IDs, secrets and tokens are made of. */
 const SAFE_VALUE = /^[\x21\x23-\x26\x28-\x7e]{1,512}$/;
 
-type Group = "shopify" | "meta";
+type Group = "shopify" | "meta" | "stripe";
 
 interface FieldRule {
   readonly key: string;
-  readonly check: (raw: string) => { ok: true; value: string } | { ok: false; error: "domain" | "value" | "account" };
+  readonly check: (raw: string) => { ok: true; value: string } | { ok: false; error: "domain" | "value" | "account" | "stripeKey" };
 }
 
 const plain = (raw: string) => (SAFE_VALUE.test(raw.trim()) ? { ok: true as const, value: raw.trim() } : { ok: false as const, error: "value" as const });
@@ -58,9 +62,11 @@ const FIELDS: Readonly<Record<Group, readonly FieldRule[]>> = {
       },
     },
   ],
+  // A restricted key only: a full secret key could do more than read.
+  stripe: [{ key: "STRIPE_API_KEY", check: (raw) => (isRestrictedKey(raw) ? { ok: true, value: raw.trim() } : { ok: false, error: "stripeKey" }) }],
 };
 
-const SECTIONS: Readonly<Record<Group, string>> = { shopify: "Shopify — Ma boutique", meta: "Meta Ads — Ma boutique" };
+const SECTIONS: Readonly<Record<Group, string>> = { shopify: "Shopify — Ma boutique", meta: "Meta Ads — Ma boutique", stripe: "Stripe — Ma boutique" };
 
 /**
  * Saves the store's or the ad account's keys to .env.local and applies them to the running server.
@@ -69,6 +75,7 @@ const SECTIONS: Readonly<Record<Group, string>> = { shopify: "Shopify — Ma bou
 export async function saveStoreConnection(_prev: StoreConnectionState, formData: FormData): Promise<StoreConnectionState> {
   const locale = await getLocale();
   const m = (await getMessages("store", locale)).connect;
+  const stripeOnly = (await getMessages("storeBoard", locale)).connect.stripeOnly;
   const access = await localizedEditorAccess(locale);
   if (!access.enabled) return { status: "error", message: access.reason };
 
@@ -76,7 +83,7 @@ export async function saveStoreConnection(_prev: StoreConnectionState, formData:
   if (!limit.allowed) return { status: "error", message: t(m.errors.tooMany, { seconds: limit.retryAfterSeconds }) };
 
   const group = formData.get("group");
-  if (group !== "shopify" && group !== "meta") return { status: "error", message: m.errors.nothing };
+  if (group !== "shopify" && group !== "meta" && group !== "stripe") return { status: "error", message: m.errors.nothing };
 
   const updates: EnvUpdate[] = [];
   const fieldErrors: Record<string, string> = {};
@@ -85,7 +92,7 @@ export async function saveStoreConnection(_prev: StoreConnectionState, formData:
     if (typeof raw !== "string" || raw.trim() === "") continue;
     const checked = field.check(raw);
     if (checked.ok) updates.push({ key: field.key, value: checked.value });
-    else fieldErrors[field.key] = m.errors[checked.error];
+    else fieldErrors[field.key] = checked.error === "stripeKey" ? stripeOnly : m.errors[checked.error];
   }
   if (Object.keys(fieldErrors).length > 0) return { status: "error", message: Object.values(fieldErrors)[0] ?? m.errors.value, fieldErrors };
   if (updates.length === 0) return { status: "error", message: m.errors.nothing };
@@ -97,6 +104,9 @@ export async function saveStoreConnection(_prev: StoreConnectionState, formData:
     console.error("[saveStoreConnection] settings could not be saved:", error instanceof Error ? error.name : "unknown error");
     return { status: "error", message: m.errors.write };
   }
+  // New keys are read at once, not after the five minutes an answer is kept.
+  if (group === "stripe") clearStripeCache();
+  if (group === "meta") clearInstagramCache();
   revalidatePath("/store");
   return { status: "saved", message: m.saved, savedAt: Date.now() };
 }
@@ -120,13 +130,17 @@ export async function reviewMyStore(): Promise<ReviewResult> {
   if (!limit.allowed) return { ok: false, code: "rate_limited" };
   const env = getEnv();
   const ads = adsConfigured(env);
-  const [store, traffic, meta, google] = await Promise.all([
+  const [store, traffic, meta, google, instagram, stripe, shop] = await Promise.all([
     readStore(env),
     readTraffic(env),
     ads.meta ? readAds("meta", env) : null,
     ads.google ? readAds("google", env) : null,
+    readInstagram(env),
+    readStripe(env),
+    readShopInfo(env),
   ]);
   const snapshot = store.ok ? store.snapshot : null;
+  const web = shop.ok ? await readStoreWeb(shop.value.primaryUrl, env) : null;
   return reviewStore(
     {
       snapshot,
@@ -134,6 +148,10 @@ export async function reviewMyStore(): Promise<ReviewResult> {
       traffic: traffic.ok ? traffic.traffic : null,
       meta: meta?.ok ? meta.report : null,
       google: google?.ok ? google.report : null,
+      periods: snapshot ? salesPeriods(snapshot.orders, Date.parse(snapshot.readAt), snapshot.ordersSince, !snapshot.ordersCapped) : null,
+      instagram: instagram.ok ? instagram.report : null,
+      stripe: stripe.ok ? stripe.report : null,
+      web: web?.ok ? web.web : null,
     },
     await getLocale(),
   );

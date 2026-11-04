@@ -16,6 +16,7 @@ export interface StoreConnections {
   readonly shopify: { readonly configured: boolean; readonly domain: string | null; readonly idSet: boolean; readonly secretSet: boolean };
   readonly meta: { readonly configured: boolean; readonly account: string | null; readonly tokenSet: boolean };
   readonly google: boolean;
+  readonly stripe: { readonly keySet: boolean };
   /** Access scopes the store granted, once it was read; null when it could not be read. */
   readonly grantedScopes: readonly string[] | null;
   /** Keys can be written from this page (local machine, development). */
@@ -37,6 +38,7 @@ export function StoreConnect({ connections, failure }: { readonly connections: S
   const guide = useMessages("storeGuide");
   const g = guide.google;
   const c = m.connect;
+  const board = useMessages("storeBoard").connect;
   const connected = connections.grantedScopes !== null;
   return (
     <div className="flex flex-col gap-4">
@@ -75,6 +77,20 @@ export function StoreConnect({ connections, failure }: { readonly connections: S
         />
       </MetaGuide>
       <section className="term overflow-hidden">
+        <TermBar title="tuto — instagram" />
+        <div className="p-5 sm:p-7">
+          <h2 className="font-mono text-[17px] font-semibold tracking-[-0.04em]">{board.instagramTitle}</h2>
+          <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">{board.instagramBody}</p>
+        </div>
+      </section>
+      <ConnectionForm
+        group="stripe"
+        title={board.stripeTitle}
+        intro={board.stripeIntro}
+        disabled={!connections.editable}
+        fields={[{ name: "STRIPE_API_KEY", label: board.stripeKey, secret: true, set: connections.stripe.keySet, placeholder: "rk_live_…" }]}
+      />
+      <section className="term overflow-hidden">
         <TermBar title="tuto — google" />
         <div className="p-5 sm:p-7">
           <h2 className="font-mono text-[17px] font-semibold tracking-[-0.04em]">{g.title}</h2>
@@ -89,7 +105,7 @@ export function StoreConnect({ connections, failure }: { readonly connections: S
   );
 }
 
-function ConnectionForm({ group, title, intro, fields, disabled }: { readonly group: "shopify" | "meta"; readonly title: string; readonly intro: string; readonly fields: readonly FieldSpec[]; readonly disabled: boolean }) {
+function ConnectionForm({ group, title, intro, fields, disabled }: { readonly group: "shopify" | "meta" | "stripe"; readonly title: string; readonly intro: string; readonly fields: readonly FieldSpec[]; readonly disabled: boolean }) {
   const c = useMessages("store").connect;
   const [state, action, pending] = useActionState(saveStoreConnection, INITIAL_STORE_CONNECTION_STATE);
   const id = useId();

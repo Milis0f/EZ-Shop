@@ -31,7 +31,7 @@ const order = (id: string, country: string | null, lines: Array<[string, number,
 });
 
 const snapshot = (orders: StoreOrder[], extra: Partial<StoreSnapshot> = {}): StoreSnapshot => ({
-  shop: { name: "Test", domain: "t.myshopify.com", currency: "EUR", plan: null, taxesIncluded: true, shipsTo: ["FR", "BE", "DE"] },
+  shop: { name: "Test", domain: "t.myshopify.com", currency: "EUR", plan: null, taxesIncluded: true, shipsTo: ["FR", "BE", "DE"], primaryUrl: null },
   grantedScopes: [],
   products: [product("a"), product("b", { inventory: 3 }), product("c"), product("d", { status: "DRAFT" })],
   productsCapped: false,

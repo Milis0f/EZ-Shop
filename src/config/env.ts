@@ -98,6 +98,9 @@ const envSchema = z.object({
   META_ADS_ACCESS_TOKEN: optionalSecret,
   META_AD_ACCOUNT_ID: optionalSecret,
 
+  // Stripe, the owner's own payments ("Ma boutique"): a restricted key (rk_…) with read access only.
+  STRIPE_API_KEY: optionalSecret,
+
   // eBay Browse API (application keys: App ID = client id, Cert ID = client secret).
   EBAY_CLIENT_ID: optionalSecret,
   EBAY_CLIENT_SECRET: optionalSecret,

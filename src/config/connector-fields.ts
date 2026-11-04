@@ -94,6 +94,7 @@ export const SECRET_ENV_NAMES: readonly string[] = [
   ...(Object.keys(ENV_RULES) as EnvName[]).filter((name) => ENV_RULES[name].secret),
   "SHOPIFY_CLIENT_SECRET",
   "META_ADS_ACCESS_TOKEN",
+  "STRIPE_API_KEY",
 ];
 
 /** One dictionary entry, seen without its exact literal keys. */

@@ -1,0 +1,192 @@
+/* "My store" dashboard: the hero, the sources being read, the headline cards and their changes. */
+
+.store-hero {
+  --accent: var(--brand, var(--craie));
+}
+
+/* A soft light of the shop's own colour behind its name, where the planet comes to rest. */
+.store-hero-glow {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 70%;
+  height: 160%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 22%, transparent), transparent 70%);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: store-glow 1.6s var(--ease-out) both;
+}
+
+.store-hero-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+  background-color: var(--surface-2);
+  color: var(--accent);
+  animation: store-rise 0.7s var(--ease-out) both;
+}
+
+.store-hero-name {
+  animation: store-rise 0.7s var(--ease-out) 0.08s both;
+}
+
+.store-hero-chip {
+  animation: store-rise 0.5s var(--ease-out) 0.2s both;
+}
+
+.store-hero-planet {
+  border-radius: 9999px;
+}
+
+.store-source {
+  animation: store-rise 0.45s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms + 0.15s);
+}
+
+.store-source-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: var(--ink-muted);
+  transition: background-color 300ms var(--ease-out);
+}
+.store-source-dot-loading {
+  background-color: var(--accent);
+  animation: store-pulse 1s ease-in-out infinite;
+}
+.store-source-dot-done {
+  background-color: var(--verdict-oui);
+}
+.store-source-dot-failed {
+  background-color: var(--verdict-non);
+}
+.store-source-dot-off {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink-muted);
+}
+
+/* Change against the period before. Green or red, always with an arrow and words. */
+.store-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.store-change-good {
+  color: var(--verdict-oui);
+  background-color: color-mix(in oklab, var(--verdict-oui) 14%, transparent);
+}
+.store-change-bad {
+  color: var(--verdict-non);
+  background-color: color-mix(in oklab, var(--verdict-non) 14%, transparent);
+}
+.store-change-flat {
+  color: var(--ink-muted);
+  background-color: var(--surface-2);
+}
+
+.store-kpi {
+  animation: store-rise 0.55s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  transition:
+    border-color 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+.store-kpi:hover {
+  border-color: color-mix(in oklab, var(--brand, var(--craie)) 40%, var(--line));
+  transform: translateY(-2px);
+}
+
+.store-ai {
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--brand, var(--craie)) 12%, transparent), transparent 60%),
+    var(--surface);
+}
+.store-ai-button {
+  background-color: var(--ink);
+  color: var(--bg, #000);
+  transition:
+    transform 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
+}
+.store-ai-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px color-mix(in oklab, var(--ink) 25%, transparent);
+}
+.store-ai-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* An empty chart keeps its frame: a flat dashed line where the curve will be. */
+.store-empty-line {
+  height: 96px;
+  border-bottom: 2px dashed var(--line);
+  background: linear-gradient(to top, color-mix(in oklab, var(--line) 25%, transparent), transparent 70%);
+  border-radius: 0 0 6px 6px;
+}
+
+/* A part still being read keeps its place, so the page does not jump when it arrives. */
+.store-wait {
+  min-height: 9rem;
+  border-radius: var(--radius-panel, 28px);
+  background: linear-gradient(100deg, var(--surface) 30%, color-mix(in oklab, var(--surface-2), var(--ink) 4%) 50%, var(--surface) 70%);
+  background-size: 300% 100%;
+  animation: store-shimmer 1.6s ease-in-out infinite;
+}
+
+.store-arrive {
+  animation: store-rise 0.6s var(--ease-out) both;
+}
+
+@keyframes store-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes store-glow {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+@keyframes store-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes store-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-hero-glow,
+  .store-hero-mark,
+  .store-hero-name,
+  .store-hero-chip,
+  .store-source,
+  .store-kpi,
+  .store-arrive,
+  .store-source-dot-loading,
+  .store-wait {
+    animation: none;
+  }
+  .store-kpi:hover {
+    transform: none;
+  }
+}

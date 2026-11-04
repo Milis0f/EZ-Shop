@@ -14,6 +14,7 @@ const traffic: StoreTraffic = {
   bySource: [{ type: "paid", name: "Facebook", sessions: 50, visitors: 45, carts: 5, checkouts: 2, purchases: 1 }],
   byDevice: [{ key: "mobile", sessions: 140, visitors: 100, carts: 10, checkouts: 4, purchases: 2 }],
   byLanding: [],
+  previous: null,
   readAt: "2026-11-02T12:00:00Z",
 };
 
@@ -45,7 +46,7 @@ describe("the fact sheet", () => {
     expect(facts).toContain("conversion 2%");
     expect(facts).toContain("repeat visits 50");
     expect(facts).toContain("Paid visits recognised: Google 0, Meta 50");
-    expect(facts).toContain("Not available: sales, Meta Ads, Google Ads.");
+    expect(facts).toContain("Not available: sales, Meta Ads, Google Ads, Instagram, Stripe.");
   });
 });
 

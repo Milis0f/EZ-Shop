@@ -21,7 +21,18 @@ const shopSchema = z.object({
   taxesIncluded: z.boolean().nullish(),
   plan: z.object({ displayName: z.string().nullish() }).nullish(),
   shipsToCountries: z.array(z.string()).nullish(),
+  primaryDomain: z.object({ url: z.string().nullish() }).nullish(),
 });
+
+/** An https origin, nothing else: it is later fetched by the app. */
+function publicUrl(raw: string | null | undefined): string | null {
+  try {
+    const url = new URL(raw ?? "");
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
 
 export function parseShop(raw: unknown): StoreShop | null {
   const parsed = shopSchema.safeParse(raw);
@@ -35,6 +46,7 @@ export function parseShop(raw: unknown): StoreShop | null {
     taxesIncluded: s.taxesIncluded ?? null,
     // "REST_OF_WORLD" is a Shopify placeholder, not a country.
     shipsTo: (s.shipsToCountries ?? []).filter((code) => /^[A-Z]{2}$/.test(code)).sort(),
+    primaryUrl: publicUrl(s.primaryDomain?.url),
   };
 }
 

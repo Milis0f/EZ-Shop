@@ -1,6 +1,6 @@
 import "server-only";
 import type { ServerEnv } from "@/config/env";
-import type { StoreFailure, StoreOrder, StoreProduct, StoreResult } from "@/domain/store";
+import type { StoreFailure, StoreOrder, StoreProduct, StoreResult, StoreShop } from "@/domain/store";
 import { USER_AGENT } from "@/providers/http";
 import { parseConnection, parseOrders, parseProducts, parseScopes, parseShop, refusedAddresses } from "./shopify-parse";
 
@@ -100,7 +100,7 @@ async function graphql(config: ShopifyConfig, token: string, query: string, vari
 }
 
 const SHOP_QUERY = `{
-  shop { name myshopifyDomain currencyCode taxesIncluded plan { displayName } shipsToCountries }
+  shop { name myshopifyDomain currencyCode taxesIncluded plan { displayName } shipsToCountries primaryDomain { url } }
   currentAppInstallation { accessScopes { handle } }
 }`;
 
@@ -215,7 +215,26 @@ export async function readStore(env: ServerEnv, deps: ShopifyDeps = DEFAULT_DEPS
   };
 }
 
+/** The shop card alone (name, currency, public address), for the parts that need only that. Kept ten minutes. */
+const shops = new Map<string, { readonly until: number; readonly shop: StoreShop }>();
+const SHOP_CACHE_MS = 10 * 60 * 1000;
+
+export async function readShopInfo(env: ServerEnv, deps: ShopifyDeps = DEFAULT_DEPS): Promise<Step<StoreShop>> {
+  const opened = await openShopify(env, deps);
+  if (!opened.ok) return opened;
+  const now = deps.now();
+  const kept = shops.get(opened.value.domain);
+  if (kept && kept.until > now) return { ok: true, value: kept.shop };
+  const answer = await opened.value.ask(SHOP_QUERY);
+  if (!answer.ok) return answer;
+  const shop = parseShop(answer.value.data?.shop);
+  if (!shop) return { ok: false, code: "api_error" };
+  shops.set(opened.value.domain, { until: now + SHOP_CACHE_MS, shop });
+  return { ok: true, value: shop };
+}
+
 /** For tests: forget the cached tokens. */
 export function clearShopifyTokens(): void {
   tokens.clear();
+  shops.clear();
 }
