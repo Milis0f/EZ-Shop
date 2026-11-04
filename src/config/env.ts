@@ -83,6 +83,11 @@ const envSchema = z.object({
   // YouTube Data API v3 (Google Cloud API key, free daily quota).
   YOUTUBE_API_KEY: optionalSecret,
 
+  // Competitive intelligence: each person's own free keys (Chrome UX Report, Open PageRank, Ahrefs public API).
+  CRUX_API_KEY: optionalSecret,
+  OPEN_PAGERANK_API_KEY: optionalSecret,
+  AHREFS_API_KEY: optionalSecret,
+
   // Shopify, the owner's own store ("Ma boutique"): a Dev Dashboard app installed on it. Kept apart from
   // the pre-launch analysis, which never reads the owner's sales.
   SHOPIFY_STORE_DOMAIN: optionalSecret,

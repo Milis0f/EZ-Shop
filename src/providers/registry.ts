@@ -13,6 +13,7 @@ import type {
   AdLibraryProvider,
   ContentProvider,
   DataProvider,
+  DomainMetricsProvider,
   FxProvider,
   KeywordMetricsProvider,
   MacroIndicatorProvider,
@@ -28,6 +29,9 @@ import type {
 } from "./contracts";
 import { UkTradeTariffProvider, ukTradeTariffMeta } from "./customs/uk-trade-tariff";
 import { UsitcProvider, usitcMeta } from "./customs/usitc";
+import { AhrefsDomainRatingProvider, ahrefsMeta } from "./domain-metrics/ahrefs";
+import { CruxProvider, cruxMeta } from "./domain-metrics/crux";
+import { OpenPageRankProvider, openPageRankMeta } from "./domain-metrics/open-pagerank";
 import { EbayBrowseProvider, ebayMeta } from "./ebay/adapter";
 import { EurostatProvider, eurostatMeta } from "./eurostat/adapter";
 import { GoogleAdsKeywordPlannerProvider, googleAdsMeta } from "./google-ads/adapter";
@@ -61,6 +65,8 @@ export interface ProviderSet {
   readonly vat: VatProvider;
   readonly fx: FxProvider;
   readonly translator: TranslationProvider;
+  /** Competitive intelligence: published indicators about a competitor's domain. Not part of a product analysis. */
+  readonly domainMetrics: readonly DomainMetricsProvider[];
 }
 
 export interface ProviderDeps {
@@ -89,6 +95,7 @@ export function createProviderSet(deps: ProviderDeps): ProviderSet {
     vat: new VatRatesProvider(cache, timeout),
     fx: new EcbFxProvider(cache, timeout),
     translator: new MyMemoryProvider(cache, timeout),
+    domainMetrics: [new CruxProvider(env, cache, timeout), new OpenPageRankProvider(env, cache, timeout), new AhrefsDomainRatingProvider(env, cache, timeout)],
   };
 }
 
@@ -113,6 +120,9 @@ export const REAL_PROVIDER_METAS: readonly ProviderMeta[] = [
   youtubeMeta,
   ebayMeta,
   aliexpressMeta,
+  cruxMeta,
+  openPageRankMeta,
+  ahrefsMeta,
 ];
 
 export function listProviders(set: ProviderSet): DataProvider[] {

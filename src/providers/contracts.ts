@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n/config";
+import type { SourcedValue } from "@/domain/data-nature";
 import type { ProviderState } from "@/domain/analysis";
 import type { CountryCode, LanguageCode } from "@/domain/country";
 import type { AdActivity, AdPlatform, MonthlyPoint } from "@/domain/market";
@@ -21,7 +22,8 @@ export type ProviderCategory =
   | "marketplace"
   | "sourcing"
   | "customs"
-  | "reference";
+  | "reference"
+  | "competitive";
 
 /**
  * - live_verified:         request/response mapping checked against the live API
@@ -418,4 +420,26 @@ export interface FxRates {
 
 export interface FxProvider extends DataProvider {
   getEurRates(): Promise<ProviderResult<FxRates>>;
+}
+
+// ---------- Competitive intelligence (a competitor's domain) ----------
+
+export interface DomainMetricsQuery {
+  /** Registered domain, e.g. `example.com`. */
+  readonly domain: string;
+  /** The origin the shop answered on, e.g. `https://www.example.com`. */
+  readonly origin: string;
+}
+
+/**
+ * Published indicators about a domain (authority, real-user speed…). A domain the source does not
+ * cover is an answer (`not_covered`), not an error; a refusal or a quota stop is an error.
+ */
+export interface DomainMetricsObservation {
+  readonly values: readonly SourcedValue[];
+  readonly source: SourceRef;
+}
+
+export interface DomainMetricsProvider extends DataProvider {
+  getDomainMetrics(query: DomainMetricsQuery): Promise<ProviderResult<DomainMetricsObservation>>;
 }

@@ -36,7 +36,7 @@ const STATUS_ONLY_CACHE: ProviderCacheRepository = { get: async () => null, set:
 export async function getConnectorOverview(): Promise<{ connectors: ConnectorOverview[] }> {
   const env = getEnv();
   const live = createProviderSet({ env, cache: STATUS_ONLY_CACHE });
-  const byId = new Map(listProviders(live).map((p) => [p.meta.id, p.status()]));
+  const byId = new Map([...listProviders(live), ...live.domainMetrics].map((p) => [p.meta.id, p.status()]));
   return {
     connectors: REAL_PROVIDER_METAS.map((meta) => ({
       meta,

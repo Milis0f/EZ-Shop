@@ -98,6 +98,38 @@ function buildGuides(g: GuideTexts): Readonly<Record<ProviderId, ConnectorGuide>
       ],
     },
 
+    "chrome-ux-report": {
+      group: "free_account",
+      brings: g.crux.brings,
+      cost: g.crux.cost,
+      setupTime: g.crux.setupTime,
+      steps: [
+        { ...g.crux.enable, link: { label: g.crux.enable.link, url: "https://console.cloud.google.com/apis/library/chromeuxreport.googleapis.com" } },
+        { ...g.crux.key, link: { label: g.crux.key.link, url: CREDENTIALS_URL } },
+        { ...g.crux.paste, fields: ["CRUX_API_KEY"] },
+      ],
+    },
+    "open-pagerank": {
+      group: "free_account",
+      brings: g.openPageRank.brings,
+      cost: g.openPageRank.cost,
+      setupTime: g.openPageRank.setupTime,
+      steps: [
+        { ...g.openPageRank.account, link: { label: g.openPageRank.account.link, url: "https://keywordseverywhere.com/openpagerank/" } },
+        { ...g.openPageRank.paste, fields: ["OPEN_PAGERANK_API_KEY"] },
+      ],
+    },
+    "ahrefs-domain-rating": {
+      group: "free_account",
+      brings: g.ahrefs.brings,
+      cost: g.ahrefs.cost,
+      setupTime: g.ahrefs.setupTime,
+      steps: [
+        { ...g.ahrefs.account, link: { label: g.ahrefs.account.link, url: "https://app.ahrefs.com/account/api-keys" } },
+        { ...g.ahrefs.paste, fields: ["AHREFS_API_KEY"] },
+      ],
+    },
+
     "ebay-browse": {
       group: "free_account",
       brings: g.ebay.brings,

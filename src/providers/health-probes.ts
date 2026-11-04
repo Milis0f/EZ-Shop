@@ -33,6 +33,9 @@ export function probeFor(set: ProviderSet, id: ProviderId, now = new Date()): Pr
   if (tariff) return { run: () => tariff.getDuties(tariff.regimes[0], "9617000000", "CN"), hasData: nonEmpty };
   const library = set.adLibraries.find((p) => p.meta.id === id);
   if (library) return { run: () => library.getAdActivity({ terms: SAMPLE.terms, country: "FR", since: `${from}-01` }), hasData: nonEmpty };
+  const metrics = set.domainMetrics.find((p) => p.meta.id === id);
+  // A large, long-lived site every index covers: an answer always exists.
+  if (metrics) return { run: () => metrics.getDomainMetrics({ domain: "wikipedia.org", origin: "https://www.wikipedia.org" }), hasData: (d) => nonEmpty((d as { values?: unknown }).values) };
   const cost = set.adCosts.find((p) => p.meta.id === id);
   if (cost) return { run: () => cost.getCostEstimate({ terms: SAMPLE.terms, country: "FR" }), hasData: nonEmpty };
 

@@ -41,5 +41,6 @@ export function createMockProviderSet(now: () => Date = () => new Date()): Provi
     vat: unavailableVat(vatRatesMeta),
     fx: unavailableFx(ecbFxMeta),
     translator: unavailableTranslator(myMemoryMeta),
+    domainMetrics: [],
   };
 }

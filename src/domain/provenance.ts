@@ -24,6 +24,10 @@ export const PROVIDER_IDS = [
   "vat-rates",
   "ecb-fx",
   "mymemory",
+  // Competitive intelligence (2026-11).
+  "chrome-ux-report",
+  "open-pagerank",
+  "ahrefs-domain-rating",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
