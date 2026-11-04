@@ -254,3 +254,24 @@ export const providerCache = pgTable(
   },
   (t) => [index("provider_cache_expires_idx").on(t.expiresAt)],
 );
+
+/**
+ * The competitor observatory: one dated reading of a shop's public catalogue each time it is checked
+ * (at most one per six hours), kept on this computer. History grows from these readings only; nothing
+ * before the first reading is invented. Readings are never edited.
+ */
+export const competitorReadings = pgTable(
+  "competitor_readings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    domain: text("domain").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    productCount: integer("product_count").notNull(),
+    /** WatchSnapshot: per product, its variants with stock flag and price. */
+    snapshot: jsonb("snapshot").$type<unknown>().notNull(),
+    /** Side readings of the same check (technologies, sitemap, visibility), each with its nature. */
+    extra: jsonb("extra").$type<unknown>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [index("competitor_readings_domain_idx").on(t.domain, t.observedAt.desc())],
+);
