@@ -35,7 +35,7 @@ replaced by another metric.
 
 ## Inventory
 
-All 19 connectors are built into every analysis (`src/server/pipeline/collect.ts`, `collect-global.ts`);
+The 19 product connectors are built into every analysis (`src/server/pipeline/collect.ts`, `collect-global.ts`);
 an unconfigured one answers `not_configured` at once, without a network call.
 
 | Source | Class | Maturity | Auth | Real test 2026-11-03 | Notes |
@@ -56,12 +56,19 @@ an unconfigured one answers `not_configured` at once, without a network call.
 | Google Ads Keyword Planner | C | beta | OAuth | **403, access level** | see below |
 | Meta Ad Library | C | beta | user token | not configured | identity verification |
 | TikTok Commercial Content | C | beta | client credentials | not configured | research approval |
+| Chrome UX Report API | C | beta | API key | not configured | competitor check only; free, 150 req/min/project; 404 = not in the report (`not_covered`) |
+| Open PageRank | C | beta | bearer key | not configured | competitor check only; free 30,000 domains/month; free keys are bound to one IP |
+| Ahrefs Domain Rating (free) | C | beta | bearer key | not configured | competitor check only; attribution "Domain Rating by Ahrefs" shown |
 | Google Trends API (alpha) | D | disabled | API key | not implemented | alpha on application; response format not public |
 | Meta Marketing (delivery estimate) | D | disabled | OAuth | not implemented | |
 | TikTok API for Business | D | disabled | OAuth | not implemented | |
 
 Not tested for real: every source of class C except Google Ads (no account configured on the test machine).
 Their unit tests run on stubbed HTTP and prove the mapping, not the provider's availability.
+
+The three **competitive** connectors (category `competitive`) are not part of a product analysis: the
+deep competitor check calls them for the competitor's domain, and only when their key is set. See
+`docs/COMPETITIVE-SOURCES.md` for every competitive source, its licence and why others were left out.
 
 ## Google Ads and Keyword Planner
 

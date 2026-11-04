@@ -18,6 +18,12 @@ import { mergeHits, searchWeb, type SearchDeps } from "./searxng";
 import { parseCataloguePage, readCatalogue, type CatalogueProduct } from "./shop-catalogue";
 import { bestSellerCollection, bestSellersOf, parseCollections, parseShopProfile, presenceOf, productHandlesInOrder } from "./shop-profile";
 import { readStorefront } from "./shop-storefront";
+import { defaultDomainMetrics, defaultObservatory, readVisibility } from "./competitor-extras";
+import { observe } from "./observatory";
+import { readSiteMap } from "./site-map";
+import { detectTechnologies } from "./technologies";
+import type { DomainMetricsProvider } from "@/providers/contracts";
+import type { CompetitorReadingRepository } from "@/server/repositories/competitor-readings";
 
 /**
  * Reads a competitor in depth: its product page, and for a Shopify shop its card, catalogue, best
@@ -197,6 +203,10 @@ export interface CompetitorDeps {
   readonly domain?: Omit<DomainSignalDeps, "cache">;
   readonly adLibrary?: (query: AdActivityQuery) => Promise<ProviderResult<AdActivityObservation> | null>;
   readonly paceMs?: number;
+  /** The observatory of dated readings; none in tests unless given. */
+  readonly observatory?: () => Promise<CompetitorReadingRepository | null>;
+  /** Keyed indicator sources (authority, real-user speed); built from the settings unless given. */
+  readonly domainMetrics?: (cache: ProviderCacheRepository | null) => readonly DomainMetricsProvider[];
 }
 
 async function defaultCache(): Promise<ProviderCacheRepository | null> {
@@ -208,7 +218,7 @@ async function defaultCache(): Promise<ProviderCacheRepository | null> {
   }
 }
 
-const defaultDeps = (): CompetitorDeps => ({ env: getEnv(), fetch: DEFAULT_FETCH_DEPS, now: () => Date.now(), cache: defaultCache });
+const defaultDeps = (): CompetitorDeps => ({ env: getEnv(), fetch: DEFAULT_FETCH_DEPS, now: () => Date.now(), cache: defaultCache, observatory: defaultObservatory });
 
 type SupplierSearch = Extract<CompetitorResponse, { status: "ready" }>["supplierSearch"];
 
@@ -352,7 +362,8 @@ function domainSources(read: DomainSignalsRead | null, deep: boolean): SourceUse
 }
 
 export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptions, locale: Locale, overrides: Partial<CompetitorDeps> = {}): Promise<CompetitorResponse> {
-  const deps = { ...defaultDeps(), ...overrides };
+  // A caller that brings its own cache (a test) brings its own observatory too: no database is opened behind its back.
+  const deps = { ...defaultDeps(), ...(overrides.cache && !overrides.observatory ? { observatory: undefined } : {}), ...overrides };
   const started = deps.now();
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
 
@@ -395,12 +406,17 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
   const shopName = shop?.profile?.name ?? null;
   // The official API, after the shop's pages: same origin, so it waits its turn rather than running alongside.
   const storefront = shopify && options.deep ? await readStorefront(url.origin, checkedHandle, deps.fetch, deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))), deps.paceMs ?? SHOP_PACE_MS).catch(() => null) : null;
+  const siteMap = options.deep ? await readSiteMap(url.origin, site).catch(() => null) : null;
   const [supplierFound, domainRead, adLibrary] = await Promise.all([
     supplierWanted && observed.name ? findSuppliers(observed.name, locale, deps) : Promise.resolve({ suppliers: null, state: "not_asked" as SupplierSearch }),
     domainPending,
     options.deep && shopify ? readAdLibrary(shopName, shop?.profile ?? null, deps) : Promise.resolve(null),
   ]);
   const domainSignals = domainRead?.signals ?? null;
+  const visibility = options.deep
+    ? await readVisibility({ domain, origin: url.origin }, domainSignals, (deps.domainMetrics ?? ((c) => defaultDomainMetrics(deps.env, c)))(cache), deps.now).catch(() => null)
+    : null;
+  const technologies = detectTechnologies(html);
   const { suppliers, state: supplierSearch } = supplierFound;
 
   const signals: SignalCode[] = [];
@@ -413,6 +429,20 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
 
   const estimates = estimatesOf(observed, catalogue, domainSignals, dropship, deps.now());
   const watch = await updateWatch(domain, url.origin, shop?.products ?? [], deps.now(), cache);
+  const catalogueState = shop?.sources.find((s) => s.id === "catalogue")?.state;
+  const history = shop?.products.length
+    ? await observe(
+        {
+          domain,
+          snapshot: buildSnapshot(shop.products, new Date(deps.now()).toISOString()),
+          complete: catalogue !== null && !catalogue.capped && catalogueState === "read",
+          extra: { technologies: technologies.map((t) => t.name), ...(siteMap ? { sitemapUrls: siteMap.urls, sitemapProductUrls: siteMap.productUrls } : {}) },
+          nowMs: deps.now(),
+        },
+        deps.observatory ? await deps.observatory() : null,
+        cache,
+      )
+    : null;
 
   const platform = shopify ? "shopify" : "other";
   const facts: ReportFacts = { domain, platform, observed, catalogue, profile: shop?.profile ?? null, bestSellers: shop?.bestSellers ?? [], domainSignals, estimates, apps, suppliers };
@@ -434,6 +464,7 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
     { id: "product", state: shopify && pageKind === "product" ? stateOf(productAnswer, parsedProduct !== null) : "skipped" },
     ...(shop?.sources ?? (["profile", "catalogue", "best_sellers", "collections"] as const).map((id) => ({ id, state: "skipped" as const }))),
     { id: "storefront", state: !shopify || !options.deep ? "skipped" : storefront ? "read" : "absent" },
+    { id: "sitemap", state: !options.deep ? "skipped" : siteMap ? "read" : "absent" },
     ...domainSources(domainRead, options.deep),
     { id: "ad_library", state: adLibrary === null ? "skipped" : adLibrary.state === "done" ? "read" : adLibrary.state === "failed" ? "limited" : "skipped" },
     { id: "suppliers", state: supplierSearch === "done" ? (suppliers?.length ? "read" : "absent") : supplierSearch === "not_asked" ? "skipped" : "limited" },
@@ -466,5 +497,9 @@ export async function analyzeCompetitor(rawUrl: string, options: CompetitorOptio
     watch,
     storefront,
     sources,
+    technologies,
+    siteMap,
+    visibility,
+    history,
   };
 }

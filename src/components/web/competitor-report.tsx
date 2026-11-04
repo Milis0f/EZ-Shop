@@ -9,6 +9,7 @@ import { t } from "@/i18n/translate";
 import { NotProductNotice } from "./competitor-catalogue";
 import { estimateNumber, Fact, Insufficient, monthsSince, onlineSince, priceText, ReportPanel, type Ready } from "./competitor-bits";
 import { SalesTab, ShopTab, VisibilityTab } from "./competitor-insights";
+import { HistoryTab } from "./competitor-intel";
 import { ExternalLink, WebReadingBlock, WebSourceList } from "./web-results";
 import { exactPrice, SimpleTable, StatGrid, StatTile } from "./web-visuals";
 
@@ -17,7 +18,7 @@ import { exactPrice, SimpleTable, StatGrid, StatTile } from "./web-visuals";
  * part at a time (product, shop, sales, visibility, suppliers, sources) so nothing piles up.
  */
 
-const TABS = ["product", "shop", "sales", "visibility", "suppliers", "sources"] as const;
+const TABS = ["product", "shop", "sales", "visibility", "history", "suppliers", "sources"] as const;
 type Tab = (typeof TABS)[number];
 
 export function CompetitorReport({ result, onCheck }: { readonly result: Ready; readonly onCheck: (url: string) => void }) {
@@ -44,6 +45,7 @@ export function CompetitorReport({ result, onCheck }: { readonly result: Ready; 
       {tab === "shop" && <ShopTab result={result} onCheck={onCheck} />}
       {tab === "sales" && <SalesTab result={result} />}
       {tab === "visibility" && <VisibilityTab result={result} />}
+      {tab === "history" && <HistoryTab result={result} />}
       {tab === "suppliers" && <SuppliersTab result={result} />}
       {tab === "sources" && <SourcesTab result={result} />}
     </div>

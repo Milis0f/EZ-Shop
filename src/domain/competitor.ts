@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sourcedValueSchema } from "./data-nature";
 
 /**
  * The deep competitor report, beyond the page itself: what a Shopify shop publishes about itself, its
@@ -125,7 +126,7 @@ export const shopWatchSchema = z.object({
 });
 export type ShopWatch = z.infer<typeof shopWatchSchema>;
 
-export const SOURCE_IDS = ["page", "product", "profile", "catalogue", "best_sellers", "collections", "storefront", "rdap", "archive", "tranco", "ad_library", "suppliers"] as const;
+export const SOURCE_IDS = ["page", "product", "profile", "catalogue", "best_sellers", "collections", "storefront", "sitemap", "rdap", "archive", "tranco", "ad_library", "suppliers"] as const;
 export type SourceId = (typeof SOURCE_IDS)[number];
 export const SOURCE_STATES = ["read", "partial", "refused", "limited", "absent", "skipped"] as const;
 
@@ -148,3 +149,55 @@ export type ShopStorefront = z.infer<typeof shopStorefrontSchema>;
 /** Every source the check tried, so a gap in the report can be traced to its cause. */
 export const sourceUseSchema = z.object({ id: z.enum(SOURCE_IDS), state: z.enum(SOURCE_STATES) });
 export type SourceUse = z.infer<typeof sourceUseSchema>;
+
+export const OBSERVATORY_EVENT_KINDS = ["added", "missing", "removed", "returned", "price_up", "price_down", "sold_out", "restocked"] as const;
+
+/**
+ * The shop's history on this computer: one point per kept reading, and the events between them. All
+ * observed; it starts at the first check and says nothing of the time before.
+ */
+export const shopHistorySchema = z.object({
+  firstAt: z.string().nullable(),
+  lastAt: z.string().nullable(),
+  readings: z.number().int().nonnegative(),
+  series: z.array(z.object({ at: z.string(), products: z.number().int(), inStockShare: z.number().nullable(), medianPrice: z.number().nullable(), complete: z.boolean() })),
+  events: z.array(z.object({ at: z.string(), kind: z.enum(OBSERVATORY_EVENT_KINDS), handle: z.string(), title: z.string(), from: z.number().nullable(), to: z.number().nullable(), variants: z.number().int() })),
+  counts: z.record(z.enum(OBSERVATORY_EVENT_KINDS), z.number().int()),
+});
+export type ShopHistory = z.infer<typeof shopHistorySchema>;
+
+/** What the shop declares in its robots.txt and sitemaps. Declared, not checked page by page. */
+export const siteMapSchema = z.object({
+  robotsFound: z.boolean(),
+  sitemaps: z.array(z.string()),
+  urls: z.number().int().nonnegative(),
+  productUrls: z.number().int().nonnegative(),
+  lastModified: z.string().nullable(),
+  /** Every child sitemap was read; false when the count stopped at the reading limit. */
+  complete: z.boolean(),
+});
+export type SiteMap = z.infer<typeof siteMapSchema>;
+
+export const TECHNOLOGY_CATEGORIES = ["platform", "payments", "analytics", "ads", "marketing", "reviews", "support", "infrastructure"] as const;
+export type TechnologyCategory = (typeof TECHNOLOGY_CATEGORIES)[number];
+
+/** A technology seen in the page's own code or headers, with what was seen. */
+export const technologySchema = z.object({ name: z.string(), category: z.enum(TECHNOLOGY_CATEGORIES), evidence: z.string() });
+export type Technology = z.infer<typeof technologySchema>;
+
+export const VISIBILITY_LEVELS = ["low", "medium", "high"] as const;
+
+/**
+ * How visible the shop is on the web, from published indicators: never a number of visits. Each
+ * indicator keeps its source and nature; the level is EZ-Shop's reading of them (inferred), null when
+ * fewer than two indicators answered.
+ */
+export const visibilitySchema = z.object({
+  indicators: z.array(sourcedValueSchema),
+  level: z.enum(VISIBILITY_LEVELS).nullable(),
+  /** Indicators the level rests on. */
+  basis: z.array(z.string()),
+  /** Keyed sources not configured, so the person knows what would add to the profile. */
+  notConfigured: z.array(z.string()),
+});
+export type Visibility = z.infer<typeof visibilitySchema>;

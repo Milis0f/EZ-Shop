@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adLibrarySchema, bestSellerSchema, domainSignalsSchema, salesEstimateSchema, shopPresenceSchema, shopProfileSchema, shopStorefrontSchema, shopWatchSchema, sourceUseSchema } from "./competitor";
+import { adLibrarySchema, bestSellerSchema, domainSignalsSchema, salesEstimateSchema, shopPresenceSchema, shopProfileSchema, shopStorefrontSchema, shopHistorySchema, shopWatchSchema, siteMapSchema, sourceUseSchema, technologySchema, visibilitySchema } from "./competitor";
 
 /**
  * Contracts of the web features. Everything found on the web stays apart from the analysis: it never
@@ -209,6 +209,13 @@ export const competitorResponseSchema = z.discriminatedUnion("status", [
     /** The shop through its official tokenless Storefront API; null when not asked or not answered. */
     storefront: shopStorefrontSchema.nullable().default(null),
     sources: z.array(sourceUseSchema).default([]),
+    /** Technologies seen in the page's code, with the evidence. */
+    technologies: z.array(technologySchema).default([]),
+    siteMap: siteMapSchema.nullable().default(null),
+    /** Published indicators of how visible the shop is; never a number of visits. */
+    visibility: visibilitySchema.nullable().default(null),
+    /** The shop's history on this computer, from the dated readings kept. */
+    history: shopHistorySchema.nullable().default(null),
   }),
   z.object({ status: z.literal("blocked"), code: z.enum(COMPETITOR_FAILURES) }),
 ]);

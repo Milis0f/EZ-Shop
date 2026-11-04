@@ -5,6 +5,7 @@ import { Funnel, TrendChart } from "@/components/store/store-charts";
 import { monthName, regionName } from "@/components/store/store-format";
 import { Button } from "@/components/ui/button";
 import type { SalesEstimate } from "@/domain/competitor";
+import { IntelPanels } from "./competitor-intel";
 import { useFormat, useMessages } from "@/i18n/client";
 import { t } from "@/i18n/translate";
 import { CatalogueBlock } from "./competitor-catalogue";
@@ -307,6 +308,7 @@ export function VisibilityTab({ result }: { readonly result: Ready }) {
           </li>
         </ul>
       </ReportPanel>
+      <IntelPanels result={result} />
     </div>
   );
 }
