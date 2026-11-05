@@ -56,3 +56,6 @@ next-env.d.ts
 .superpowers/
 /Screenshot*.png
 /20.9.0
+
+# Windows launcher, built by desktop/build-exe.ps1
+/EZ-Shop.exe
