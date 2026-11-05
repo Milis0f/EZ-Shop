@@ -101,18 +101,46 @@ function withCeiling(work: Promise<unknown>, ms: number, onLate: () => void): Pr
   return Promise.race([work.finally(() => clearTimeout(timer)), late]);
 }
 
-/** Runs tasks one at a time; a task's `settled` keeps the queue closed until its generation really stopped. */
-function createSerialQueue() {
+/**
+ * Runs tasks one at a time; a task's `settled` keeps the queue closed until its generation really
+ * stopped. It also counts the tasks not yet stopped and when the last one stopped, so an unused model
+ * can be freed.
+ */
+export function createSerialQueue(now: () => number = Date.now) {
   let tail: Promise<unknown> = Promise.resolve();
+  let pending = 0;
+  let lastActivity = now();
   function enqueue<T>(start: () => Promise<{ result: Promise<T>; settled: Promise<unknown> }>): Promise<T> {
+    pending += 1;
+    lastActivity = now();
     const started = tail.then(start);
-    tail = started.then(
-      (s) => s.settled,
-      () => undefined,
-    );
+    tail = started
+      .then(
+        (s) => s.settled,
+        () => undefined,
+      )
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      .finally(() => {
+        pending -= 1;
+        lastActivity = now();
+      });
     return started.then((s) => s.result);
   }
-  return { enqueue, idle: () => tail };
+  return { enqueue, idle: () => tail, pending: () => pending, lastActivity: () => lastActivity };
+}
+
+/**
+ * A model left unused this long is freed: the 5 to 17 GB it holds on the card and in memory go back to
+ * the PC (games, other apps). The next AI request loads it again, which takes a few seconds.
+ */
+export const IDLE_RELEASE_MS = 10 * 60_000;
+const IDLE_CHECK_MS = 60_000;
+
+export function shouldRelease(pending: number, lastActivity: number, now: number, idleMs: number = IDLE_RELEASE_MS): boolean {
+  return idleMs > 0 && pending === 0 && now - lastActivity >= idleMs;
 }
 
 interface LoadedRuntime {
@@ -295,6 +323,19 @@ async function load(state: EngineState, modelPath: string, gpu: boolean): Promis
     state.runtime = runtime;
     state.idle = queue.idle;
     state.failure = undefined;
+    // Frees this model once it has been idle long enough; stops watching when another model replaced it.
+    const watch = setInterval(() => {
+      if (state.runtime !== runtime) {
+        clearInterval(watch);
+        return;
+      }
+      if (!state.loading && shouldRelease(queue.pending(), queue.lastActivity(), Date.now())) {
+        clearInterval(watch);
+        console.warn("[ai] model unused for 10 minutes: freed from the card and memory");
+        void releaseLocalAiEngine();
+      }
+    }, IDLE_CHECK_MS);
+    watch.unref?.();
     return { ok: true, engine };
   } catch (error) {
     // The whole error in the server log (it may name a path); the visitor only gets its name.
