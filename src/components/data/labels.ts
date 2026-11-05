@@ -1,3 +1,4 @@
+import { REGION_NAMES } from "@/domain/place-names";
 import { Fragment, createElement, type ReactNode } from "react";
 import { originName, type OriginCode } from "@/domain/origin";
 import { sourceName } from "@/engine/report/localize";
@@ -22,7 +23,7 @@ export const byId = (table: Readonly<Record<string, string>>, id: string, fallba
 
 export function originCountryName(code: OriginCode, locale: Locale): string {
   if (locale === "fr") return originName(code);
-  return new Intl.DisplayNames([INTL_LOCALES[locale]], { type: "region" }).of(code) ?? code;
+  return REGION_NAMES[locale][code] ?? code;
 }
 
 /** Labels for the machine-readable `missing` entries of DATA_INSUFFICIENT values (sources or inputs). */

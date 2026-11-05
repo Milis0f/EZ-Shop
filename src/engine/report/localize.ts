@@ -1,3 +1,4 @@
+import { LANGUAGE_NAMES, REGION_NAMES } from "@/domain/place-names";
 import { COUNTRIES, LANGUAGE_LABELS_FR, type CountryCode, type LanguageCode } from "@/domain/country";
 import { MONTH_LABELS_FR } from "@/domain/time";
 import { INTL_LOCALES, type Locale } from "@/i18n/config";
@@ -36,15 +37,17 @@ export const monthLongName = (month: number, locale: Locale): string =>
 
 const monthLongList = (months: readonly number[], locale: Locale): string => months.map((m) => monthLongName(m, locale)).join(", ");
 
+/** Fixed names (src/domain/place-names.ts): a report reads the same wherever it is rendered. */
 export function countryName(code: CountryCode, locale: Locale): string {
   if (locale === "fr") return COUNTRIES[code].nameFr;
-  if (locale === "en") return COUNTRIES[code].nameEn;
-  return new Intl.DisplayNames([INTL_LOCALES[locale]], { type: "region" }).of(code) ?? COUNTRIES[code].nameEn;
+  return REGION_NAMES[locale][code] ?? COUNTRIES[code].nameEn;
 }
 
+/** In running text: lower case in Spanish (« alemán »), as Intl wrote it before. */
 export function languageName(code: LanguageCode, locale: Locale): string {
   if (locale === "fr") return LANGUAGE_LABELS_FR[code];
-  return new Intl.DisplayNames([INTL_LOCALES[locale]], { type: "language" }).of(code) ?? code;
+  const name = LANGUAGE_NAMES[locale][code];
+  return locale === "es" ? name.toLocaleLowerCase("es-ES") : name;
 }
 
 const lookup = (table: Readonly<Record<string, string>>, id: string): string | undefined =>

@@ -94,11 +94,10 @@
     ai-breathe-glow 3.2s ease-in-out infinite;
 }
 
-/* Ready: the light keeps turning, very slowly. */
-.ai-aura[data-state="ready"]::before,
-.ai-aura[data-state="ready"]::after {
-  animation: ai-spin 18s linear infinite;
-}
+/*
+ * Ready: the light stands still. A tile's light can only turn by repainting its blurred gradient on
+ * every frame, and a ready tile stays on screen for as long as the page: it turns while the AI thinks.
+ */
 
 /* Off: no light, the plain hairline of any tile. */
 .ai-aura[data-state="off"]::before,

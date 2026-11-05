@@ -272,6 +272,27 @@
   }
 }
 
+/* Narrow screens: a side button's card would leave the window; it opens under the button, on the inner side. */
+@media (min-width: 720px) and (max-width: 1180px) {
+  .orbit-place[data-side="right"] .orbit-panel,
+  .orbit-place[data-side="left"] .orbit-panel {
+    top: 100%;
+    padding: 0.75rem 0 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  .orbit-place[data-side="right"] .orbit-panel {
+    left: auto;
+    right: 0;
+  }
+  .orbit-place[data-side="left"] .orbit-panel {
+    right: auto;
+    left: 0;
+  }
+  .orbit-place:is(:hover, :focus-within, [data-open]):is([data-side="right"], [data-side="left"]) .orbit-panel {
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* Phones: the planet on top, its places in a grid under it, their choices opening in place. */
 @media (max-width: 719px) {
   .orbit-hub {
@@ -344,11 +365,22 @@
   width: 2.75rem;
   height: 2.75rem;
   place-items: center;
+  isolation: isolate;
   border-radius: 9999px;
-  background: conic-gradient(from var(--eclipse-angle, 0deg), #fff, oklch(0.9 0.07 250), #fff 35%, oklch(0.91 0.07 330), #fff 68%, oklch(0.93 0.07 170), #fff);
   box-shadow: 0 0 22px color-mix(in oklab, #fff 28%, transparent);
-  animation: eclipse-turn 12s linear infinite;
   transition: transform var(--dur-base) var(--ease-spring);
+}
+
+/* The light turns on its own layer, so the button can still grow on hover. */
+.orbit-dock-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(#fff, oklch(0.9 0.07 250), #fff 35%, oklch(0.91 0.07 330), #fff 68%, oklch(0.93 0.07 170), #fff);
+  will-change: transform;
+  animation: eclipse-spin 12s linear infinite;
 }
 
 .orbit-dock-ring:hover {
@@ -459,7 +491,8 @@
   .orbit-ring,
   .orbit-place,
   .orbit-ai,
-  .orbit-dock-ring {
+  .orbit-dock-ring,
+  .orbit-dock-ring::before {
     animation: none !important;
   }
 }

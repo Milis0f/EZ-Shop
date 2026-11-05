@@ -46,8 +46,9 @@
   background: var(--eclipse-light);
   filter: blur(60px);
   opacity: 0.3;
+  will-change: transform;
   animation:
-    eclipse-turn 16s linear infinite,
+    eclipse-spin 16s linear infinite,
     eclipse-breathe 7s ease-in-out infinite;
 }
 
@@ -56,7 +57,8 @@
   aspect-ratio: 1;
   background: var(--eclipse-light);
   filter: blur(5px);
-  animation: eclipse-turn 16s linear infinite;
+  will-change: transform;
+  animation: eclipse-spin 16s linear infinite;
 }
 
 /* The verdict's light: it rises around the planet once the answer is there, the white halo dims under it. */
@@ -98,7 +100,7 @@
 
 .eclipse[data-halo="off"] .eclipse-glow {
   opacity: 0;
-  animation-name: eclipse-turn;
+  animation-name: eclipse-spin;
 }
 
 .eclipse[data-verdict] .eclipse-corona {
@@ -107,7 +109,7 @@
 
 .eclipse[data-verdict] .eclipse-glow {
   opacity: 0.12;
-  animation-name: eclipse-turn;
+  animation-name: eclipse-spin;
 }
 
 .eclipse-disc {
@@ -124,6 +126,16 @@
 @keyframes eclipse-turn {
   to {
     --eclipse-angle: 360deg;
+  }
+}
+
+/*
+ * The light of a round shape turns by rotating the shape itself: the browser keeps it as a ready layer
+ * and only turns it, where animating the gradient's angle repainted and re-blurred it on every frame.
+ */
+@keyframes eclipse-spin {
+  to {
+    transform: rotate(1turn);
   }
 }
 
@@ -256,7 +268,11 @@
  * page, and the height of its centre there.
  */
 :root {
-  --planet-size: min(46rem, 84vh);
+  /*
+   * The height sets the size, and so does the width: on a narrow, tall screen the orbit (the planet's
+   * radius plus 5.25rem on each side) and its buttons (about 11rem wide) must stay inside the window.
+   */
+  --planet-size: min(46rem, 84vh, calc((100vw - 23.5rem) / var(--hub-scale)));
   --hub-scale: 0.74;
   --hub-y: 47vh;
 }
@@ -435,8 +451,13 @@ html[data-mode="advanced"] .planet-stage[data-pose="home"] {
   mask-image: conic-gradient(#000 calc(var(--progress, 0) * 1turn), transparent calc(var(--progress, 0) * 1turn + 0.02turn));
 }
 
+/*
+ * The progress mask must stay put while the light moves under it: during an analysis (a few seconds)
+ * the light turns through its gradient's angle again rather than by rotating the disc.
+ */
 .planet-stage[data-pose="analysing"] .eclipse .eclipse-corona {
   opacity: 1;
+  animation-name: eclipse-turn;
 }
 
 .planet-stage[data-pose="analysing"] .eclipse .eclipse-glow {
@@ -608,11 +629,12 @@ html[data-analysing] .planet-steps-back {
   filter: blur(14px);
   opacity: 0.14;
   transition: opacity var(--dur-slow) var(--ease-out);
-  animation: eclipse-turn 12s linear infinite;
 }
 
+/* The light turns under the pointer only: a capsule cannot rotate, so turning means repainting. */
 .capsule-light:hover::before {
   opacity: 0.26;
+  animation: eclipse-turn 12s linear infinite;
 }
 
 .capsule-light:has(input:focus)::before {
